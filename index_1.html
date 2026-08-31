@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Friday Poker League</title>
+<style>
+:root {
+  --bg: #0f1720;
+  --card-bg: #182430;
+  --text: #eef2f6;
+  --muted: #9aa9b8;
+  --accent: #2fae60;
+  --accent-2: #d64545;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  padding: 20px 16px 12px;
+  text-align: center;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.container {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+#status {
+  font-weight: 600;
+}
+
+#status.ok { color: var(--accent); }
+#status.error { color: var(--accent-2); }
+
+.app-footer {
+  text-align: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+</style>
+</head>
+<body>
+  <header class="app-header">
+    <h1>🂡 Friday Poker League</h1>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Phase 2 connection check</h2>
+      <p id="status">Connecting to the database…</p>
+      <p id="season-count"></p>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Friday Poker League &mdash; built in phases</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // Friday Poker League — shared configuration
+    // The URL and "anon" key below are safe to be public: they only ever
+    // let a visitor READ data. All write access is enforced by database
+    // rules (row-level security), not by anything in this file.
+    // ------------------------------------------------------------------
+    const SUPABASE_URL = "https://kvdsmrlzsjzovbegdalq.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2ZHNtcmx6c2p6b3ZiZWdkYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTQ4MzAsImV4cCI6MjEwMzc3MDgzMH0.gGIFNPXR7b4Iq_eRiFIEr4-TF6UE53HKvwXnKX8caxM";
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function checkConnection() {
+      const statusEl = document.getElementById("status");
+      const countEl = document.getElementById("season-count");
+
+      const { data, error, count } = await supabase
+        .from("seasons")
+        .select("*", { count: "exact" });
+
+      if (error) {
+        statusEl.textContent = "Could not reach the database: " + error.message;
+        statusEl.className = "error";
+        return;
+      }
+
+      statusEl.textContent = "Connected to the shared database.";
+      statusEl.className = "ok";
+      countEl.textContent = `Seasons found: ${count ?? data.length} (this is expected to be 0 until Phase 3).`;
+    }
+
+    checkConnection();
+  </script>
+</body>
+</html>

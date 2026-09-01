@@ -101,25 +101,30 @@ body {
     const SUPABASE_URL = "https://kvdsmrlzsjzovbegdalq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2ZHNtcmx6c2p6b3ZiZWdkYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTQ4MzAsImV4cCI6MjEwMzc3MDgzMH0.gGIFNPXR7b4Iq_eRiFIEr4-TF6UE53HKvwXnKX8caxM";
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     async function checkConnection() {
       const statusEl = document.getElementById("status");
       const countEl = document.getElementById("season-count");
 
-      const { data, error, count } = await supabase
-        .from("seasons")
-        .select("*", { count: "exact" });
+      try {
+        const { data, error, count } = await supabaseClient
+          .from("seasons")
+          .select("*", { count: "exact" });
 
-      if (error) {
-        statusEl.textContent = "Could not reach the database: " + error.message;
+        if (error) {
+          statusEl.textContent = "Could not reach the database: " + error.message;
+          statusEl.className = "error";
+          return;
+        }
+
+        statusEl.textContent = "Connected to the shared database.";
+        statusEl.className = "ok";
+        countEl.textContent = `Seasons found: ${count ?? data.length} (this is expected to be 0 until Phase 3).`;
+      } catch (err) {
+        statusEl.textContent = "Unexpected error: " + err.message;
         statusEl.className = "error";
-        return;
       }
-
-      statusEl.textContent = "Connected to the shared database.";
-      statusEl.className = "ok";
-      countEl.textContent = `Seasons found: ${count ?? data.length} (this is expected to be 0 until Phase 3).`;
     }
 
     checkConnection();

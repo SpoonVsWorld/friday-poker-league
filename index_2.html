@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Friday Poker League</title>
+<style>
+:root {
+  --bg: #0f1720;
+  --card-bg: #182430;
+  --field-bg: #101a24;
+  --border: #263340;
+  --text: #eef2f6;
+  --muted: #9aa9b8;
+  --accent: #2fae60;
+  --accent-2: #d64545;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  padding: 20px 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  position: relative;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  text-align: center;
+}
+
+.link-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  position: absolute;
+  right: 16px;
+}
+
+.link-btn:active { opacity: 0.7; }
+
+.container {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.muted { color: var(--muted); font-size: 0.9rem; }
+
+form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+input {
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 1rem;
+}
+
+input:focus { outline: 2px solid var(--accent); }
+
+button[type="submit"], .btn {
+  background: var(--accent);
+  color: #06210f;
+  border: none;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button[type="submit"]:active, .btn:active { opacity: 0.85; }
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  border-radius: 8px;
+}
+
+.btn-danger { background: var(--accent-2); color: #2a0a0a; }
+.btn-secondary { background: var(--field-bg); color: var(--text); border: 1px solid var(--border); }
+
+.error { color: var(--accent-2); font-size: 0.85rem; min-height: 1.1em; margin: 0; }
+.ok { color: var(--accent); }
+
+.admin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-bar span { font-size: 0.85rem; color: var(--muted); }
+
+ul#player-list, ul#season-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-row, .season-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.player-info, .season-info { display: flex; flex-direction: column; }
+.player-info .nickname, .season-info .dates { font-size: 0.78rem; color: var(--muted); }
+
+.player-info.inactive .name { text-decoration: line-through; color: var(--muted); }
+
+.row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #06210f;
+}
+
+.app-footer {
+  text-align: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+</style>
+</head>
+<body>
+  <header class="app-header">
+    <h1>🂡 Friday Poker League</h1>
+    <button id="admin-toggle" class="link-btn" type="button">Admin</button>
+  </header>
+
+  <main class="container">
+    <!-- ===================== PUBLIC VIEW ===================== -->
+    <section id="public-view" class="card">
+      <h2>League</h2>
+      <p class="muted">Standings, Friday results, tournament history, and season high hand will appear here in later phases.</p>
+    </section>
+
+    <!-- ===================== ADMIN VIEW ===================== -->
+    <section id="admin-view" class="card" hidden>
+
+      <!-- Login form -->
+      <div id="admin-login">
+        <h2>Admin Login</h2>
+        <form id="login-form">
+          <label>Email
+            <input type="email" id="login-email" required autocomplete="username">
+          </label>
+          <label>Password
+            <input type="password" id="login-password" required autocomplete="current-password">
+          </label>
+          <button type="submit">Log In</button>
+          <p id="login-error" class="error"></p>
+        </form>
+      </div>
+
+      <!-- Admin dashboard, shown once logged in -->
+      <div id="admin-dashboard" hidden>
+        <div class="admin-bar">
+          <span id="admin-email"></span>
+          <button id="logout-btn" class="btn btn-small btn-secondary" type="button">Log Out</button>
+        </div>
+
+        <h2>Seasons</h2>
+        <form id="add-season-form">
+          <label>Season name
+            <input type="text" id="new-season-name" placeholder="e.g. Fall 2026" required>
+          </label>
+          <label>Start date
+            <input type="date" id="new-season-start" required>
+          </label>
+          <button type="submit">Create Season</button>
+        </form>
+        <p id="season-error" class="error"></p>
+        <ul id="season-list"></ul>
+
+        <h2 style="margin-top:24px;">Players</h2>
+        <form id="add-player-form">
+          <label>Player name
+            <input type="text" id="new-player-name" placeholder="Full name" required>
+          </label>
+          <label>Nickname (optional)
+            <input type="text" id="new-player-nickname" placeholder="Nickname">
+          </label>
+          <button type="submit">Add Player</button>
+        </form>
+        <p id="player-error" class="error"></p>
+        <ul id="player-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Friday Poker League &mdash; built in phases</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // Shared configuration
+    // The URL and "anon" key below are safe to be public: they only ever
+    // let a visitor READ data. All write access is enforced by database
+    // rules (row-level security), not by anything in this file.
+    // ------------------------------------------------------------------
+    const SUPABASE_URL = "https://kvdsmrlzsjzovbegdalq.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2ZHNtcmx6c2p6b3ZiZWdkYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTQ4MzAsImV4cCI6MjEwMzc3MDgzMH0.gGIFNPXR7b4Iq_eRiFIEr4-TF6UE53HKvwXnKX8caxM";
+
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ------------------------------------------------------------------
+    // Elements
+    // ------------------------------------------------------------------
+    const adminToggle = document.getElementById("admin-toggle");
+    const publicView = document.getElementById("public-view");
+    const adminView = document.getElementById("admin-view");
+    const adminLogin = document.getElementById("admin-login");
+    const adminDashboard = document.getElementById("admin-dashboard");
+    const loginForm = document.getElementById("login-form");
+    const loginError = document.getElementById("login-error");
+    const adminEmailEl = document.getElementById("admin-email");
+    const logoutBtn = document.getElementById("logout-btn");
+
+    const addPlayerForm = document.getElementById("add-player-form");
+    const playerError = document.getElementById("player-error");
+    const playerList = document.getElementById("player-list");
+
+    const addSeasonForm = document.getElementById("add-season-form");
+    const seasonError = document.getElementById("season-error");
+    const seasonList = document.getElementById("season-list");
+
+    let adminViewOpen = false;
+
+    // ------------------------------------------------------------------
+    // Navigation: toggle between the public view and the admin panel
+    // ------------------------------------------------------------------
+    adminToggle.addEventListener("click", () => {
+      adminViewOpen = !adminViewOpen;
+      publicView.hidden = adminViewOpen;
+      adminView.hidden = !adminViewOpen;
+      adminToggle.textContent = adminViewOpen ? "Close" : "Admin";
+    });
+
+    // ------------------------------------------------------------------
+    // Auth
+    // ------------------------------------------------------------------
+    async function showLoggedIn(session) {
+      adminLogin.hidden = true;
+      adminDashboard.hidden = false;
+      adminEmailEl.textContent = session.user.email;
+      await Promise.all([loadPlayers(), loadSeasons()]);
+    }
+
+    function showLoggedOut() {
+      adminLogin.hidden = false;
+      adminDashboard.hidden = true;
+      loginForm.reset();
+    }
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      if (session) showLoggedIn(session);
+      else showLoggedOut();
+    });
+
+    // Check for an already-active session on page load
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session) showLoggedIn(data.session);
+    });
+
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginError.textContent = "";
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value;
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        loginError.textContent = error.message;
+        return;
+      }
+      await showLoggedIn(data.session);
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      await supabaseClient.auth.signOut();
+      showLoggedOut();
+    });
+
+    // ------------------------------------------------------------------
+    // Players
+    // ------------------------------------------------------------------
+    async function loadPlayers() {
+      playerError.textContent = "";
+      const { data, error } = await supabaseClient
+        .from("players")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        playerError.textContent = "Could not load players: " + error.message;
+        return;
+      }
+      renderPlayers(data);
+    }
+
+    function renderPlayers(players) {
+      playerList.innerHTML = "";
+      if (!players.length) {
+        playerList.innerHTML = '<li class="muted">No players yet. Add your first player above.</li>';
+        return;
+      }
+      for (const p of players) {
+        const li = document.createElement("li");
+        li.className = "player-row";
+        li.innerHTML = `
+          <div class="player-info ${p.is_active ? "" : "inactive"}">
+            <span class="name">${escapeHtml(p.name)}</span>
+            ${p.nickname ? `<span class="nickname">"${escapeHtml(p.nickname)}"</span>` : ""}
+          </div>
+          <div class="row-actions">
+            <button class="btn btn-small btn-secondary" data-action="rename">Rename</button>
+            <button class="btn btn-small ${p.is_active ? "btn-danger" : ""}" data-action="toggle">
+              ${p.is_active ? "Deactivate" : "Reactivate"}
+            </button>
+          </div>
+        `;
+        li.querySelector('[data-action="rename"]').addEventListener("click", () => renamePlayer(p));
+        li.querySelector('[data-action="toggle"]').addEventListener("click", () => togglePlayerActive(p));
+        playerList.appendChild(li);
+      }
+    }
+
+    addPlayerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      playerError.textContent = "";
+      const name = document.getElementById("new-player-name").value.trim();
+      const nickname = document.getElementById("new-player-nickname").value.trim();
+
+      if (!name) return;
+
+      const { error } = await supabaseClient
+        .from("players")
+        .insert({ name, nickname: nickname || null });
+
+      if (error) {
+        playerError.textContent = "Could not add player: " + error.message;
+        return;
+      }
+      addPlayerForm.reset();
+      loadPlayers();
+    });
+
+    async function renamePlayer(player) {
+      const newName = window.prompt("Player name:", player.name);
+      if (newName === null) return;
+      const newNickname = window.prompt("Nickname (leave blank for none):", player.nickname || "");
+      if (newNickname === null) return;
+
+      const { error } = await supabaseClient
+        .from("players")
+        .update({ name: newName.trim(), nickname: newNickname.trim() || null })
+        .eq("id", player.id);
+
+      if (error) {
+        playerError.textContent = "Could not update player: " + error.message;
+        return;
+      }
+      loadPlayers();
+    }
+
+    async function togglePlayerActive(player) {
+      const verb = player.is_active ? "deactivate" : "reactivate";
+      if (!window.confirm(`Are you sure you want to ${verb} ${player.name}?`)) return;
+
+      const { error } = await supabaseClient
+        .from("players")
+        .update({ is_active: !player.is_active })
+        .eq("id", player.id);
+
+      if (error) {
+        playerError.textContent = "Could not update player: " + error.message;
+        return;
+      }
+      loadPlayers();
+    }
+
+    // ------------------------------------------------------------------
+    // Seasons
+    // ------------------------------------------------------------------
+    async function loadSeasons() {
+      seasonError.textContent = "";
+      const { data, error } = await supabaseClient
+        .from("seasons")
+        .select("*")
+        .order("start_date", { ascending: false });
+
+      if (error) {
+        seasonError.textContent = "Could not load seasons: " + error.message;
+        return;
+      }
+      renderSeasons(data);
+    }
+
+    function renderSeasons(seasons) {
+      seasonList.innerHTML = "";
+      if (!seasons.length) {
+        seasonList.innerHTML = '<li class="muted">No seasons yet. Create your first season above.</li>';
+        return;
+      }
+      for (const s of seasons) {
+        const li = document.createElement("li");
+        li.className = "season-row";
+        li.innerHTML = `
+          <div class="season-info">
+            <span class="name">${escapeHtml(s.name)} ${s.is_active ? '<span class="badge">ACTIVE</span>' : ""}</span>
+            <span class="dates">${s.start_date}${s.end_date ? " – " + s.end_date : ""}</span>
+          </div>
+          <div class="row-actions">
+            ${s.is_active ? "" : '<button class="btn btn-small btn-secondary" data-action="activate">Make Active</button>'}
+          </div>
+        `;
+        const activateBtn = li.querySelector('[data-action="activate"]');
+        if (activateBtn) activateBtn.addEventListener("click", () => makeSeasonActive(s));
+        seasonList.appendChild(li);
+      }
+    }
+
+    addSeasonForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      seasonError.textContent = "";
+      const name = document.getElementById("new-season-name").value.trim();
+      const start_date = document.getElementById("new-season-start").value;
+      if (!name || !start_date) return;
+
+      const { error } = await supabaseClient
+        .from("seasons")
+        .insert({ name, start_date });
+
+      if (error) {
+        seasonError.textContent = "Could not create season: " + error.message;
+        return;
+      }
+      addSeasonForm.reset();
+      loadSeasons();
+    });
+
+    async function makeSeasonActive(season) {
+      if (!window.confirm(`Make "${season.name}" the active season? Any currently active season will be closed.`)) return;
+
+      // Step 1: deactivate whichever season is currently active
+      const { error: clearError } = await supabaseClient
+        .from("seasons")
+        .update({ is_active: false })
+        .eq("is_active", true);
+
+      if (clearError) {
+        seasonError.textContent = "Could not update seasons: " + clearError.message;
+        return;
+      }
+
+      // Step 2: activate the chosen season
+      const { error: setError } = await supabaseClient
+        .from("seasons")
+        .update({ is_active: true })
+        .eq("id", season.id);
+
+      if (setError) {
+        seasonError.textContent = "Could not activate season: " + setError.message;
+        return;
+      }
+      loadSeasons();
+    }
+
+    // ------------------------------------------------------------------
+    // Utility
+    // ------------------------------------------------------------------
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

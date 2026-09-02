@@ -179,6 +179,22 @@
         </form>
         <p id="player-error" class="error"></p>
         <ul id="player-list"></ul>
+
+        <h2 style="margin-top:24px;">Export &amp; Backup</h2>
+        <label>Season for the exports below
+          <select id="export-season-select"></select>
+        </label>
+        <p class="muted" style="margin-top:6px;">These download straight to your device — nothing is emailed or uploaded anywhere.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+          <button id="export-standings-btn" class="btn btn-small btn-secondary" type="button">Standings (CSV)</button>
+          <button id="export-results-btn" class="btn btn-small btn-secondary" type="button">Results History (CSV)</button>
+          <button id="export-highhands-btn" class="btn btn-small btn-secondary" type="button">High Hands (CSV)</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+          <button id="export-players-btn" class="btn btn-small btn-secondary" type="button">Players (CSV)</button>
+          <button id="export-backup-btn" class="btn btn-small" type="button">Full Backup — All Seasons (JSON)</button>
+        </div>
+        <p id="export-error" class="error"></p>
       </div>
     </section>
   </main>

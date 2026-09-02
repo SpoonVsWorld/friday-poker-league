@@ -1,4 +1,5 @@
-  // Shared configuration
+/ ------------------------------------------------------------------
+    // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
     // let a visitor READ data. All write access is enforced by database
     // rules (row-level security), not by anything in this file.
@@ -56,12 +57,60 @@
     const fridayDetailMeta = document.getElementById("friday-detail-meta");
     const fridayDetailBody = document.getElementById("friday-detail-body");
  
+    const seasonHighHandBox = document.getElementById("season-high-hand-box");
+    const publicHighHandList = document.getElementById("public-highhand-list");
+ 
+    const hhDateInput = document.getElementById("hh-date-input");
+    const hhPlayerSelect = document.getElementById("hh-player-select");
+    const hhPreview = document.getElementById("hh-preview");
+    const addHighHandForm = document.getElementById("add-highhand-form");
+    const highHandError = document.getElementById("highhand-error");
+    const hhCancelEditBtn = document.getElementById("hh-cancel-edit-btn");
+    const highHandList = document.getElementById("highhand-list");
+    const hhCardRows = [...document.querySelectorAll(".card-input-row")];
+ 
     const PLACEMENT_POINTS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
     const ORDINALS = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
+ 
+    // Card ranks/suits used for High Hand entry. Cards are stored as short
+    // codes like "AS" (Ace of Spades) or "TD" (Ten of Diamonds).
+    const RANK_OPTIONS = [
+      { value: "2", label: "2", numeric: 2 },
+      { value: "3", label: "3", numeric: 3 },
+      { value: "4", label: "4", numeric: 4 },
+      { value: "5", label: "5", numeric: 5 },
+      { value: "6", label: "6", numeric: 6 },
+      { value: "7", label: "7", numeric: 7 },
+      { value: "8", label: "8", numeric: 8 },
+      { value: "9", label: "9", numeric: 9 },
+      { value: "T", label: "10", numeric: 10 },
+      { value: "J", label: "J", numeric: 11 },
+      { value: "Q", label: "Q", numeric: 12 },
+      { value: "K", label: "K", numeric: 13 },
+      { value: "A", label: "A", numeric: 14 },
+    ];
+    const RANK_NUMERIC = Object.fromEntries(RANK_OPTIONS.map((r) => [r.value, r.numeric]));
+    const RANK_NAME_SINGULAR = {
+      2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven",
+      8: "Eight", 9: "Nine", 10: "Ten", 11: "Jack", 12: "Queen", 13: "King", 14: "Ace",
+    };
+    const RANK_NAME_PLURAL = {
+      2: "Twos", 3: "Threes", 4: "Fours", 5: "Fives", 6: "Sixes", 7: "Sevens",
+      8: "Eights", 9: "Nines", 10: "Tens", 11: "Jacks", 12: "Queens", 13: "Kings", 14: "Aces",
+    };
+    const SUIT_OPTIONS = [
+      { value: "S", label: "♠ Spades" },
+      { value: "H", label: "♥ Hearts" },
+      { value: "D", label: "♦ Diamonds" },
+      { value: "C", label: "♣ Clubs" },
+    ];
+    const SUIT_SYMBOL = { S: "♠", H: "♥", D: "♦", C: "♣" };
+    const SUIT_COLOR = { S: "black", H: "red", D: "red", C: "black" };
  
     let adminViewOpen = false;
     let activeSeason = null;
     let currentFridayId = null;
+    let editingHighHandId = null;
  
     // ------------------------------------------------------------------
     // Navigation: toggle between the public view and the admin panel
@@ -80,7 +129,7 @@
       adminLogin.hidden = true;
       adminDashboard.hidden = false;
       adminEmailEl.textContent = session.user.email;
-      await Promise.all([loadPlayers(), loadSeasons()]);
+      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin()]);
     }
  
     function showLoggedOut() {
@@ -181,6 +230,7 @@
       addPlayerForm.reset();
       loadPlayers();
       if (activeSeason) loadActivePlayersForResults().then(loadResultsForSelectedDate);
+      loadPlayersForHighHand();
       refreshPublicView();
     });
  
@@ -201,6 +251,7 @@
       }
       loadPlayers();
       if (activeSeason) loadActivePlayersForResults().then(loadResultsForSelectedDate);
+      loadPlayersForHighHand();
       refreshPublicView();
     }
  
@@ -219,6 +270,7 @@
       }
       loadPlayers();
       if (activeSeason) loadActivePlayersForResults().then(loadResultsForSelectedDate);
+      loadPlayersForHighHand();
       refreshPublicView();
     }
  
@@ -634,6 +686,339 @@
     }
  
     // ------------------------------------------------------------------
+    // High Hands — poker hand evaluation + admin entry
+    // ------------------------------------------------------------------
+ 
+    // Works out what a 5-card hand is (Royal Flush ... High Card), its
+    // tiebreak ranks (for comparing two hands of the same category), and a
+    // human-readable description — all calculated automatically so no one
+    // has to type in "Full House" by hand and get it wrong.
+    function evaluatePokerHand(cards) {
+      const parsed = cards.map((c) => ({ rank: RANK_NUMERIC[c.slice(0, -1)], suit: c.slice(-1) }));
+      const ranks = parsed.map((c) => c.rank).sort((a, b) => b - a);
+      const isFlush = parsed.every((c) => c.suit === parsed[0].suit);
+ 
+      const uniqueRanks = [...new Set(ranks)];
+      let isStraight = false;
+      let straightHigh = null;
+      if (uniqueRanks.length === 5) {
+        if (uniqueRanks[0] - uniqueRanks[4] === 4) {
+          isStraight = true;
+          straightHigh = uniqueRanks[0];
+        } else if (uniqueRanks.join(",") === "14,5,4,3,2") {
+          // wheel: Ace-2-3-4-5, Ace plays low, straight is "5 high"
+          isStraight = true;
+          straightHigh = 5;
+        }
+      }
+ 
+      const countMap = new Map();
+      for (const r of ranks) countMap.set(r, (countMap.get(r) || 0) + 1);
+      const groups = [...countMap.entries()]
+        .map(([rank, count]) => ({ rank, count }))
+        .sort((a, b) => b.count - a.count || b.rank - a.rank);
+      const counts = groups.map((g) => g.count);
+ 
+      let category, tiebreak, description;
+ 
+      if (isStraight && isFlush && straightHigh === 14) {
+        category = 1;
+        tiebreak = [14];
+        description = "Royal Flush";
+      } else if (isStraight && isFlush) {
+        category = 2;
+        tiebreak = [straightHigh];
+        description = `Straight Flush, ${RANK_NAME_SINGULAR[straightHigh]} High`;
+      } else if (counts[0] === 4) {
+        category = 3;
+        tiebreak = [groups[0].rank, groups[1].rank];
+        description = `Four of a Kind, ${RANK_NAME_PLURAL[groups[0].rank]}`;
+      } else if (counts[0] === 3 && counts[1] === 2) {
+        category = 4;
+        tiebreak = [groups[0].rank, groups[1].rank];
+        description = `Full House, ${RANK_NAME_PLURAL[groups[0].rank]} full of ${RANK_NAME_PLURAL[groups[1].rank]}`;
+      } else if (isFlush) {
+        category = 5;
+        tiebreak = [...ranks];
+        description = `Flush, ${RANK_NAME_SINGULAR[ranks[0]]} High`;
+      } else if (isStraight) {
+        category = 6;
+        tiebreak = [straightHigh];
+        description = `Straight, ${RANK_NAME_SINGULAR[straightHigh]} High`;
+      } else if (counts[0] === 3) {
+        category = 7;
+        tiebreak = [groups[0].rank, groups[1].rank, groups[2].rank];
+        description = `Three of a Kind, ${RANK_NAME_PLURAL[groups[0].rank]}`;
+      } else if (counts[0] === 2 && counts[1] === 2) {
+        category = 8;
+        tiebreak = [groups[0].rank, groups[1].rank, groups[2].rank];
+        description = `Two Pair, ${RANK_NAME_PLURAL[groups[0].rank]} and ${RANK_NAME_PLURAL[groups[1].rank]}`;
+      } else if (counts[0] === 2) {
+        category = 9;
+        tiebreak = [groups[0].rank, groups[1].rank, groups[2].rank, groups[3].rank];
+        description = `Pair of ${RANK_NAME_PLURAL[groups[0].rank]}`;
+      } else {
+        category = 10;
+        tiebreak = [...ranks];
+        description = `High Card, ${RANK_NAME_SINGULAR[ranks[0]]}`;
+      }
+ 
+      return { category, tiebreak, description };
+    }
+ 
+    // Compares two hands (each with hand_category + tiebreak_ranks). Negative
+    // means "a" is the better hand — sorting an array with this puts the best
+    // hand first.
+    function compareHandStrength(a, b) {
+      if (a.hand_category !== b.hand_category) return a.hand_category - b.hand_category;
+      const len = Math.max(a.tiebreak_ranks.length, b.tiebreak_ranks.length);
+      for (let i = 0; i < len; i++) {
+        const va = a.tiebreak_ranks[i] ?? 0;
+        const vb = b.tiebreak_ranks[i] ?? 0;
+        if (va !== vb) return vb - va;
+      }
+      return 0;
+    }
+ 
+    function renderCardsInline(cards) {
+      return cards
+        .map((c) => {
+          const rank = c.slice(0, -1);
+          const suit = c.slice(-1);
+          const rankLabel = rank === "T" ? "10" : rank;
+          const color = SUIT_COLOR[suit] || "black";
+          return `<span class="card-chip card-${color}">${rankLabel}${SUIT_SYMBOL[suit] || suit}</span>`;
+        })
+        .join(" ");
+    }
+ 
+    // Populate the rank/suit dropdowns for each of the 5 card rows, once.
+    for (const row of hhCardRows) {
+      const rankSelect = row.querySelector(".hh-rank-select");
+      const suitSelect = row.querySelector(".hh-suit-select");
+      rankSelect.innerHTML =
+        '<option value="">Rank</option>' + RANK_OPTIONS.map((r) => `<option value="${r.value}">${r.label}</option>`).join("");
+      suitSelect.innerHTML =
+        '<option value="">Suit</option>' + SUIT_OPTIONS.map((s) => `<option value="${s.value}">${s.label}</option>`).join("");
+      rankSelect.addEventListener("change", updateHighHandPreview);
+      suitSelect.addEventListener("change", updateHighHandPreview);
+    }
+ 
+    if (hhDateInput) hhDateInput.value = todayIso();
+ 
+    function getSelectedCards() {
+      return hhCardRows.map((row) => {
+        const rank = row.querySelector(".hh-rank-select").value;
+        const suit = row.querySelector(".hh-suit-select").value;
+        return rank && suit ? rank + suit : null;
+      });
+    }
+ 
+    function updateHighHandPreview() {
+      const cards = getSelectedCards();
+      highHandError.textContent = "";
+      if (cards.some((c) => !c)) {
+        hhPreview.textContent = "Pick all 5 cards to see the hand.";
+        return;
+      }
+      if (new Set(cards).size !== 5) {
+        hhPreview.textContent = "";
+        highHandError.textContent = "Each card can only be used once.";
+        return;
+      }
+      const evalResult = evaluatePokerHand(cards);
+      hhPreview.innerHTML = `${renderCardsInline(cards)} &nbsp; <strong>${escapeHtml(evalResult.description)}</strong>`;
+    }
+ 
+    async function loadPlayersForHighHand() {
+      const { data, error } = await supabaseClient
+        .from("players")
+        .select("*")
+        .order("is_active", { ascending: false })
+        .order("name", { ascending: true });
+ 
+      if (error) {
+        highHandError.textContent = "Could not load players: " + error.message;
+        return;
+      }
+      const previousValue = hhPlayerSelect.value;
+      hhPlayerSelect.innerHTML = data
+        .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}${p.is_active ? "" : " (inactive)"}</option>`)
+        .join("");
+      if (previousValue) hhPlayerSelect.value = previousValue;
+    }
+ 
+    function resetHighHandForm() {
+      editingHighHandId = null;
+      addHighHandForm.reset();
+      hhDateInput.value = todayIso();
+      for (const row of hhCardRows) {
+        row.querySelector(".hh-rank-select").value = "";
+        row.querySelector(".hh-suit-select").value = "";
+      }
+      hhCancelEditBtn.hidden = true;
+      highHandError.textContent = "";
+      updateHighHandPreview();
+    }
+ 
+    hhCancelEditBtn.addEventListener("click", resetHighHandForm);
+ 
+    addHighHandForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      highHandError.textContent = "";
+      const date = hhDateInput.value;
+      const playerId = hhPlayerSelect.value;
+      const cards = getSelectedCards();
+ 
+      if (!date) {
+        highHandError.textContent = "Pick a date.";
+        return;
+      }
+      if (!playerId) {
+        highHandError.textContent = "Pick a player.";
+        return;
+      }
+      if (cards.some((c) => !c)) {
+        highHandError.textContent = "Pick all 5 cards.";
+        return;
+      }
+      if (new Set(cards).size !== 5) {
+        highHandError.textContent = "Each card can only be used once.";
+        return;
+      }
+      if (!activeSeason) {
+        highHandError.textContent = "Create and activate a season first.";
+        return;
+      }
+ 
+      const evalResult = evaluatePokerHand(cards);
+ 
+      // Find or create the Friday this hand happened on.
+      const { data: existingFriday, error: fridayLookupErr } = await supabaseClient
+        .from("fridays")
+        .select("*")
+        .eq("season_id", activeSeason.id)
+        .eq("game_date", date)
+        .maybeSingle();
+ 
+      if (fridayLookupErr) {
+        highHandError.textContent = "Could not check this date: " + fridayLookupErr.message;
+        return;
+      }
+ 
+      let fridayId;
+      if (existingFriday) {
+        fridayId = existingFriday.id;
+      } else {
+        const { data: inserted, error: insertFridayErr } = await supabaseClient
+          .from("fridays")
+          .insert({ season_id: activeSeason.id, game_date: date, status: "scheduled" })
+          .select()
+          .single();
+        if (insertFridayErr) {
+          highHandError.textContent = "Could not save this date: " + insertFridayErr.message;
+          return;
+        }
+        fridayId = inserted.id;
+      }
+ 
+      const payload = {
+        friday_id: fridayId,
+        player_id: playerId,
+        cards,
+        hand_category: evalResult.category,
+        tiebreak_ranks: evalResult.tiebreak,
+        description: evalResult.description,
+      };
+ 
+      if (editingHighHandId) {
+        const { error } = await supabaseClient.from("high_hands").update(payload).eq("id", editingHighHandId);
+        if (error) {
+          highHandError.textContent = "Could not update: " + error.message;
+          return;
+        }
+      } else {
+        const { error } = await supabaseClient.from("high_hands").insert(payload);
+        if (error) {
+          highHandError.textContent = "Could not save: " + error.message;
+          return;
+        }
+      }
+ 
+      resetHighHandForm();
+      loadHighHandsAdmin();
+      refreshPublicView();
+    });
+ 
+    async function loadHighHandsAdmin() {
+      const { data, error } = await supabaseClient
+        .from("high_hands")
+        .select("*, fridays(game_date, seasons(name)), players(name)")
+        .order("recorded_at", { ascending: false });
+ 
+      if (error) {
+        highHandList.innerHTML = `<li class="muted">Could not load high hands: ${escapeHtml(error.message)}</li>`;
+        return;
+      }
+      if (!data.length) {
+        highHandList.innerHTML = '<li class="muted">No high hands recorded yet.</li>';
+        return;
+      }
+ 
+      highHandList.innerHTML = "";
+      for (const hh of data) {
+        const li = document.createElement("li");
+        li.className = "friday-row";
+        li.innerHTML = `
+          <div class="player-info">
+            <span class="name">${escapeHtml(hh.players?.name || "Unknown")} &mdash; ${escapeHtml(hh.description)}</span>
+            <span class="nickname">${hh.fridays?.game_date || ""} &middot; ${escapeHtml(hh.fridays?.seasons?.name || "")}</span>
+          </div>
+          <div class="row-actions">
+            <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
+          </div>
+        `;
+        li.querySelector('[data-action="edit"]').addEventListener("click", () => editHighHand(hh));
+        li.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHighHand(hh));
+        highHandList.appendChild(li);
+      }
+    }
+ 
+    function editHighHand(hh) {
+      editingHighHandId = hh.id;
+      hhDateInput.value = hh.fridays?.game_date || todayIso();
+      hhPlayerSelect.value = hh.player_id;
+      hh.cards.forEach((card, i) => {
+        const row = hhCardRows[i];
+        if (!row) return;
+        row.querySelector(".hh-rank-select").value = card.slice(0, -1);
+        row.querySelector(".hh-suit-select").value = card.slice(-1);
+      });
+      updateHighHandPreview();
+      hhCancelEditBtn.hidden = false;
+      window.scrollTo({ top: addHighHandForm.offsetTop, behavior: "smooth" });
+    }
+ 
+    async function deleteHighHand(hh) {
+      if (
+        !window.confirm(
+          `Delete this high hand — ${hh.description} by ${hh.players?.name || "Unknown"}? This cannot be undone.`
+        )
+      ) {
+        return;
+      }
+      const { error } = await supabaseClient.from("high_hands").delete().eq("id", hh.id);
+      if (error) {
+        highHandError.textContent = "Could not delete: " + error.message;
+        return;
+      }
+      if (editingHighHandId === hh.id) resetHighHandForm();
+      loadHighHandsAdmin();
+      refreshPublicView();
+    }
+ 
+    // ------------------------------------------------------------------
     // Public view: Standings / Players / Fridays
     // ------------------------------------------------------------------
  
@@ -641,6 +1026,7 @@
       loadStandings();
       loadPublicPlayers();
       loadPublicFridays();
+      loadHighHandsPublic();
     }
  
     function showPublicList() {
@@ -925,6 +1311,79 @@
       publicListView.hidden = true;
       publicPlayerProfile.hidden = true;
       publicFridayDetail.hidden = false;
+    }
+ 
+    async function loadHighHandsPublic() {
+      const { data: seasons, error: seasonErr } = await supabaseClient
+        .from("seasons")
+        .select("*")
+        .eq("is_active", true)
+        .limit(1);
+ 
+      const activeSeasonRow = !seasonErr && seasons ? seasons[0] : null;
+ 
+      const { data: allHands, error } = await supabaseClient
+        .from("high_hands")
+        .select("*, fridays(game_date, season_id, seasons(name)), players(name, nickname)")
+        .order("recorded_at", { ascending: false });
+ 
+      if (error) {
+        publicHighHandList.innerHTML = `<li class="muted">Could not load high hands: ${escapeHtml(error.message)}</li>`;
+        seasonHighHandBox.innerHTML = "";
+        return;
+      }
+ 
+      const hands = allHands || [];
+ 
+      // Work out the best hand within each season, so we can show the
+      // current season's best up top, and mark it in the full history below
+      // (which stays visible even after a new season high is recorded).
+      const bestBySeasonId = new Map();
+      for (const hh of hands) {
+        const seasonId = hh.fridays?.season_id;
+        if (!seasonId) continue;
+        const current = bestBySeasonId.get(seasonId);
+        if (!current || compareHandStrength(hh, current) < 0) {
+          bestBySeasonId.set(seasonId, hh);
+        }
+      }
+ 
+      if (!activeSeasonRow) {
+        seasonHighHandBox.innerHTML = '<p class="muted">No active season right now.</p>';
+      } else {
+        const best = bestBySeasonId.get(activeSeasonRow.id);
+        if (!best) {
+          seasonHighHandBox.innerHTML = `<p class="muted">No high hand recorded yet for ${escapeHtml(activeSeasonRow.name)}.</p>`;
+        } else {
+          seasonHighHandBox.innerHTML = `
+            <div class="high-hand-callout">
+              <div class="hh-callout-label">🏆 ${escapeHtml(activeSeasonRow.name)} High Hand</div>
+              <div class="hh-callout-cards">${renderCardsInline(best.cards)}</div>
+              <div class="hh-callout-desc">${escapeHtml(best.description)}</div>
+              <div class="hh-callout-meta">${escapeHtml(best.players?.name || "Unknown")} &middot; ${best.fridays?.game_date || ""}</div>
+            </div>
+          `;
+        }
+      }
+ 
+      if (!hands.length) {
+        publicHighHandList.innerHTML = '<li class="muted">No high hands recorded yet.</li>';
+        return;
+      }
+ 
+      publicHighHandList.innerHTML = hands
+        .map((hh) => {
+          const seasonBest = bestBySeasonId.get(hh.fridays?.season_id);
+          const isBest = seasonBest && seasonBest.id === hh.id;
+          return `
+        <li class="high-hand-item">
+          <div class="hh-item-cards">${renderCardsInline(hh.cards)}</div>
+          <div class="hh-item-desc">${escapeHtml(hh.description)}${isBest ? ' <span class="badge">SEASON BEST</span>' : ""}</div>
+          <div class="hh-item-meta muted">${escapeHtml(hh.players?.name || "Unknown")} &middot; ${hh.fridays?.game_date || ""} &middot; ${escapeHtml(hh.fridays?.seasons?.name || "")}</div>
+        </li>
+      `;
+        })
+        .join("");
     }
  
     refreshPublicView();

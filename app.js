@@ -1,3 +1,4 @@
+
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -332,12 +333,65 @@
           </div>
           <div class="row-actions">
             ${s.is_active ? "" : '<button class="btn btn-small btn-secondary" data-action="activate">Make Active</button>'}
+            <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
           </div>
         `;
         const activateBtn = li.querySelector('[data-action="activate"]');
         if (activateBtn) activateBtn.addEventListener("click", () => makeSeasonActive(s));
+        li.querySelector('[data-action="edit"]').addEventListener("click", () => editSeason(s));
+        li.querySelector('[data-action="delete"]').addEventListener("click", () => deleteSeason(s));
         seasonList.appendChild(li);
       }
+    }
+ 
+    async function editSeason(season) {
+      seasonError.textContent = "";
+      const newName = window.prompt("Season name:", season.name);
+      if (newName === null) return;
+      const trimmedName = newName.trim();
+      if (!trimmedName) {
+        seasonError.textContent = "Season name can't be blank.";
+        return;
+      }
+ 
+      const newStartDate = window.prompt("Start date (YYYY-MM-DD):", season.start_date);
+      if (newStartDate === null) return;
+      const trimmedDate = newStartDate.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedDate) || isNaN(Date.parse(trimmedDate))) {
+        seasonError.textContent = "Start date must be in YYYY-MM-DD format, like 2026-07-03.";
+        return;
+      }
+ 
+      const { error } = await supabaseClient
+        .from("seasons")
+        .update({ name: trimmedName, start_date: trimmedDate })
+        .eq("id", season.id);
+ 
+      if (error) {
+        seasonError.textContent = "Could not update season: " + error.message;
+        return;
+      }
+      loadSeasons();
+    }
+ 
+    async function deleteSeason(season) {
+      seasonError.textContent = "";
+      const typed = window.prompt(
+        `This permanently deletes "${season.name}" AND every Friday, result, and high hand recorded under it. This cannot be undone.\n\nIf you want a copy first, cancel this and use Export & Backup below.\n\nTo confirm, type the season name exactly: ${season.name}`
+      );
+      if (typed === null) return;
+      if (typed.trim() !== season.name) {
+        seasonError.textContent = "That didn't match the season name exactly, so nothing was deleted.";
+        return;
+      }
+ 
+      const { error } = await supabaseClient.from("seasons").delete().eq("id", season.id);
+      if (error) {
+        seasonError.textContent = "Could not delete season: " + error.message;
+        return;
+      }
+      loadSeasons();
     }
  
     addSeasonForm.addEventListener("submit", async (e) => {
@@ -450,7 +504,7 @@
             <option value="5">5th (1 pt)</option>
           </select>
           <label class="bounty-label">
-            <input type="radio" name="bounty-winner" class="bounty-radio"> Bounty
+            <input type="radio" name="bounty-winner" class="bounty-radio"> Bounty (+1)
           </label>
           <span class="points-preview">0 pts</span>
         `;
@@ -1696,3 +1750,4 @@
       div.textContent = str;
       return div.innerHTML;
     }
+ 

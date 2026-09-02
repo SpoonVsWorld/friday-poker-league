@@ -1,4 +1,4 @@
-/ ------------------------------------------------------------------
+// ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
     // let a visitor READ data. All write access is enforced by database

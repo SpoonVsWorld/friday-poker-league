@@ -69,6 +69,14 @@
     const highHandList = document.getElementById("highhand-list");
     const hhCardRows = [...document.querySelectorAll(".card-input-row")];
  
+    const exportSeasonSelect = document.getElementById("export-season-select");
+    const exportStandingsBtn = document.getElementById("export-standings-btn");
+    const exportResultsBtn = document.getElementById("export-results-btn");
+    const exportHighHandsBtn = document.getElementById("export-highhands-btn");
+    const exportPlayersBtn = document.getElementById("export-players-btn");
+    const exportBackupBtn = document.getElementById("export-backup-btn");
+    const exportError = document.getElementById("export-error");
+ 
     const PLACEMENT_POINTS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
     const ORDINALS = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
  
@@ -292,6 +300,20 @@
       activeSeason = data.find((s) => s.is_active) || null;
       refreshResultsAvailability();
       refreshPublicView();
+      populateExportSeasonSelect(data);
+    }
+ 
+    function populateExportSeasonSelect(seasons) {
+      if (!exportSeasonSelect) return;
+      const previousValue = exportSeasonSelect.value;
+      exportSeasonSelect.innerHTML = seasons
+        .map((s) => `<option value="${s.id}">${escapeHtml(s.name)}${s.is_active ? " (active)" : ""}</option>`)
+        .join("");
+      if (previousValue && seasons.some((s) => s.id === previousValue)) {
+        exportSeasonSelect.value = previousValue;
+      } else if (activeSeason) {
+        exportSeasonSelect.value = activeSeason.id;
+      }
     }
  
     function renderSeasons(seasons) {
@@ -1019,6 +1041,281 @@
     }
  
     // ------------------------------------------------------------------
+    // Export & Backup — everything downloads straight to the admin's
+    // device as a file. Nothing here is emailed or sent anywhere.
+    // ------------------------------------------------------------------
+ 
+    function csvEscape(value) {
+      if (value === null || value === undefined) return "";
+      const s = String(value);
+      if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    }
+ 
+    function rowsToCSV(columns, rows) {
+      const header = columns.map((c) => csvEscape(c.label)).join(",");
+      const lines = rows.map((row) => columns.map((c) => csvEscape(row[c.key])).join(","));
+      return [header, ...lines].join("\r\n");
+    }
+ 
+    function slugify(str) {
+      return (
+        String(str || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "export"
+      );
+    }
+ 
+    function downloadFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+ 
+    function getSelectedExportSeasonId() {
+      if (!exportSeasonSelect || !exportSeasonSelect.value) {
+        exportError.textContent = "Create a season first.";
+        return null;
+      }
+      return exportSeasonSelect.value;
+    }
+ 
+    exportStandingsBtn.addEventListener("click", async () => {
+      exportError.textContent = "";
+      const seasonId = getSelectedExportSeasonId();
+      if (!seasonId) return;
+ 
+      const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
+      if (seasonErr || !season) {
+        exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
+        return;
+      }
+ 
+      const { data: fridays, error: fridaysErr } = await supabaseClient
+        .from("fridays")
+        .select("id")
+        .eq("season_id", seasonId)
+        .eq("status", "completed");
+      if (fridaysErr) {
+        exportError.textContent = "Could not load Fridays: " + fridaysErr.message;
+        return;
+      }
+ 
+      const fridayIds = (fridays || []).map((f) => f.id);
+      let results = [];
+      if (fridayIds.length) {
+        const { data, error } = await supabaseClient
+          .from("results")
+          .select("player_id, placement, bounty_winner, total_points")
+          .in("friday_id", fridayIds);
+        if (error) {
+          exportError.textContent = "Could not load results: " + error.message;
+          return;
+        }
+        results = data || [];
+      }
+ 
+      const { data: players, error: playersErr } = await supabaseClient.from("players").select("id, name");
+      if (playersErr) {
+        exportError.textContent = "Could not load players: " + playersErr.message;
+        return;
+      }
+      const playerMap = new Map(players.map((p) => [p.id, p]));
+ 
+      const agg = new Map();
+      for (const r of results) {
+        if (!agg.has(r.player_id)) agg.set(r.player_id, { points: 0, played: 0, wins: 0, bounties: 0 });
+        const a = agg.get(r.player_id);
+        a.points += r.total_points;
+        a.played += 1;
+        if (r.placement === 1) a.wins += 1;
+        if (r.bounty_winner) a.bounties += 1;
+      }
+ 
+      const rows = [...agg.entries()]
+        .map(([playerId, stats]) => ({
+          name: playerMap.get(playerId)?.name || "Unknown player",
+          ...stats,
+        }))
+        .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
+ 
+      rows.forEach((r, i) => (r.rank = i + 1));
+ 
+      const csv = rowsToCSV(
+        [
+          { key: "rank", label: "Rank" },
+          { key: "name", label: "Player" },
+          { key: "points", label: "Points" },
+          { key: "played", label: "Fridays Played" },
+          { key: "wins", label: "Wins" },
+          { key: "bounties", label: "Bounties" },
+        ],
+        rows
+      );
+ 
+      downloadFile(`standings-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
+    });
+ 
+    exportResultsBtn.addEventListener("click", async () => {
+      exportError.textContent = "";
+      const seasonId = getSelectedExportSeasonId();
+      if (!seasonId) return;
+ 
+      const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
+      if (seasonErr || !season) {
+        exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
+        return;
+      }
+ 
+      const { data: fridays, error: fridaysErr } = await supabaseClient
+        .from("fridays")
+        .select("id, game_date, status")
+        .eq("season_id", seasonId)
+        .order("game_date", { ascending: true });
+      if (fridaysErr) {
+        exportError.textContent = "Could not load Fridays: " + fridaysErr.message;
+        return;
+      }
+ 
+      const fridayMap = new Map((fridays || []).map((f) => [f.id, f]));
+      const fridayIds = [...fridayMap.keys()];
+ 
+      let results = [];
+      if (fridayIds.length) {
+        const { data, error } = await supabaseClient
+          .from("results")
+          .select("friday_id, player_id, placement, bounty_winner, total_points, players(name)")
+          .in("friday_id", fridayIds);
+        if (error) {
+          exportError.textContent = "Could not load results: " + error.message;
+          return;
+        }
+        results = data || [];
+      }
+ 
+      const rows = results
+        .map((r) => {
+          const friday = fridayMap.get(r.friday_id);
+          return {
+            date: friday?.game_date || "",
+            player: r.players?.name || "Unknown",
+            finish: r.placement ? ORDINALS[r.placement] || r.placement : "",
+            bounty: r.bounty_winner ? "Yes" : "No",
+            points: r.total_points,
+          };
+        })
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.finish || "zzz").localeCompare(b.finish || "zzz"));
+ 
+      const csv = rowsToCSV(
+        [
+          { key: "date", label: "Date" },
+          { key: "player", label: "Player" },
+          { key: "finish", label: "Finish" },
+          { key: "bounty", label: "Bounty" },
+          { key: "points", label: "Points" },
+        ],
+        rows
+      );
+ 
+      downloadFile(`results-history-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
+    });
+ 
+    exportHighHandsBtn.addEventListener("click", async () => {
+      exportError.textContent = "";
+      const seasonId = getSelectedExportSeasonId();
+      if (!seasonId) return;
+ 
+      const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
+      if (seasonErr || !season) {
+        exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
+        return;
+      }
+ 
+      const { data: hands, error } = await supabaseClient
+        .from("high_hands")
+        .select("*, fridays!inner(game_date, season_id), players(name)")
+        .eq("fridays.season_id", seasonId)
+        .order("recorded_at", { ascending: true });
+ 
+      if (error) {
+        exportError.textContent = "Could not load high hands: " + error.message;
+        return;
+      }
+ 
+      const rows = (hands || []).map((hh) => ({
+        date: hh.fridays?.game_date || "",
+        player: hh.players?.name || "Unknown",
+        hand: hh.description,
+        cards: hh.cards.join(" "),
+      }));
+ 
+      const csv = rowsToCSV(
+        [
+          { key: "date", label: "Date" },
+          { key: "player", label: "Player" },
+          { key: "hand", label: "Hand" },
+          { key: "cards", label: "Cards" },
+        ],
+        rows
+      );
+ 
+      downloadFile(`high-hands-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
+    });
+ 
+    exportPlayersBtn.addEventListener("click", async () => {
+      exportError.textContent = "";
+      const { data: players, error } = await supabaseClient.from("players").select("*").order("name", { ascending: true });
+      if (error) {
+        exportError.textContent = "Could not load players: " + error.message;
+        return;
+      }
+ 
+      const rows = players.map((p) => ({
+        name: p.name,
+        nickname: p.nickname || "",
+        status: p.is_active ? "Active" : "Inactive",
+        joined: p.joined_date,
+      }));
+ 
+      const csv = rowsToCSV(
+        [
+          { key: "name", label: "Name" },
+          { key: "nickname", label: "Nickname" },
+          { key: "status", label: "Status" },
+          { key: "joined", label: "Joined" },
+        ],
+        rows
+      );
+ 
+      downloadFile(`players-${todayIso()}.csv`, csv, "text/csv");
+    });
+ 
+    exportBackupBtn.addEventListener("click", async () => {
+      exportError.textContent = "";
+      const tables = ["seasons", "players", "fridays", "results", "high_hands"];
+      const backup = { exported_at: new Date().toISOString() };
+ 
+      for (const table of tables) {
+        const { data, error } = await supabaseClient.from(table).select("*");
+        if (error) {
+          exportError.textContent = `Could not back up "${table}": ` + error.message;
+          return;
+        }
+        backup[table] = data;
+      }
+ 
+      downloadFile(`poker-league-full-backup-${todayIso()}.json`, JSON.stringify(backup, null, 2), "application/json");
+    });
+ 
+    // ------------------------------------------------------------------
     // Public view: Standings / Players / Fridays
     // ------------------------------------------------------------------
  
@@ -1396,3 +1693,4 @@
       div.textContent = str;
       return div.innerHTML;
     }
+ 

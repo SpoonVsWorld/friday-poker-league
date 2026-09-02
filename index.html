@@ -20,6 +20,7 @@
           <button class="tab-btn active" data-tab="standings" type="button">Standings</button>
           <button class="tab-btn" data-tab="players" type="button">Players</button>
           <button class="tab-btn" data-tab="fridays" type="button">Fridays</button>
+          <button class="tab-btn" data-tab="highhands" type="button">High Hands</button>
         </nav>
 
         <div id="public-tab-standings" class="public-tab">
@@ -40,6 +41,12 @@
 
         <div id="public-tab-fridays" class="public-tab" hidden>
           <ul id="public-friday-list" class="clickable-list"></ul>
+        </div>
+
+        <div id="public-tab-highhands" class="public-tab" hidden>
+          <div id="season-high-hand-box"></div>
+          <h3 style="margin-top:16px; font-size:0.85rem; text-transform:uppercase; color:var(--muted);">High Hand History</h3>
+          <ul id="public-highhand-list"></ul>
         </div>
       </div>
 
@@ -125,6 +132,31 @@
           <h3 style="margin-top:22px; font-size:0.95rem;">Recorded Fridays This Season</h3>
           <ul id="friday-list"></ul>
         </div>
+
+        <h2 style="margin-top:24px;">High Hands</h2>
+        <form id="add-highhand-form">
+          <label>Date
+            <input type="date" id="hh-date-input" required>
+          </label>
+          <label>Player
+            <select id="hh-player-select" required></select>
+          </label>
+          <div id="hh-card-rows">
+            <div class="card-input-row"><span class="card-label">Card 1</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 2</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 3</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 4</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 5</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+          </div>
+          <p id="hh-preview" class="muted"></p>
+          <div style="display:flex; gap:8px;">
+            <button type="submit" class="btn">Save High Hand</button>
+            <button type="button" id="hh-cancel-edit-btn" class="btn btn-secondary" hidden>Cancel Edit</button>
+          </div>
+          <p id="highhand-error" class="error"></p>
+        </form>
+        <h3 style="margin-top:22px; font-size:0.95rem;">Recorded High Hands</h3>
+        <ul id="highhand-list"></ul>
 
         <h2 style="margin-top:24px;">Players</h2>
         <form id="add-player-form">

@@ -15,8 +15,59 @@
   <main class="container">
     <!-- ===================== PUBLIC VIEW ===================== -->
     <section id="public-view" class="card">
-      <h2>League</h2>
-      <p class="muted">Standings, Friday results, tournament history, and season high hand will appear here in later phases.</p>
+      <div id="public-list-view">
+        <nav class="public-tabs">
+          <button class="tab-btn active" data-tab="standings" type="button">Standings</button>
+          <button class="tab-btn" data-tab="players" type="button">Players</button>
+          <button class="tab-btn" data-tab="fridays" type="button">Fridays</button>
+        </nav>
+
+        <div id="public-tab-standings" class="public-tab">
+          <p id="season-progress-line" class="muted"></p>
+          <div class="table-wrap">
+            <table class="standings-table">
+              <thead>
+                <tr><th>#</th><th>Player</th><th>Pts</th><th>Played</th><th>Wins</th><th>Bounties</th></tr>
+              </thead>
+              <tbody id="standings-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="public-tab-players" class="public-tab" hidden>
+          <ul id="public-player-list" class="clickable-list"></ul>
+        </div>
+
+        <div id="public-tab-fridays" class="public-tab" hidden>
+          <ul id="public-friday-list" class="clickable-list"></ul>
+        </div>
+      </div>
+
+      <div id="public-player-profile" class="public-detail" hidden>
+        <button class="btn btn-small btn-secondary back-btn" data-back="players" type="button">&larr; Back to Players</button>
+        <h2 id="profile-name"></h2>
+        <p id="profile-nickname" class="muted"></p>
+        <div class="stat-grid" id="profile-stats"></div>
+        <h3 style="margin-top:20px; font-size:0.95rem;">Points History</h3>
+        <div class="table-wrap">
+          <table class="standings-table">
+            <thead><tr><th>Date</th><th>Season</th><th>Finish</th><th>Bounty</th><th>Pts</th></tr></thead>
+            <tbody id="profile-history-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="public-friday-detail" class="public-detail" hidden>
+        <button class="btn btn-small btn-secondary back-btn" data-back="fridays" type="button">&larr; Back to Fridays</button>
+        <h2 id="friday-detail-date"></h2>
+        <p id="friday-detail-meta" class="muted"></p>
+        <div class="table-wrap">
+          <table class="standings-table">
+            <thead><tr><th>Finish</th><th>Player</th><th>Bounty</th><th>Pts</th></tr></thead>
+            <tbody id="friday-detail-body"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- ===================== ADMIN VIEW ===================== -->

@@ -1491,7 +1491,8 @@
  
       publicFridayList.innerHTML = fridays
         .map((f) => {
-          const badgeClass = f.status === "cancelled" ? "badge-cancelled" : "";
+          const badgeClass =
+            f.status === "cancelled" ? "badge-cancelled" : f.status === "scheduled" ? "badge-muted" : "";
           return `
         <li data-friday-id="${f.id}">
           <span>${f.game_date} <span class="muted">(${escapeHtml(f.seasons?.name || "")})</span></span>
@@ -1572,12 +1573,14 @@
       if (fridayErr || !friday) return;
  
       fridayDetailDate.textContent = friday.game_date;
-      fridayDetailMeta.textContent = `${friday.seasons?.name || ""} — ${
-        friday.status === "cancelled" ? "Cancelled / No Game" : "Completed"
-      }`;
+      const statusLabel =
+        friday.status === "cancelled" ? "Cancelled / No Game" : friday.status === "scheduled" ? "Not Played Yet" : "Completed";
+      fridayDetailMeta.textContent = `${friday.seasons?.name || ""} — ${statusLabel}`;
  
       if (friday.status === "cancelled") {
         fridayDetailBody.innerHTML = '<tr><td colspan="4" class="muted">No game was played this night.</td></tr>';
+      } else if (friday.status === "scheduled") {
+        fridayDetailBody.innerHTML = '<tr><td colspan="4" class="muted">Results haven\'t been recorded for this night yet.</td></tr>';
       } else {
         const { data: results, error: resultsErr } = await supabaseClient
           .from("results")
@@ -1693,4 +1696,3 @@
       div.textContent = str;
       return div.innerHTML;
     }
- 

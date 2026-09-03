@@ -1534,12 +1534,14 @@
         return;
       }
  
+      const leaderPoints = rows[0].points;
+ 
       standingsBody.innerHTML = rows
         .map(
           (r, i) => `
         <tr class="clickable-row" data-player-id="${r.playerId}">
           <td>${i + 1}</td>
-          <td>${escapeHtml(r.name)}</td>
+          <td>${r.points > 0 && r.points === leaderPoints ? '<span class="crown" title="Leader">👑</span> ' : ""}${escapeHtml(r.name)}</td>
           <td>${r.points}</td>
           <td>${r.played}</td>
           <td>${r.wins}</td>

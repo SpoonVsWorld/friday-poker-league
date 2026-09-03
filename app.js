@@ -1,4 +1,3 @@
-
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -78,6 +77,11 @@
     const exportBackupBtn = document.getElementById("export-backup-btn");
     const exportError = document.getElementById("export-error");
  
+    const statTotalViews = document.getElementById("stat-total-views");
+    const statWeekViews = document.getElementById("stat-week-views");
+    const resetViewsBtn = document.getElementById("reset-views-btn");
+    const statsError = document.getElementById("stats-error");
+ 
     const PLACEMENT_POINTS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
     const ORDINALS = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
  
@@ -138,7 +142,7 @@
       adminLogin.hidden = true;
       adminDashboard.hidden = false;
       adminEmailEl.textContent = session.user.email;
-      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin()]);
+      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats()]);
     }
  
     function showLoggedOut() {
@@ -152,9 +156,15 @@
       else showLoggedOut();
     });
  
-    // Check for an already-active session on page load
+    // Check for an already-active session on page load. Only log a "view"
+    // when nobody is logged in as admin, so the counter reflects visitors
+    // checking the app rather than the admin's own repeated visits.
     supabaseClient.auth.getSession().then(({ data }) => {
-      if (data.session) showLoggedIn(data.session);
+      if (data.session) {
+        showLoggedIn(data.session);
+      } else {
+        supabaseClient.from("page_views").insert({}).then(() => {});
+      }
     });
  
     loginForm.addEventListener("submit", async (e) => {
@@ -1093,6 +1103,50 @@
       loadHighHandsAdmin();
       refreshPublicView();
     }
+ 
+    // ------------------------------------------------------------------
+    // Site Stats — a simple page-view counter, admin-only.
+    // ------------------------------------------------------------------
+ 
+    async function loadSiteStats() {
+      statsError.textContent = "";
+ 
+      const { count: totalCount, error: totalErr } = await supabaseClient
+        .from("page_views")
+        .select("*", { count: "exact", head: true });
+ 
+      if (totalErr) {
+        statsError.textContent = "Could not load view stats: " + totalErr.message;
+        return;
+      }
+ 
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { count: weekCount, error: weekErr } = await supabaseClient
+        .from("page_views")
+        .select("*", { count: "exact", head: true })
+        .gte("viewed_at", sevenDaysAgo);
+ 
+      statTotalViews.textContent = totalCount ?? 0;
+      statWeekViews.textContent = weekErr ? "—" : weekCount ?? 0;
+    }
+ 
+    resetViewsBtn.addEventListener("click", async () => {
+      statsError.textContent = "";
+      if (
+        !window.confirm(
+          "Reset the view counter to zero? This permanently deletes all recorded page views and cannot be undone."
+        )
+      ) {
+        return;
+      }
+ 
+      const { error } = await supabaseClient.from("page_views").delete().gt("viewed_at", "1970-01-01");
+      if (error) {
+        statsError.textContent = "Could not reset counter: " + error.message;
+        return;
+      }
+      loadSiteStats();
+    });
  
     // ------------------------------------------------------------------
     // Export & Backup — everything downloads straight to the admin's

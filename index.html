@@ -180,6 +180,15 @@
         <p id="player-error" class="error"></p>
         <ul id="player-list"></ul>
 
+        <h2 style="margin-top:24px;">Site Stats</h2>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="value" id="stat-total-views">—</div><div class="label">Total Views</div></div>
+          <div class="stat-box"><div class="value" id="stat-week-views">—</div><div class="label">Last 7 Days</div></div>
+        </div>
+        <p class="muted" style="margin-top:6px;">Counts page loads by visitors who aren't logged in as admin. Starts counting from when this feature was added — earlier visits aren't included.</p>
+        <button id="reset-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Counter</button>
+        <p id="stats-error" class="error"></p>
+
         <h2 style="margin-top:24px;">Export &amp; Backup</h2>
         <label>Season for the exports below
           <select id="export-season-select"></select>

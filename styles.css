@@ -491,3 +491,18 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   color: var(--muted);
   font-size: 0.8rem;
 }
+
+.app-footer p {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.footer-logo {
+  height: 1.6em;
+  width: 1.6em;
+  object-fit: contain;
+  flex-shrink: 0;
+}

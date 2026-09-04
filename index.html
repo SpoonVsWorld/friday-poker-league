@@ -24,6 +24,11 @@
   <main class="container">
     <!-- ===================== PUBLIC VIEW ===================== -->
     <section id="public-view" class="card">
+      <div id="next-game-banner" class="next-game-banner" hidden>
+        <div class="next-game-label">Next Game</div>
+        <div id="next-game-text"></div>
+      </div>
+
       <div id="public-list-view">
         <nav class="public-tabs">
           <button class="tab-btn active" data-tab="standings" type="button">Standings</button>
@@ -131,6 +136,13 @@
             <input type="date" id="friday-date-input">
           </label>
           <p id="friday-status-line" class="muted"></p>
+
+          <label>Location (optional) — announce this before results are in
+            <input type="text" id="friday-location-input" placeholder="e.g. Mike's house">
+          </label>
+          <button id="save-location-btn" class="btn btn-small btn-secondary" type="button">Save Location</button>
+          <p id="location-error" class="error"></p>
+
           <div id="results-player-rows"></div>
           <p id="results-error" class="error"></p>
           <div style="display:flex; gap:8px; margin-top:8px;">

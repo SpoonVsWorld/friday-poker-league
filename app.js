@@ -87,6 +87,16 @@
     const resetViewsBtn = document.getElementById("reset-views-btn");
     const statsError = document.getElementById("stats-error");
  
+    const adminProblemList = document.getElementById("admin-problem-list");
+    const adminCommentList = document.getElementById("admin-comment-list");
+    const feedbackAdminError = document.getElementById("feedback-admin-error");
+ 
+    const feedbackForm = document.getElementById("feedback-form");
+    const feedbackNameInput = document.getElementById("feedback-name-input");
+    const feedbackMessageInput = document.getElementById("feedback-message-input");
+    const feedbackFormMsg = document.getElementById("feedback-form-msg");
+    const publicCommentList = document.getElementById("public-comment-list");
+ 
     const PLACEMENT_POINTS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
     const ORDINALS = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
  
@@ -147,7 +157,7 @@
       adminLogin.hidden = true;
       adminDashboard.hidden = false;
       adminEmailEl.textContent = session.user.email;
-      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats()]);
+      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin()]);
     }
  
     function showLoggedOut() {
@@ -1207,6 +1217,68 @@
     });
  
     // ------------------------------------------------------------------
+    // Feedback — public comments (visible to everyone) and problem
+    // reports (admin-only), both submitted from the public site.
+    // ------------------------------------------------------------------
+ 
+    function renderFeedbackRow(item) {
+      const when = new Date(item.created_at).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const who = item.name ? escapeHtml(item.name) : "Anonymous";
+      return `
+        <li class="feedback-row" data-id="${item.id}">
+          <div class="feedback-info">
+            <div class="feedback-message">${escapeHtml(item.message)}</div>
+            <div class="feedback-meta">${who} &middot; ${when}</div>
+          </div>
+          <div class="row-actions">
+            <button class="btn btn-small btn-danger delete-feedback-btn" data-id="${item.id}" type="button">Delete</button>
+          </div>
+        </li>
+      `;
+    }
+ 
+    async function loadFeedbackAdmin() {
+      feedbackAdminError.textContent = "";
+      const { data, error } = await supabaseClient
+        .from("feedback")
+        .select("*")
+        .order("created_at", { ascending: false });
+ 
+      if (error) {
+        feedbackAdminError.textContent = "Could not load feedback: " + error.message;
+        return;
+      }
+ 
+      const problems = (data || []).filter((f) => f.type === "problem");
+      const comments = (data || []).filter((f) => f.type === "comment");
+ 
+      adminProblemList.innerHTML = problems.length
+        ? problems.map(renderFeedbackRow).join("")
+        : '<li class="muted">No problems reported.</li>';
+ 
+      adminCommentList.innerHTML = comments.length
+        ? comments.map(renderFeedbackRow).join("")
+        : '<li class="muted">No comments yet.</li>';
+ 
+      document.querySelectorAll(".delete-feedback-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!window.confirm("Delete this permanently?")) return;
+          const { error: delErr } = await supabaseClient.from("feedback").delete().eq("id", btn.dataset.id);
+          if (delErr) {
+            feedbackAdminError.textContent = "Could not delete: " + delErr.message;
+            return;
+          }
+          loadFeedbackAdmin();
+          loadPublicComments();
+        });
+      });
+    }
+ 
+    // ------------------------------------------------------------------
     // Export & Backup — everything downloads straight to the admin's
     // device as a file. Nothing here is emailed or sent anywhere.
     // ------------------------------------------------------------------
@@ -1491,7 +1563,71 @@
       loadPublicFridays();
       loadHighHandsPublic();
       loadNextGameBanner();
+      loadPublicComments();
     }
+ 
+    async function loadPublicComments() {
+      const { data, error } = await supabaseClient
+        .from("feedback")
+        .select("*")
+        .eq("type", "comment")
+        .order("created_at", { ascending: false });
+ 
+      if (error) {
+        publicCommentList.innerHTML = `<li class="muted">Could not load comments: ${escapeHtml(error.message)}</li>`;
+        return;
+      }
+ 
+      publicCommentList.innerHTML = (data || []).length
+        ? data
+            .map((c) => {
+              const when = new Date(c.created_at).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              });
+              const who = c.name ? escapeHtml(c.name) : "Anonymous";
+              return `
+            <li class="feedback-row">
+              <div class="feedback-info">
+                <div class="feedback-message">${escapeHtml(c.message)}</div>
+                <div class="feedback-meta">${who} &middot; ${when}</div>
+              </div>
+            </li>
+          `;
+            })
+            .join("")
+        : '<li class="muted">No comments yet — be the first!</li>';
+    }
+ 
+    feedbackForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      feedbackFormMsg.textContent = "";
+      feedbackFormMsg.classList.remove("error", "ok");
+ 
+      const message = feedbackMessageInput.value.trim();
+      if (!message) return;
+ 
+      const name = feedbackNameInput.value.trim() || null;
+      const type = document.querySelector('input[name="feedback-type"]:checked').value;
+ 
+      const { error } = await supabaseClient.from("feedback").insert({ type, name, message });
+ 
+      if (error) {
+        feedbackFormMsg.classList.add("error");
+        feedbackFormMsg.textContent = "Could not submit: " + error.message;
+        return;
+      }
+ 
+      feedbackForm.reset();
+      feedbackFormMsg.classList.add("ok");
+      feedbackFormMsg.textContent = type === "problem" ? "Thanks — the host will see this." : "Thanks for the comment!";
+      setTimeout(() => {
+        feedbackFormMsg.textContent = "";
+        feedbackFormMsg.classList.remove("ok");
+      }, 3000);
+ 
+      if (type === "comment") loadPublicComments();
+    });
  
     async function loadNextGameBanner() {
       const { data: seasons, error: seasonErr } = await supabaseClient

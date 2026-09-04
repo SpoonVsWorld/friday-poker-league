@@ -34,6 +34,9 @@
     const resultsEditor = document.getElementById("results-editor");
     const fridayDateInput = document.getElementById("friday-date-input");
     const fridayStatusLine = document.getElementById("friday-status-line");
+    const fridayLocationInput = document.getElementById("friday-location-input");
+    const saveLocationBtn = document.getElementById("save-location-btn");
+    const locationError = document.getElementById("location-error");
     const resultsPlayerRows = document.getElementById("results-player-rows");
     const resultsError = document.getElementById("results-error");
     const saveResultsBtn = document.getElementById("save-results-btn");
@@ -45,6 +48,8 @@
     const standingsBody = document.getElementById("standings-body");
     const publicPlayerList = document.getElementById("public-player-list");
     const publicFridayList = document.getElementById("public-friday-list");
+    const nextGameBanner = document.getElementById("next-game-banner");
+    const nextGameText = document.getElementById("next-game-text");
  
     const publicPlayerProfile = document.getElementById("public-player-profile");
     const profileName = document.getElementById("profile-name");
@@ -549,8 +554,57 @@
  
     fridayDateInput.addEventListener("change", loadResultsForSelectedDate);
  
+    saveLocationBtn.addEventListener("click", async () => {
+      locationError.textContent = "";
+      const date = fridayDateInput.value;
+      if (!date) {
+        locationError.textContent = "Pick a date first.";
+        return;
+      }
+      if (!activeSeason) {
+        locationError.textContent = "Create and activate a season first.";
+        return;
+      }
+ 
+      const location = fridayLocationInput.value.trim() || null;
+ 
+      if (!currentFridayId) {
+        const { data: inserted, error: insertErr } = await supabaseClient
+          .from("fridays")
+          .insert({ season_id: activeSeason.id, game_date: date, status: "scheduled", location })
+          .select()
+          .single();
+        if (insertErr) {
+          locationError.textContent = "Could not save location: " + insertErr.message;
+          return;
+        }
+        currentFridayId = inserted.id;
+      } else {
+        const { error: updateErr } = await supabaseClient
+          .from("fridays")
+          .update({ location })
+          .eq("id", currentFridayId);
+        if (updateErr) {
+          locationError.textContent = "Could not save location: " + updateErr.message;
+          return;
+        }
+      }
+ 
+      await loadResultsForSelectedDate();
+      await loadFridayList();
+      refreshPublicView();
+ 
+      locationError.classList.add("ok");
+      locationError.textContent = "Location saved.";
+      setTimeout(() => {
+        locationError.textContent = "";
+        locationError.classList.remove("ok");
+      }, 2500);
+    });
+ 
     async function loadResultsForSelectedDate() {
       resultsError.textContent = "";
+      locationError.textContent = "";
       const date = fridayDateInput.value;
       if (!date || !activeSeason) return;
  
@@ -576,11 +630,13 @@
  
       if (!friday) {
         currentFridayId = null;
+        fridayLocationInput.value = "";
         fridayStatusLine.textContent = "Not yet recorded — fill in results below and click Save.";
         return;
       }
  
       currentFridayId = friday.id;
+      fridayLocationInput.value = friday.location || "";
       fridayStatusLine.textContent =
         friday.status === "cancelled"
           ? "This Friday is marked cancelled. Entering results below and saving will reactivate it."
@@ -643,11 +699,12 @@
       }
  
       // Step 1: make sure a fridays row exists for this date, and it's marked completed
+      const location = fridayLocationInput.value.trim() || null;
       let fridayId = currentFridayId;
       if (!fridayId) {
         const { data: inserted, error: insertErr } = await supabaseClient
           .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "completed" })
+          .insert({ season_id: activeSeason.id, game_date: date, status: "completed", location })
           .select()
           .single();
         if (insertErr) {
@@ -658,7 +715,7 @@
       } else {
         const { error: updateErr } = await supabaseClient
           .from("fridays")
-          .update({ status: "completed" })
+          .update({ status: "completed", location })
           .eq("id", fridayId);
         if (updateErr) {
           resultsError.textContent = "Could not update this Friday: " + updateErr.message;
@@ -700,11 +757,12 @@
         return;
       }
  
+      const location = fridayLocationInput.value.trim() || null;
       let fridayId = currentFridayId;
       if (!fridayId) {
         const { data: inserted, error: insertErr } = await supabaseClient
           .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "cancelled" })
+          .insert({ season_id: activeSeason.id, game_date: date, status: "cancelled", location })
           .select()
           .single();
         if (insertErr) {
@@ -720,7 +778,7 @@
         }
         const { error: updateErr } = await supabaseClient
           .from("fridays")
-          .update({ status: "cancelled" })
+          .update({ status: "cancelled", location })
           .eq("id", fridayId);
         if (updateErr) {
           resultsError.textContent = "Could not update this Friday: " + updateErr.message;
@@ -1432,6 +1490,46 @@
       loadPublicPlayers();
       loadPublicFridays();
       loadHighHandsPublic();
+      loadNextGameBanner();
+    }
+ 
+    async function loadNextGameBanner() {
+      const { data: seasons, error: seasonErr } = await supabaseClient
+        .from("seasons")
+        .select("*")
+        .eq("is_active", true)
+        .limit(1);
+ 
+      if (seasonErr || !seasons || !seasons.length) {
+        nextGameBanner.hidden = true;
+        return;
+      }
+ 
+      const today = new Date().toISOString().slice(0, 10);
+ 
+      const { data: fridays, error } = await supabaseClient
+        .from("fridays")
+        .select("game_date, location")
+        .eq("season_id", seasons[0].id)
+        .neq("status", "cancelled")
+        .gte("game_date", today)
+        .not("location", "is", null)
+        .order("game_date", { ascending: true })
+        .limit(1);
+ 
+      if (error || !fridays || !fridays.length || !fridays[0].location) {
+        nextGameBanner.hidden = true;
+        return;
+      }
+ 
+      const next = fridays[0];
+      const dateLabel = new Date(next.game_date + "T00:00:00").toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      });
+      nextGameText.textContent = `${dateLabel} — ${next.location}`;
+      nextGameBanner.hidden = false;
     }
  
     function showPublicList() {
@@ -1605,7 +1703,9 @@
             f.status === "cancelled" ? "badge-cancelled" : f.status === "scheduled" ? "badge-muted" : "";
           return `
         <li data-friday-id="${f.id}">
-          <span>${f.game_date} <span class="muted">(${escapeHtml(f.seasons?.name || "")})</span></span>
+          <span>${f.game_date} <span class="muted">(${escapeHtml(f.seasons?.name || "")})</span>${
+            f.location ? `<br><span class="muted">📍 ${escapeHtml(f.location)}</span>` : ""
+          }</span>
           <span class="badge ${badgeClass}">${f.status.toUpperCase()}</span>
         </li>
       `;
@@ -1685,7 +1785,9 @@
       fridayDetailDate.textContent = friday.game_date;
       const statusLabel =
         friday.status === "cancelled" ? "Cancelled / No Game" : friday.status === "scheduled" ? "Not Played Yet" : "Completed";
-      fridayDetailMeta.textContent = `${friday.seasons?.name || ""} — ${statusLabel}`;
+      fridayDetailMeta.textContent = `${friday.seasons?.name || ""} — ${statusLabel}${
+        friday.location ? ` — 📍 ${friday.location}` : ""
+      }`;
  
       if (friday.status === "cancelled") {
         fridayDetailBody.innerHTML = '<tr><td colspan="4" class="muted">No game was played this night.</td></tr>';

@@ -37,6 +37,11 @@
     const fridayLocationInput = document.getElementById("friday-location-input");
     const saveLocationBtn = document.getElementById("save-location-btn");
     const locationError = document.getElementById("location-error");
+    const fridayPotPlayersInput = document.getElementById("friday-pot-players-input");
+    const savePotBtn = document.getElementById("save-pot-btn");
+    const potError = document.getElementById("pot-error");
+    const potTotalBuyins = document.getElementById("pot-total-buyins");
+    const potTotalDollars = document.getElementById("pot-total-dollars");
     const resultsPlayerRows = document.getElementById("results-player-rows");
     const resultsError = document.getElementById("results-error");
     const saveResultsBtn = document.getElementById("save-results-btn");
@@ -327,6 +332,7 @@
       refreshResultsAvailability();
       refreshPublicView();
       populateExportSeasonSelect(data);
+      loadPotTotal();
     }
  
     function populateExportSeasonSelect(seasons) {
@@ -612,9 +618,91 @@
       }, 2500);
     });
  
+    savePotBtn.addEventListener("click", async () => {
+      potError.textContent = "";
+      potError.classList.remove("ok");
+      const date = fridayDateInput.value;
+      if (!date) {
+        potError.textContent = "Pick a date first.";
+        return;
+      }
+      if (!activeSeason) {
+        potError.textContent = "Create and activate a season first.";
+        return;
+      }
+ 
+      const raw = fridayPotPlayersInput.value.trim();
+      if (raw === "") {
+        potError.textContent = "Enter how many players played.";
+        return;
+      }
+      const potPlayers = Number(raw);
+      if (!Number.isInteger(potPlayers) || potPlayers < 0) {
+        potError.textContent = "Enter a whole number, 0 or higher.";
+        return;
+      }
+ 
+      if (!currentFridayId) {
+        const { data: inserted, error: insertErr } = await supabaseClient
+          .from("fridays")
+          .insert({ season_id: activeSeason.id, game_date: date, status: "scheduled", pot_players: potPlayers })
+          .select()
+          .single();
+        if (insertErr) {
+          potError.textContent = "Could not save player count: " + insertErr.message;
+          return;
+        }
+        currentFridayId = inserted.id;
+      } else {
+        const { error: updateErr } = await supabaseClient
+          .from("fridays")
+          .update({ pot_players: potPlayers })
+          .eq("id", currentFridayId);
+        if (updateErr) {
+          potError.textContent = "Could not save player count: " + updateErr.message;
+          return;
+        }
+      }
+ 
+      await loadResultsForSelectedDate();
+      await loadFridayList();
+      loadPotTotal();
+ 
+      potError.classList.add("ok");
+      potError.textContent = "Player count saved.";
+      setTimeout(() => {
+        potError.textContent = "";
+        potError.classList.remove("ok");
+      }, 2500);
+    });
+ 
+    async function loadPotTotal() {
+      if (!activeSeason) {
+        potTotalBuyins.textContent = "—";
+        potTotalDollars.textContent = "—";
+        return;
+      }
+ 
+      const { data, error } = await supabaseClient
+        .from("fridays")
+        .select("pot_players")
+        .eq("season_id", activeSeason.id);
+ 
+      if (error) {
+        potTotalBuyins.textContent = "—";
+        potTotalDollars.textContent = "—";
+        return;
+      }
+ 
+      const totalBuyins = (data || []).reduce((sum, f) => sum + (f.pot_players || 0), 0);
+      potTotalBuyins.textContent = totalBuyins;
+      potTotalDollars.textContent = "$" + (totalBuyins * 5).toLocaleString();
+    }
+ 
     async function loadResultsForSelectedDate() {
       resultsError.textContent = "";
       locationError.textContent = "";
+      potError.textContent = "";
       const date = fridayDateInput.value;
       if (!date || !activeSeason) return;
  
@@ -641,12 +729,14 @@
       if (!friday) {
         currentFridayId = null;
         fridayLocationInput.value = "";
+        fridayPotPlayersInput.value = "";
         fridayStatusLine.textContent = "Not yet recorded — fill in results below and click Save.";
         return;
       }
  
       currentFridayId = friday.id;
       fridayLocationInput.value = friday.location || "";
+      fridayPotPlayersInput.value = friday.pot_players ?? "";
       fridayStatusLine.textContent =
         friday.status === "cancelled"
           ? "This Friday is marked cancelled. Entering results below and saving will reactivate it."
@@ -710,11 +800,13 @@
  
       // Step 1: make sure a fridays row exists for this date, and it's marked completed
       const location = fridayLocationInput.value.trim() || null;
+      const potPlayersRaw = fridayPotPlayersInput.value.trim();
+      const potPlayers = potPlayersRaw === "" ? null : Number(potPlayersRaw);
       let fridayId = currentFridayId;
       if (!fridayId) {
         const { data: inserted, error: insertErr } = await supabaseClient
           .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "completed", location })
+          .insert({ season_id: activeSeason.id, game_date: date, status: "completed", location, pot_players: potPlayers })
           .select()
           .single();
         if (insertErr) {
@@ -725,7 +817,7 @@
       } else {
         const { error: updateErr } = await supabaseClient
           .from("fridays")
-          .update({ status: "completed", location })
+          .update({ status: "completed", location, pot_players: potPlayers })
           .eq("id", fridayId);
         if (updateErr) {
           resultsError.textContent = "Could not update this Friday: " + updateErr.message;
@@ -754,6 +846,7 @@
       await loadResultsForSelectedDate();
       await loadFridayList();
       refreshPublicView();
+      loadPotTotal();
     });
  
     cancelFridayBtn.addEventListener("click", async () => {
@@ -763,7 +856,11 @@
         resultsError.textContent = "Pick a date first.";
         return;
       }
-      if (!window.confirm("Mark this Friday as cancelled / no game? Any recorded results for it will be removed.")) {
+      if (
+        !window.confirm(
+          "Mark this Friday as cancelled / no game? Any recorded results and pot player count for it will be removed."
+        )
+      ) {
         return;
       }
  
@@ -772,7 +869,7 @@
       if (!fridayId) {
         const { data: inserted, error: insertErr } = await supabaseClient
           .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "cancelled", location })
+          .insert({ season_id: activeSeason.id, game_date: date, status: "cancelled", location, pot_players: null })
           .select()
           .single();
         if (insertErr) {
@@ -788,7 +885,7 @@
         }
         const { error: updateErr } = await supabaseClient
           .from("fridays")
-          .update({ status: "cancelled", location })
+          .update({ status: "cancelled", location, pot_players: null })
           .eq("id", fridayId);
         if (updateErr) {
           resultsError.textContent = "Could not update this Friday: " + updateErr.message;
@@ -800,6 +897,7 @@
       await loadResultsForSelectedDate();
       await loadFridayList();
       refreshPublicView();
+      loadPotTotal();
     });
  
     async function loadFridayList() {

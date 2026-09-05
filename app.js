@@ -55,6 +55,8 @@
     const publicFridayList = document.getElementById("public-friday-list");
     const nextGameBanner = document.getElementById("next-game-banner");
     const nextGameText = document.getElementById("next-game-text");
+    const publicPotDollars = document.getElementById("public-pot-dollars");
+    const publicPotMeta = document.getElementById("public-pot-meta");
  
     const publicPlayerProfile = document.getElementById("public-player-profile");
     const profileName = document.getElementById("profile-name");
@@ -1662,6 +1664,36 @@
       loadHighHandsPublic();
       loadNextGameBanner();
       loadPublicComments();
+      loadPublicPot();
+    }
+ 
+    async function loadPublicPot() {
+      const { data: seasons, error: seasonErr } = await supabaseClient
+        .from("seasons")
+        .select("*")
+        .eq("is_active", true)
+        .limit(1);
+ 
+      if (seasonErr || !seasons || !seasons.length) {
+        publicPotDollars.textContent = "$0";
+        publicPotMeta.textContent = "No active season right now.";
+        return;
+      }
+ 
+      const { data: fridays, error } = await supabaseClient
+        .from("fridays")
+        .select("pot_players")
+        .eq("season_id", seasons[0].id);
+ 
+      if (error) {
+        publicPotDollars.textContent = "—";
+        publicPotMeta.textContent = "Could not load the pot total.";
+        return;
+      }
+ 
+      const totalBuyins = (fridays || []).reduce((sum, f) => sum + (f.pot_players || 0), 0);
+      publicPotDollars.textContent = "$" + (totalBuyins * 5).toLocaleString();
+      publicPotMeta.textContent = `${totalBuyins} player buy-in${totalBuyins === 1 ? "" : "s"} so far this season — $5 each`;
     }
  
     async function loadPublicComments() {

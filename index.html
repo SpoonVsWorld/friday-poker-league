@@ -170,6 +170,12 @@
           <button id="save-location-btn" class="btn btn-small btn-secondary" type="button">Save Location</button>
           <p id="location-error" class="error"></p>
 
+          <label>Players who played tonight (Championship Pot — $5 each)
+            <input type="number" id="friday-pot-players-input" min="0" step="1" placeholder="e.g. 6">
+          </label>
+          <button id="save-pot-btn" class="btn btn-small btn-secondary" type="button">Save Player Count</button>
+          <p id="pot-error" class="error"></p>
+
           <div id="results-player-rows"></div>
           <p id="results-error" class="error"></p>
           <div style="display:flex; gap:8px; margin-top:8px;">
@@ -179,6 +185,13 @@
 
           <h3 style="margin-top:22px; font-size:0.95rem;">Recorded Fridays This Season</h3>
           <ul id="friday-list"></ul>
+        </div>
+
+        <h2 style="margin-top:24px;">Championship Game Pot</h2>
+        <p class="muted">$5 per player, added up across every Friday recorded this season.</p>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="value" id="pot-total-buyins">—</div><div class="label">Total Buy-ins</div></div>
+          <div class="stat-box"><div class="value" id="pot-total-dollars">—</div><div class="label">Pot Total</div></div>
         </div>
 
         <h2 style="margin-top:24px;">High Hands</h2>

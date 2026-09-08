@@ -2011,54 +2011,100 @@
       noise.start(now);
     }
  
+    // A single bright "bell" tone — a fundamental plus a detuned
+    // higher partial (the classic inharmonic ratio real bells have),
+    // used to build the jackpot arpeggio and its final chord.
+    function playBellTone(ctx, freq, t, peakGain, decay) {
+      const osc1 = ctx.createOscillator();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(freq, t);
+ 
+      const osc2 = ctx.createOscillator();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(freq * 2.76, t);
+      const partialGain = ctx.createGain();
+      partialGain.gain.value = 0.3;
+ 
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.linearRampToValueAtTime(peakGain, t + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+ 
+      osc1.connect(gain);
+      osc2.connect(partialGain).connect(gain);
+      routeToOutput(ctx, gain);
+ 
+      osc1.start(t);
+      osc1.stop(t + decay + 0.05);
+      osc2.start(t);
+      osc2.stop(t + decay + 0.05);
+    }
+ 
+    // One metallic coin — slightly inharmonic ringing partials plus a
+    // tiny high-frequency "clink" transient at the onset.
+    function playSingleCoin(ctx, t, volume) {
+      const baseFreq = 1800 + Math.random() * 1400;
+      const partials = [1, 2.02, 3.4];
+ 
+      const coinGain = ctx.createGain();
+      coinGain.gain.setValueAtTime(0.001, t);
+      coinGain.gain.linearRampToValueAtTime(volume, t + 0.008);
+      coinGain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+ 
+      partials.forEach((mult, idx) => {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        const f = baseFreq * mult;
+        osc.frequency.setValueAtTime(f, t);
+        osc.frequency.exponentialRampToValueAtTime(f * 0.92, t + 0.25);
+        const partialGain = ctx.createGain();
+        partialGain.gain.value = idx === 0 ? 1 : 0.35 / idx;
+        osc.connect(partialGain).connect(coinGain);
+        osc.start(t);
+        osc.stop(t + 0.3);
+      });
+ 
+      const bufferSize = Math.floor(ctx.sampleRate * 0.015);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let j = 0; j < bufferSize; j++) {
+        data[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / bufferSize, 2);
+      }
+      const clink = ctx.createBufferSource();
+      clink.buffer = buffer;
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 4000;
+      const clinkGain = ctx.createGain();
+      clinkGain.gain.value = 0.09;
+      clink.connect(hp).connect(clinkGain).connect(coinGain);
+      clink.start(t);
+ 
+      routeToOutput(ctx, coinGain);
+    }
+ 
+    // The classic slot-machine "JACKPOT!" moment: a quick rising bell
+    // arpeggio, landing on a bright sustained chord, with coins
+    // spilling out underneath it.
     function playCoinCascade() {
       const ctx = getAudioCtx();
       if (!ctx) return;
       const now = ctx.currentTime;
-      const coins = 10;
  
+      const arpeggio = [523.25, 659.25, 783.99, 1046.5, 1318.51]; // C5-E5-G5-C6-E6
+      arpeggio.forEach((freq, i) => {
+        playBellTone(ctx, freq, now + i * 0.075, 0.22, 0.35);
+      });
+ 
+      const chordAt = now + arpeggio.length * 0.075 + 0.03;
+      [1046.5, 1318.51, 1567.98].forEach((freq) => {
+        playBellTone(ctx, freq, chordAt, 0.16, 1.0);
+      });
+ 
+      const coins = 9;
       for (let i = 0; i < coins; i++) {
-        const t = now + i * 0.05 + Math.random() * 0.02;
-        const baseFreq = 1800 + Math.random() * 1400;
-        // Slightly inharmonic partials, like real metal ringing.
-        const partials = [1, 2.02, 3.4];
- 
-        const coinGain = ctx.createGain();
-        coinGain.gain.setValueAtTime(0.001, t);
-        coinGain.gain.linearRampToValueAtTime(0.16 * (1 - (i / coins) * 0.4), t + 0.008);
-        coinGain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
- 
-        partials.forEach((mult, idx) => {
-          const osc = ctx.createOscillator();
-          osc.type = "sine";
-          const f = baseFreq * mult;
-          osc.frequency.setValueAtTime(f, t);
-          osc.frequency.exponentialRampToValueAtTime(f * 0.92, t + 0.25);
-          const partialGain = ctx.createGain();
-          partialGain.gain.value = idx === 0 ? 1 : 0.35 / idx;
-          osc.connect(partialGain).connect(coinGain);
-          osc.start(t);
-          osc.stop(t + 0.3);
-        });
- 
-        // A tiny metallic "clink" transient right at the onset.
-        const bufferSize = Math.floor(ctx.sampleRate * 0.015);
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let j = 0; j < bufferSize; j++) {
-          data[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / bufferSize, 2);
-        }
-        const clink = ctx.createBufferSource();
-        clink.buffer = buffer;
-        const hp = ctx.createBiquadFilter();
-        hp.type = "highpass";
-        hp.frequency.value = 4000;
-        const clinkGain = ctx.createGain();
-        clinkGain.gain.value = 0.09;
-        clink.connect(hp).connect(clinkGain).connect(coinGain);
-        clink.start(t);
- 
-        routeToOutput(ctx, coinGain);
+        const t = chordAt + 0.06 + i * 0.05 + Math.random() * 0.02;
+        playSingleCoin(ctx, t, 0.15 * (1 - (i / coins) * 0.4));
       }
     }
  

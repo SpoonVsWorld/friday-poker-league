@@ -479,9 +479,42 @@ ul#player-list, ul#season-list {
   margin-bottom: 8px;
 }
 
-.hh-callout-cards { margin-bottom: 8px; }
+.hh-callout-cards {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
 .hh-callout-desc { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
 .hh-callout-meta { font-size: 0.8rem; color: var(--muted); }
+
+.real-card {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 59px;
+  perspective: 240px;
+}
+
+.real-card-flip {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateY(180deg);
+  animation: card-reveal 0.7s ease-in-out forwards;
+}
+
+@keyframes card-reveal {
+  from { transform: rotateY(180deg); }
+  to { transform: rotateY(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .real-card-flip { animation: none; transform: rotateY(360deg); }
+}
 
 ul#highhand-list, ul#public-highhand-list {
   list-style: none;

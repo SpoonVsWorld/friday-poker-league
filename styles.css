@@ -500,6 +500,11 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   margin: 0;
 }
 
+.app-footer p.last-updated {
+  font-size: 0.72rem;
+  margin: 0 0 6px;
+}
+
 .footer-logo {
   height: 1.6em;
   width: 1.6em;

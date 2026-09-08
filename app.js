@@ -1047,6 +1047,48 @@
         .join(" ");
     }
  
+    // Realistic flipping card graphics, used just for the featured
+    // "Season Best" high hand callout.
+    const REAL_CARD_BACK_SVG = `
+      <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="96" height="136" rx="10" fill="#123626" stroke="#d4af37" stroke-width="3"/>
+        <rect x="10" y="10" width="80" height="120" rx="6" fill="none" stroke="#d4af37" stroke-width="1.5" stroke-dasharray="2 3"/>
+        <text x="50" y="82" font-size="42" text-anchor="middle" fill="#d4af37">♠</text>
+      </svg>
+    `;
+ 
+    function realCardFrontSvg(rank, suit) {
+      const rankLabel = rank === "T" ? "10" : rank;
+      const symbol = SUIT_SYMBOL[suit] || suit;
+      const color = SUIT_COLOR[suit] === "red" ? "#c0392b" : "#1a1a1a";
+      const rankFontSize = rankLabel.length > 1 ? 16 : 21;
+      return `
+        <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="96" height="136" rx="10" fill="#fdfdfd" stroke="#1a1a1a" stroke-width="3"/>
+          <text x="11" y="27" font-family="Georgia, 'Times New Roman', serif" font-size="${rankFontSize}" font-weight="700" fill="${color}">${escapeHtml(rankLabel)}</text>
+          <text x="10.5" y="44" font-size="16" fill="${color}">${symbol}</text>
+          <text x="50" y="94" font-size="56" text-anchor="middle" fill="${color}">${symbol}</text>
+        </svg>
+      `;
+    }
+ 
+    function renderRealCard(cardStr, index) {
+      const rank = cardStr.slice(0, -1);
+      const suit = cardStr.slice(-1);
+      return `
+        <span class="real-card">
+          <span class="real-card-flip" style="animation-delay:${(index * 0.12).toFixed(2)}s">
+            <span class="card-face card-front">${realCardFrontSvg(rank, suit)}</span>
+            <span class="card-face card-back">${REAL_CARD_BACK_SVG}</span>
+          </span>
+        </span>
+      `;
+    }
+ 
+    function renderRealHandCards(cards) {
+      return cards.map((c, i) => renderRealCard(c, i)).join("");
+    }
+ 
     // Populate the rank/suit dropdowns for each of the 5 card rows, once.
     for (const row of hhCardRows) {
       const rankSelect = row.querySelector(".hh-rank-select");
@@ -2160,7 +2202,7 @@
           seasonHighHandBox.innerHTML = `
             <div class="high-hand-callout">
               <div class="hh-callout-label">🏆 ${escapeHtml(activeSeasonRow.name)} High Hand</div>
-              <div class="hh-callout-cards">${renderCardsInline(best.cards)}</div>
+              <div class="hh-callout-cards">${renderRealHandCards(best.cards)}</div>
               <div class="hh-callout-desc">${escapeHtml(best.description)}</div>
               <div class="hh-callout-meta">${escapeHtml(best.players?.name || "Unknown")} &middot; ${best.fridays?.game_date || ""}</div>
             </div>

@@ -2086,25 +2086,51 @@
     // The classic slot-machine "JACKPOT!" moment: a quick rising bell
     // arpeggio, landing on a bright sustained chord, with coins
     // spilling out underneath it.
+    // A short percussive "clack," like a cash-register lever/latch —
+    // sits underneath the "cha" for a bit of mechanical bite.
+    function playMechClick(ctx, t) {
+      const bufferSize = Math.floor(ctx.sampleRate * 0.02);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 4);
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1200;
+      bp.Q.value = 1.2;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+      noise.connect(bp).connect(gain);
+      routeToOutput(ctx, gain);
+      noise.start(t);
+    }
+ 
+    // The actual "cha-CHING!" cash-register sound: a short, lower
+    // "cha" hit followed closely by a brighter, longer-ringing
+    // "ching" an octave up, with a few coins settling afterward.
     function playCoinCascade() {
       const ctx = getAudioCtx();
       if (!ctx) return;
       const now = ctx.currentTime;
  
-      const arpeggio = [523.25, 659.25, 783.99, 1046.5, 1318.51]; // C5-E5-G5-C6-E6
-      arpeggio.forEach((freq, i) => {
-        playBellTone(ctx, freq, now + i * 0.075, 0.22, 0.35);
-      });
+      // "Cha" — short, punchy, with a mechanical click.
+      playBellTone(ctx, 784, now, 0.3, 0.14);
+      playMechClick(ctx, now);
  
-      const chordAt = now + arpeggio.length * 0.075 + 0.03;
-      [1046.5, 1318.51, 1567.98].forEach((freq) => {
-        playBellTone(ctx, freq, chordAt, 0.16, 1.0);
-      });
+      // "Ching" — brighter, an octave up, rings out longer.
+      const chingAt = now + 0.15;
+      playBellTone(ctx, 1567.98, chingAt, 0.28, 0.65);
+      playBellTone(ctx, 1975.53, chingAt + 0.012, 0.12, 0.55);
  
-      const coins = 9;
+      // A few coins settling right after, for a touch of "cash" flavor.
+      const coins = 4;
       for (let i = 0; i < coins; i++) {
-        const t = chordAt + 0.06 + i * 0.05 + Math.random() * 0.02;
-        playSingleCoin(ctx, t, 0.15 * (1 - (i / coins) * 0.4));
+        const t = chingAt + 0.13 + i * 0.055 + Math.random() * 0.02;
+        playSingleCoin(ctx, t, 0.1 * (1 - (i / coins) * 0.4));
       }
     }
  

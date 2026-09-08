@@ -57,6 +57,7 @@
     const nextGameText = document.getElementById("next-game-text");
     const publicPotDollars = document.getElementById("public-pot-dollars");
     const publicPotMeta = document.getElementById("public-pot-meta");
+    const footerLastUpdated = document.getElementById("footer-last-updated");
  
     const publicPlayerProfile = document.getElementById("public-player-profile");
     const profileName = document.getElementById("profile-name");
@@ -1665,6 +1666,29 @@
       loadNextGameBanner();
       loadPublicComments();
       loadPublicPot();
+      loadLastUpdated();
+    }
+ 
+    async function loadLastUpdated() {
+      const { data, error } = await supabaseClient
+        .from("app_meta")
+        .select("last_updated")
+        .eq("id", 1)
+        .maybeSingle();
+ 
+      if (error || !data) {
+        footerLastUpdated.textContent = "";
+        return;
+      }
+ 
+      const when = new Date(data.last_updated).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      footerLastUpdated.textContent = `Data last updated: ${when}`;
     }
  
     async function loadPublicPot() {

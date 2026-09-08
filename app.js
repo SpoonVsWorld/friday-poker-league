@@ -1880,11 +1880,15 @@
     }
  
     // ------------------------------------------------------------------
-    // Sound effects — small synthesized sounds (no audio files to
-    // upload). They only ever play from directly inside a tap, since
-    // that's the only time phones allow a web page to make sound.
+    // Sound effects — synthesized sounds (no audio files to upload),
+    // built with layered tones/noise plus a touch of algorithmic
+    // reverb so they read as "real" instead of flat beeps. They only
+    // ever play from directly inside a tap, since that's the only
+    // time phones allow a web page to make sound.
     // ------------------------------------------------------------------
     let audioCtx = null;
+    let audioGraph = null;
+ 
     function getAudioCtx() {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return null;
@@ -1893,41 +1897,117 @@
       return audioCtx;
     }
  
+    // A synthetic "impulse response" (decaying noise) fed into a
+    // ConvolverNode gives a cheap, file-free room reverb.
+    function createImpulseResponse(ctx, duration, decay) {
+      const rate = ctx.sampleRate;
+      const length = Math.floor(rate * duration);
+      const impulse = ctx.createBuffer(2, length, rate);
+      for (let ch = 0; ch < 2; ch++) {
+        const data = impulse.getChannelData(ch);
+        for (let i = 0; i < length; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+        }
+      }
+      return impulse;
+    }
+ 
+    // Shared output chain every sound routes through: a dry path and
+    // a reverb ("wet") path, both glued together by a limiter so
+    // nothing clips.
+    function getAudioGraph(ctx) {
+      if (audioGraph) return audioGraph;
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -20;
+      compressor.knee.value = 24;
+      compressor.ratio.value = 4;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.18;
+      compressor.connect(ctx.destination);
+ 
+      const convolver = ctx.createConvolver();
+      convolver.buffer = createImpulseResponse(ctx, 1.1, 3.2);
+      const wetSend = ctx.createGain();
+      wetSend.gain.value = 0.32;
+      wetSend.connect(convolver);
+      convolver.connect(compressor);
+ 
+      audioGraph = { compressor, wetSend };
+      return audioGraph;
+    }
+ 
+    // Connects a gain node to both the dry and reverb paths.
+    function routeToOutput(ctx, gainNode) {
+      const { compressor, wetSend } = getAudioGraph(ctx);
+      gainNode.connect(compressor);
+      gainNode.connect(wetSend);
+    }
+ 
     function playChipClick() {
       const ctx = getAudioCtx();
       if (!ctx) return;
       const now = ctx.currentTime;
+ 
+      // Sharp plastic "clack" — bandpassed noise transient.
+      const bufferSize = Math.floor(ctx.sampleRate * 0.045);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 6);
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 3200;
+      bp.Q.value = 1.4;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.55, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+      noise.connect(bp).connect(noiseGain);
+ 
+      // Short damped "thock" underneath, for a bit of body/resonance.
       const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "square";
-      osc.frequency.setValueAtTime(900, now);
-      osc.frequency.exponentialRampToValueAtTime(220, now + 0.05);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-      osc.connect(gain).connect(ctx.destination);
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(340, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.05);
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.16, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.connect(oscGain);
+ 
+      routeToOutput(ctx, noiseGain);
+      routeToOutput(ctx, oscGain);
+ 
+      noise.start(now);
       osc.start(now);
-      osc.stop(now + 0.08);
+      osc.stop(now + 0.07);
     }
  
     function playCardSnap() {
       const ctx = getAudioCtx();
       if (!ctx) return;
       const now = ctx.currentTime;
-      const bufferSize = Math.floor(ctx.sampleRate * 0.06);
+ 
+      const bufferSize = Math.floor(ctx.sampleRate * 0.08);
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 4);
       }
       const noise = ctx.createBufferSource();
       noise.buffer = buffer;
-      const filter = ctx.createBiquadFilter();
-      filter.type = "highpass";
-      filter.frequency.value = 1500;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(2600, now);
+      bp.frequency.exponentialRampToValueAtTime(1300, now + 0.07);
+      bp.Q.value = 0.9;
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.5, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-      noise.connect(filter).connect(gain).connect(ctx.destination);
+      gain.gain.setValueAtTime(0.6, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+ 
+      noise.connect(bp).connect(gain);
+      routeToOutput(ctx, gain);
       noise.start(now);
     }
  
@@ -1935,21 +2015,50 @@
       const ctx = getAudioCtx();
       if (!ctx) return;
       const now = ctx.currentTime;
-      const coins = 7;
+      const coins = 10;
+ 
       for (let i = 0; i < coins; i++) {
-        const t = now + i * 0.055 + Math.random() * 0.015;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        const freq = 1500 + Math.random() * 900;
-        osc.frequency.setValueAtTime(freq, t);
-        osc.frequency.exponentialRampToValueAtTime(freq * 0.6, t + 0.18);
-        gain.gain.setValueAtTime(0.001, t);
-        gain.gain.linearRampToValueAtTime(0.18, t + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + 0.25);
+        const t = now + i * 0.05 + Math.random() * 0.02;
+        const baseFreq = 1800 + Math.random() * 1400;
+        // Slightly inharmonic partials, like real metal ringing.
+        const partials = [1, 2.02, 3.4];
+ 
+        const coinGain = ctx.createGain();
+        coinGain.gain.setValueAtTime(0.001, t);
+        coinGain.gain.linearRampToValueAtTime(0.16 * (1 - (i / coins) * 0.4), t + 0.008);
+        coinGain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+ 
+        partials.forEach((mult, idx) => {
+          const osc = ctx.createOscillator();
+          osc.type = "sine";
+          const f = baseFreq * mult;
+          osc.frequency.setValueAtTime(f, t);
+          osc.frequency.exponentialRampToValueAtTime(f * 0.92, t + 0.25);
+          const partialGain = ctx.createGain();
+          partialGain.gain.value = idx === 0 ? 1 : 0.35 / idx;
+          osc.connect(partialGain).connect(coinGain);
+          osc.start(t);
+          osc.stop(t + 0.3);
+        });
+ 
+        // A tiny metallic "clink" transient right at the onset.
+        const bufferSize = Math.floor(ctx.sampleRate * 0.015);
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let j = 0; j < bufferSize; j++) {
+          data[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / bufferSize, 2);
+        }
+        const clink = ctx.createBufferSource();
+        clink.buffer = buffer;
+        const hp = ctx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 4000;
+        const clinkGain = ctx.createGain();
+        clinkGain.gain.value = 0.09;
+        clink.connect(hp).connect(clinkGain).connect(coinGain);
+        clink.start(t);
+ 
+        routeToOutput(ctx, coinGain);
       }
     }
  

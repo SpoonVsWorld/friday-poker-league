@@ -2011,127 +2011,17 @@
       noise.start(now);
     }
  
-    // A single bright "bell" tone — a fundamental plus a detuned
-    // higher partial (the classic inharmonic ratio real bells have),
-    // used to build the jackpot arpeggio and its final chord.
-    function playBellTone(ctx, freq, t, peakGain, decay) {
-      const osc1 = ctx.createOscillator();
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(freq, t);
- 
-      const osc2 = ctx.createOscillator();
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(freq * 2.76, t);
-      const partialGain = ctx.createGain();
-      partialGain.gain.value = 0.3;
- 
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.linearRampToValueAtTime(peakGain, t + 0.008);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
- 
-      osc1.connect(gain);
-      osc2.connect(partialGain).connect(gain);
-      routeToOutput(ctx, gain);
- 
-      osc1.start(t);
-      osc1.stop(t + decay + 0.05);
-      osc2.start(t);
-      osc2.stop(t + decay + 0.05);
-    }
- 
-    // One metallic coin — slightly inharmonic ringing partials plus a
-    // tiny high-frequency "clink" transient at the onset.
-    function playSingleCoin(ctx, t, volume) {
-      const baseFreq = 1800 + Math.random() * 1400;
-      const partials = [1, 2.02, 3.4];
- 
-      const coinGain = ctx.createGain();
-      coinGain.gain.setValueAtTime(0.001, t);
-      coinGain.gain.linearRampToValueAtTime(volume, t + 0.008);
-      coinGain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
- 
-      partials.forEach((mult, idx) => {
-        const osc = ctx.createOscillator();
-        osc.type = "sine";
-        const f = baseFreq * mult;
-        osc.frequency.setValueAtTime(f, t);
-        osc.frequency.exponentialRampToValueAtTime(f * 0.92, t + 0.25);
-        const partialGain = ctx.createGain();
-        partialGain.gain.value = idx === 0 ? 1 : 0.35 / idx;
-        osc.connect(partialGain).connect(coinGain);
-        osc.start(t);
-        osc.stop(t + 0.3);
-      });
- 
-      const bufferSize = Math.floor(ctx.sampleRate * 0.015);
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let j = 0; j < bufferSize; j++) {
-        data[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / bufferSize, 2);
-      }
-      const clink = ctx.createBufferSource();
-      clink.buffer = buffer;
-      const hp = ctx.createBiquadFilter();
-      hp.type = "highpass";
-      hp.frequency.value = 4000;
-      const clinkGain = ctx.createGain();
-      clinkGain.gain.value = 0.09;
-      clink.connect(hp).connect(clinkGain).connect(coinGain);
-      clink.start(t);
- 
-      routeToOutput(ctx, coinGain);
-    }
- 
-    // The classic slot-machine "JACKPOT!" moment: a quick rising bell
-    // arpeggio, landing on a bright sustained chord, with coins
-    // spilling out underneath it.
-    // A short percussive "clack," like a cash-register lever/latch —
-    // sits underneath the "cha" for a bit of mechanical bite.
-    function playMechClick(ctx, t) {
-      const bufferSize = Math.floor(ctx.sampleRate * 0.02);
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 4);
-      }
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = 1200;
-      bp.Q.value = 1.2;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.35, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
-      noise.connect(bp).connect(gain);
-      routeToOutput(ctx, gain);
-      noise.start(t);
-    }
- 
-    // The actual "cha-CHING!" cash-register sound: a short, lower
-    // "cha" hit followed closely by a brighter, longer-ringing
-    // "ching" an octave up, with a few coins settling afterward.
+    // The Pot tab plays an actual recorded cash-register sound
+    // (sounds/cha-ching.mp3) rather than a synthesized one — cached
+    // after the first play so repeat taps are instant.
+    let chaChingAudio = null;
     function playCoinCascade() {
-      const ctx = getAudioCtx();
-      if (!ctx) return;
-      const now = ctx.currentTime;
- 
-      // "Cha" — short, punchy, with a mechanical click.
-      playBellTone(ctx, 784, now, 0.3, 0.14);
-      playMechClick(ctx, now);
- 
-      // "Ching" — brighter, an octave up, rings out longer.
-      const chingAt = now + 0.15;
-      playBellTone(ctx, 1567.98, chingAt, 0.28, 0.65);
-      playBellTone(ctx, 1975.53, chingAt + 0.012, 0.12, 0.55);
- 
-      // A few coins settling right after, for a touch of "cash" flavor.
-      const coins = 4;
-      for (let i = 0; i < coins; i++) {
-        const t = chingAt + 0.13 + i * 0.055 + Math.random() * 0.02;
-        playSingleCoin(ctx, t, 0.1 * (1 - (i / coins) * 0.4));
+      if (!chaChingAudio) {
+        chaChingAudio = new Audio("sounds/cha-ching.mp3");
+        chaChingAudio.volume = 0.85;
       }
+      chaChingAudio.currentTime = 0;
+      chaChingAudio.play().catch(() => {});
     }
  
     document.querySelectorAll(".tab-btn").forEach((btn) => {

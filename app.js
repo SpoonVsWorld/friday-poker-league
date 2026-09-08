@@ -1,3 +1,4 @@
+
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -1878,8 +1879,88 @@
       showPublicList();
     }
  
+    // ------------------------------------------------------------------
+    // Sound effects — small synthesized sounds (no audio files to
+    // upload). They only ever play from directly inside a tap, since
+    // that's the only time phones allow a web page to make sound.
+    // ------------------------------------------------------------------
+    let audioCtx = null;
+    function getAudioCtx() {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      if (!audioCtx) audioCtx = new Ctx();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      return audioCtx;
+    }
+ 
+    function playChipClick() {
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(900, now);
+      osc.frequency.exponentialRampToValueAtTime(220, now + 0.05);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    }
+ 
+    function playCardSnap() {
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const bufferSize = Math.floor(ctx.sampleRate * 0.06);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = 1500;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      noise.connect(filter).connect(gain).connect(ctx.destination);
+      noise.start(now);
+    }
+ 
+    function playCoinCascade() {
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const coins = 7;
+      for (let i = 0; i < coins; i++) {
+        const t = now + i * 0.055 + Math.random() * 0.015;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        const freq = 1500 + Math.random() * 900;
+        osc.frequency.setValueAtTime(freq, t);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.6, t + 0.18);
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.linearRampToValueAtTime(0.18, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.25);
+      }
+    }
+ 
     document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => switchPublicTab(btn.dataset.tab));
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.tab;
+        if (tab === "pot") playCoinCascade();
+        else if (tab === "highhands") playCardSnap();
+        else playChipClick();
+        switchPublicTab(tab);
+      });
     });
  
     document.querySelectorAll(".back-btn").forEach((btn) => {

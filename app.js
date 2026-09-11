@@ -1,4 +1,3 @@
-
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -1529,7 +1528,10 @@
         }))
         .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
  
-      rows.forEach((r, i) => (r.rank = i + 1));
+      rows.forEach((r, i) => {
+        r.rank = i + 1;
+        r.avg = r.played ? (r.points / r.played).toFixed(1) : "";
+      });
  
       const csv = rowsToCSV(
         [
@@ -1537,6 +1539,7 @@
           { key: "name", label: "Player" },
           { key: "points", label: "Points" },
           { key: "played", label: "Fridays Played" },
+          { key: "avg", label: "Avg Points / Game" },
           { key: "wins", label: "Wins" },
           { key: "bounties", label: "Bounties" },
         ],
@@ -2073,7 +2076,7 @@
       seasonProgressLine.textContent = `${season.name} — ${fridayIds.length} Friday${fridayIds.length === 1 ? "" : "s"} played so far`;
  
       if (!fridayIds.length) {
-        standingsBody.innerHTML = '<tr><td colspan="6" class="muted">No results recorded yet this season.</td></tr>';
+        standingsBody.innerHTML = '<tr><td colspan="7" class="muted">No results recorded yet this season.</td></tr>';
         return;
       }
  
@@ -2083,13 +2086,13 @@
         .in("friday_id", fridayIds);
  
       if (resultsErr) {
-        standingsBody.innerHTML = `<tr><td colspan="6" class="muted">Could not load results: ${escapeHtml(resultsErr.message)}</td></tr>`;
+        standingsBody.innerHTML = `<tr><td colspan="7" class="muted">Could not load results: ${escapeHtml(resultsErr.message)}</td></tr>`;
         return;
       }
  
       const { data: players, error: playersErr } = await supabaseClient.from("players").select("id, name");
       if (playersErr) {
-        standingsBody.innerHTML = `<tr><td colspan="6" class="muted">Could not load players: ${escapeHtml(playersErr.message)}</td></tr>`;
+        standingsBody.innerHTML = `<tr><td colspan="7" class="muted">Could not load players: ${escapeHtml(playersErr.message)}</td></tr>`;
         return;
       }
       const playerMap = new Map(players.map((p) => [p.id, p]));
@@ -2112,7 +2115,7 @@
       rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
  
       if (!rows.length) {
-        standingsBody.innerHTML = '<tr><td colspan="6" class="muted">No results recorded yet this season.</td></tr>';
+        standingsBody.innerHTML = '<tr><td colspan="7" class="muted">No results recorded yet this season.</td></tr>';
         return;
       }
  
@@ -2126,6 +2129,7 @@
           <td>${r.points > 0 && r.points === leaderPoints ? '<span class="crown" title="Leader">👑</span> ' : ""}${escapeHtml(r.name)}</td>
           <td>${r.points}</td>
           <td>${r.played}</td>
+          <td>${r.played ? (r.points / r.played).toFixed(1) : "—"}</td>
           <td>${r.wins}</td>
           <td>${r.bounties}</td>
         </tr>
@@ -2231,6 +2235,7 @@
         profileStats.innerHTML = `
           <div class="stat-box"><div class="value">${totalPoints}</div><div class="label">Total Points</div></div>
           <div class="stat-box"><div class="value">${played}</div><div class="label">Fridays Played</div></div>
+          <div class="stat-box"><div class="value">${played ? (totalPoints / played).toFixed(1) : "—"}</div><div class="label">Avg Pts / Game</div></div>
           <div class="stat-box"><div class="value">${wins}</div><div class="label">Wins</div></div>
           <div class="stat-box"><div class="value">${bounties}</div><div class="label">Bounties</div></div>
         `;

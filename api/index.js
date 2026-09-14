@@ -1,9 +1,15 @@
 // ------------------------------------------------------------------
 // This runs on Vercel's servers (not in anyone's browser) every time
 // someone loads the site's home page. Its ONLY job is to take the real
-// app page and stamp in a "preview card" description before sending it
-// out — so when someone pastes the site link into a text thread, the
-// preview shows the next game's place/date instead of something generic.
+// app page and stamp in preview-card info before sending it out — so
+// when someone pastes the site link into a text thread, the preview
+// shows the next game's place/date instead of something generic.
+//
+// Important quirk: iMessage/SMS previews only ever display the TITLE
+// and the IMAGE of a link — they ignore the "description" field
+// entirely (this is a platform limitation, not something we can fix
+// with more meta tags). So the next-game info goes in the title, not
+// the description, to actually show up where people will see it.
 //
 // It is written to fail safe: if anything below goes wrong (Supabase is
 // down, a field is missing, whatever), visitors still get the real,
@@ -77,15 +83,21 @@ export default async function handler(req, res) {
     if (!pageRes.ok) throw new Error("app.html fetch failed");
     let html = await pageRes.text();
  
+    // The description field is set for completeness (some platforms do
+    // use it), but the next-game info is what goes in the TITLE below,
+    // since that's the field iMessage/SMS actually shows.
     let description = DEFAULT_DESCRIPTION;
+    let title = "Friday Poker League";
     try {
       const dynamicDescription = await getNextGameDescription();
-      if (dynamicDescription) description = dynamicDescription;
+      if (dynamicDescription) {
+        title = dynamicDescription;
+        description = "Tap to see standings, results, and more.";
+      }
     } catch (e) {
-      // Supabase hiccup — fall back to the generic description below.
+      // Supabase hiccup — fall back to the generic title/description below.
     }
  
-    const title = "Friday Poker League";
     const imageUrl = `${origin}/icons/icon-512.png`;
     const pageUrl = `${origin}/`;
  

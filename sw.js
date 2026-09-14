@@ -1,30 +1,30 @@
 // Bump this version string whenever the app's files change, so returning
 // visitors' phones clear out the old cached copy instead of getting stuck
 // on stale code.
-const CACHE_NAME = "poker-league-v1";
-
+const CACHE_NAME = "poker-league-v2";
+ 
 const APP_SHELL = [
   "/",
-  "/index.html",
+  "/app.html",
   "/styles.css",
   "/app.js",
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
-
+ 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
   self.skipWaiting();
 });
-
+ 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
   );
   self.clients.claim();
 });
-
+ 
 // Network-first for our own files: always prefer the latest version when
 // online (so a new phase's changes show up right away), and only fall back
 // to the cached copy if the phone is offline. Anything that isn't a GET
@@ -34,7 +34,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
-
+ 
   event.respondWith(
     fetch(req)
       .then((response) => {
@@ -47,3 +47,4 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(req))
   );
 });
+ 

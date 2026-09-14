@@ -1,0 +1,121 @@
+// ------------------------------------------------------------------
+// This runs on Vercel's servers (not in anyone's browser) every time
+// someone loads the site's home page. Its ONLY job is to take the real
+// app page and stamp in a "preview card" description before sending it
+// out — so when someone pastes the site link into a text thread, the
+// preview shows the next game's place/date instead of something generic.
+//
+// It is written to fail safe: if anything below goes wrong (Supabase is
+// down, a field is missing, whatever), visitors still get the real,
+// working app — they just don't get the fancy preview text that one
+// time. Nothing here can "break the site."
+// ------------------------------------------------------------------
+ 
+const SUPABASE_URL = "https://kvdsmrlzsjzovbegdalq.supabase.co";
+// This is the public "read-only" key — the same one already shipped in
+// app.js. It cannot write or change any data.
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2ZHNtcmx6c2p6b3ZiZWdkYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTQ4MzAsImV4cCI6MjEwMzc3MDgzMH0.gGIFNPXR7b4Iq_eRiFIEr4-TF6UE53HKvwXnKX8caxM";
+ 
+const DEFAULT_DESCRIPTION = "Standings, results, and high hands for our Friday poker league.";
+ 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+ 
+// Mirrors loadNextGameBanner() in app.js as closely as possible, so the
+// preview card and the in-app green banner always say the same thing.
+async function getNextGameDescription() {
+  const headers = {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  };
+ 
+  const seasonRes = await fetch(`${SUPABASE_URL}/rest/v1/seasons?is_active=eq.true&select=id&limit=1`, {
+    headers,
+  });
+  if (!seasonRes.ok) return null;
+  const seasons = await seasonRes.json();
+  if (!seasons || !seasons.length) return null;
+ 
+  const today = new Date().toISOString().slice(0, 10);
+  const fridaysUrl =
+    `${SUPABASE_URL}/rest/v1/fridays` +
+    `?season_id=eq.${seasons[0].id}` +
+    `&status=neq.cancelled` +
+    `&game_date=gte.${today}` +
+    `&location=not.is.null` +
+    `&select=game_date,location` +
+    `&order=game_date.asc` +
+    `&limit=1`;
+ 
+  const fridaysRes = await fetch(fridaysUrl, { headers });
+  if (!fridaysRes.ok) return null;
+  const fridays = await fridaysRes.json();
+  if (!fridays || !fridays.length || !fridays[0].location) return null;
+ 
+  const next = fridays[0];
+  const dateLabel = new Date(`${next.game_date}T00:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  return `Next Game: ${dateLabel} — ${next.location}`;
+}
+ 
+export default async function handler(req, res) {
+  const proto = String(req.headers["x-forwarded-proto"] || "https").split(",")[0];
+  const host = req.headers.host;
+  const origin = `${proto}://${host}`;
+ 
+  try {
+    const pageRes = await fetch(`${origin}/app.html`);
+    if (!pageRes.ok) throw new Error("app.html fetch failed");
+    let html = await pageRes.text();
+ 
+    let description = DEFAULT_DESCRIPTION;
+    try {
+      const dynamicDescription = await getNextGameDescription();
+      if (dynamicDescription) description = dynamicDescription;
+    } catch (e) {
+      // Supabase hiccup — fall back to the generic description below.
+    }
+ 
+    const title = "Friday Poker League";
+    const imageUrl = `${origin}/icons/icon-512.png`;
+    const pageUrl = `${origin}/`;
+ 
+    const ogTags = [
+      '<meta property="og:type" content="website" />',
+      '<meta property="og:site_name" content="Friday Poker League" />',
+      `<meta property="og:url" content="${escapeHtml(pageUrl)}" />`,
+      `<meta property="og:title" content="${escapeHtml(title)}" />`,
+      `<meta property="og:description" content="${escapeHtml(description)}" />`,
+      `<meta property="og:image" content="${escapeHtml(imageUrl)}" />`,
+      '<meta property="og:image:width" content="512" />',
+      '<meta property="og:image:height" content="512" />',
+      '<meta name="twitter:card" content="summary_large_image" />',
+      `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
+      `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
+      `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />`,
+    ].join("\n");
+ 
+    html = html.replace("<!--OG_TAGS-->", ogTags);
+ 
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    // Cache at Vercel's edge for a few minutes so normal visits are fast
+    // and we're not hitting Supabase on every single page load, while
+    // still picking up a location change reasonably quickly.
+    res.setHeader("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
+    res.status(200).send(html);
+  } catch (err) {
+    // Last resort: send visitors straight to the real, working app.
+    res.setHeader("Location", "/app.html");
+    res.status(302).end();
+  }
+}
+ 

@@ -1,3 +1,4 @@
+
 :root {
   --bg: #0f1720;
   --card-bg: #182430;
@@ -9,9 +10,9 @@
   --accent-2: #d64545;
   --radius: 14px;
 }
-
+ 
 * { box-sizing: border-box; }
-
+ 
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -21,7 +22,7 @@ body {
   display: flex;
   flex-direction: column;
 }
-
+ 
 .app-header {
   padding: max(20px, env(safe-area-inset-top)) 16px 12px;
   display: flex;
@@ -29,14 +30,14 @@ body {
   justify-content: space-between;
   gap: 10px;
 }
-
+ 
 .title-row {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-
+ 
 .card-icon {
   position: relative;
   display: inline-block;
@@ -46,7 +47,7 @@ body {
   perspective: 240px;
   flex-shrink: 0;
 }
-
+ 
 .card-flip {
   position: relative;
   display: block;
@@ -55,7 +56,7 @@ body {
   transform-style: preserve-3d;
   animation: card-flip 7s ease-in-out infinite;
 }
-
+ 
 .card-face {
   position: absolute;
   inset: 0;
@@ -63,27 +64,27 @@ body {
   -webkit-backface-visibility: hidden;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
 }
-
+ 
 .card-face svg {
   width: 100%;
   height: 100%;
   display: block;
 }
-
+ 
 .card-back {
   transform: rotateY(180deg);
 }
-
+ 
 @keyframes card-flip {
   0%, 38% { transform: rotateY(0deg); }
   50% { transform: rotateY(180deg); }
   88%, 100% { transform: rotateY(360deg); }
 }
-
+ 
 @media (prefers-reduced-motion: reduce) {
   .card-flip { animation: none; }
 }
-
+ 
 .app-header h1 {
   margin: 0;
   font-size: 1.4rem;
@@ -106,16 +107,16 @@ body {
   -webkit-text-fill-color: transparent;
   animation: title-shimmer 4.5s linear infinite;
 }
-
+ 
 @keyframes title-shimmer {
   0% { background-position: 200% center; }
   100% { background-position: -200% center; }
 }
-
+ 
 @media (prefers-reduced-motion: reduce) {
   .app-header h1 { animation: none; }
 }
-
+ 
 .link-btn {
   background: none;
   border: 1px solid var(--border);
@@ -126,14 +127,14 @@ body {
   cursor: pointer;
   flex-shrink: 0;
 }
-
+ 
 @media (max-width: 400px) {
   .app-header h1 { font-size: 1.15rem; }
   .card-icon { font-size: 1.15rem; }
 }
-
+ 
 .link-btn:active { opacity: 0.7; }
-
+ 
 .container {
   flex: 1;
   width: 100%;
@@ -141,7 +142,7 @@ body {
   margin: 0 auto;
   padding: 0 16px 24px;
 }
-
+ 
 .card {
   background: var(--card-bg);
   border-radius: var(--radius);
@@ -149,16 +150,16 @@ body {
   margin-bottom: 16px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.25);
 }
-
+ 
 .card h2 {
   margin-top: 0;
   font-size: 1.1rem;
 }
-
+ 
 .muted { color: var(--muted); font-size: 0.9rem; }
-
+ 
 form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
-
+ 
 label {
   display: flex;
   flex-direction: column;
@@ -166,7 +167,7 @@ label {
   font-size: 0.85rem;
   color: var(--muted);
 }
-
+ 
 input, select, textarea {
   background: var(--field-bg);
   border: 1px solid var(--border);
@@ -176,11 +177,11 @@ input, select, textarea {
   font-size: 1rem;
   font-family: inherit;
 }
-
+ 
 textarea { resize: vertical; }
-
+ 
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); }
-
+ 
 button[type="submit"], .btn {
   background: var(--accent);
   color: #06210f;
@@ -191,21 +192,21 @@ button[type="submit"], .btn {
   font-weight: 600;
   cursor: pointer;
 }
-
+ 
 button[type="submit"]:active, .btn:active { opacity: 0.85; }
-
+ 
 .btn-small {
   padding: 6px 10px;
   font-size: 0.8rem;
   border-radius: 8px;
 }
-
+ 
 .btn-danger { background: var(--accent-2); color: #2a0a0a; }
 .btn-secondary { background: var(--field-bg); color: var(--text); border: 1px solid var(--border); }
-
+ 
 .error { color: var(--accent-2); font-size: 0.85rem; min-height: 1.1em; margin: 0; }
 .ok { color: var(--accent); }
-
+ 
 .admin-bar {
   display: flex;
   align-items: center;
@@ -214,9 +215,9 @@ button[type="submit"]:active, .btn:active { opacity: 0.85; }
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
-
+ 
 .admin-bar span { font-size: 0.85rem; color: var(--muted); }
-
+ 
 ul#player-list, ul#season-list {
   list-style: none;
   margin: 0;
@@ -225,7 +226,7 @@ ul#player-list, ul#season-list {
   flex-direction: column;
   gap: 8px;
 }
-
+ 
 .player-row, .season-row {
   display: flex;
   align-items: center;
@@ -236,14 +237,14 @@ ul#player-list, ul#season-list {
   border-radius: 10px;
   padding: 10px 12px;
 }
-
+ 
 .player-info, .season-info { display: flex; flex-direction: column; }
 .player-info .nickname, .season-info .dates { font-size: 0.78rem; color: var(--muted); }
-
+ 
 .player-info.inactive .name { text-decoration: line-through; color: var(--muted); }
-
+ 
 .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
-
+ 
 .badge {
   font-size: 0.72rem;
   font-weight: 700;
@@ -252,10 +253,10 @@ ul#player-list, ul#season-list {
   background: var(--accent);
   color: #06210f;
 }
-
+ 
 .badge-cancelled { background: var(--accent-2); color: #2a0a0a; }
 .badge-muted { background: var(--border); color: var(--text); }
-
+ 
 .result-row {
   display: flex;
   align-items: center;
@@ -267,7 +268,7 @@ ul#player-list, ul#season-list {
   margin-bottom: 6px;
   flex-wrap: wrap;
 }
-
+ 
 .result-row .played-label {
   display: flex;
   align-items: center;
@@ -276,7 +277,7 @@ ul#player-list, ul#season-list {
   font-size: 0.9rem;
   color: var(--text);
 }
-
+ 
 .result-row select {
   background: var(--card-bg);
   border: 1px solid var(--border);
@@ -285,7 +286,7 @@ ul#player-list, ul#season-list {
   border-radius: 8px;
   font-size: 0.85rem;
 }
-
+ 
 .result-row .bounty-label {
   display: flex;
   align-items: center;
@@ -294,7 +295,7 @@ ul#player-list, ul#season-list {
   color: var(--muted);
   white-space: nowrap;
 }
-
+ 
 .result-row .points-preview {
   font-size: 0.8rem;
   font-weight: 700;
@@ -302,9 +303,9 @@ ul#player-list, ul#season-list {
   min-width: 3.2em;
   text-align: right;
 }
-
+ 
 .result-row.disabled { opacity: 0.5; }
-
+ 
 .friday-row {
   display: flex;
   align-items: center;
@@ -315,13 +316,13 @@ ul#player-list, ul#season-list {
   border-radius: 10px;
   padding: 10px 12px;
 }
-
+ 
 .public-tabs {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
 }
-
+ 
 .tab-btn {
   flex: 1;
   background: var(--field-bg);
@@ -333,14 +334,14 @@ ul#player-list, ul#season-list {
   cursor: pointer;
   white-space: nowrap;
 }
-
+ 
 .tab-btn.active {
   background: var(--accent);
   color: #06210f;
   border-color: var(--accent);
   font-weight: 600;
 }
-
+ 
 /* On narrow phones, 4 tabs squeezed into one row get too tight (labels like
    "High Hands" wrap awkwardly). Switch to a clean 2x2 grid instead. */
 @media (max-width: 420px) {
@@ -351,32 +352,32 @@ ul#player-list, ul#season-list {
     flex: 1 1 calc(50% - 4px);
   }
 }
-
+ 
 .table-wrap { overflow-x: auto; }
-
+ 
 .standings-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
-
+ 
 .standings-table th, .standings-table td {
   text-align: left;
   padding: 8px 6px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
-
+ 
 .standings-table th {
   color: var(--muted);
   font-weight: 600;
   font-size: 0.7rem;
   text-transform: uppercase;
 }
-
+ 
 .clickable-row { cursor: pointer; }
 .clickable-row:active { opacity: 0.7; }
-
+ 
 .clickable-list {
   list-style: none;
   margin: 0;
@@ -385,7 +386,7 @@ ul#player-list, ul#season-list {
   flex-direction: column;
   gap: 8px;
 }
-
+ 
 .clickable-list li {
   background: var(--field-bg);
   border: 1px solid var(--border);
@@ -396,18 +397,18 @@ ul#player-list, ul#season-list {
   justify-content: space-between;
   align-items: center;
 }
-
+ 
 .clickable-list li:active { opacity: 0.8; }
-
+ 
 .back-btn { margin-bottom: 12px; }
-
+ 
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin-top: 10px;
 }
-
+ 
 .stat-box {
   background: var(--field-bg);
   border: 1px solid var(--border);
@@ -415,10 +416,10 @@ ul#player-list, ul#season-list {
   padding: 10px;
   text-align: center;
 }
-
+ 
 .stat-box .value { font-size: 1.3rem; font-weight: 700; }
 .stat-box .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
-
+ 
 .card-input-row {
   display: flex;
   align-items: center;
@@ -429,13 +430,13 @@ ul#player-list, ul#season-list {
   padding: 8px 10px;
   margin-bottom: 6px;
 }
-
+ 
 .card-input-row .card-label {
   flex: 0 0 52px;
   font-size: 0.82rem;
   color: var(--muted);
 }
-
+ 
 .card-input-row select {
   flex: 1;
   min-width: 0;
@@ -446,7 +447,7 @@ ul#player-list, ul#season-list {
   border-radius: 8px;
   font-size: 0.85rem;
 }
-
+ 
 .card-chip {
   display: inline-block;
   background: var(--card-bg);
@@ -457,10 +458,10 @@ ul#player-list, ul#season-list {
   font-weight: 700;
   margin-right: 3px;
 }
-
+ 
 .card-chip.card-red { color: var(--accent-2); }
 .card-chip.card-black { color: var(--text); }
-
+ 
 .high-hand-callout {
   background: linear-gradient(135deg, rgba(47,174,96,0.16), rgba(47,174,96,0.02));
   border: 1px solid var(--accent);
@@ -469,7 +470,7 @@ ul#player-list, ul#season-list {
   text-align: center;
   margin-bottom: 16px;
 }
-
+ 
 .hh-callout-label {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -478,7 +479,7 @@ ul#player-list, ul#season-list {
   font-weight: 700;
   margin-bottom: 8px;
 }
-
+ 
 .hh-callout-cards {
   display: flex;
   justify-content: center;
@@ -488,7 +489,7 @@ ul#player-list, ul#season-list {
 }
 .hh-callout-desc { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
 .hh-callout-meta { font-size: 0.8rem; color: var(--muted); }
-
+ 
 .real-card {
   position: relative;
   display: inline-block;
@@ -496,7 +497,7 @@ ul#player-list, ul#season-list {
   height: 59px;
   perspective: 240px;
 }
-
+ 
 .real-card-flip {
   position: relative;
   display: block;
@@ -506,22 +507,22 @@ ul#player-list, ul#season-list {
   transform: rotateY(180deg);
   animation: card-reveal 0.7s ease-in-out forwards;
 }
-
+ 
 @keyframes card-reveal {
   from { transform: rotateY(180deg); }
   to { transform: rotateY(360deg); }
 }
-
+ 
 @media (prefers-reduced-motion: reduce) {
   .real-card-flip { animation: none; transform: rotateY(360deg); }
 }
-
+ 
 ul#highhand-list, ul#public-highhand-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-
+ 
 .high-hand-item {
   background: var(--field-bg);
   border: 1px solid var(--border);
@@ -529,12 +530,12 @@ ul#highhand-list, ul#public-highhand-list {
   padding: 10px 12px;
   margin-bottom: 8px;
 }
-
+ 
 .hh-item-cards { margin-bottom: 4px; }
 .hh-item-desc { font-weight: 600; margin-bottom: 2px; }
 .hh-item-desc .badge { margin-left: 6px; vertical-align: middle; }
 .hh-item-meta { font-size: 0.78rem; }
-
+ 
 .next-game-banner {
   background: linear-gradient(135deg, rgba(47,174,96,0.16), rgba(47,174,96,0.02));
   border: 1px solid var(--accent);
@@ -543,7 +544,7 @@ ul#highhand-list, ul#public-highhand-list {
   text-align: center;
   margin-bottom: 16px;
 }
-
+ 
 .next-game-label {
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -552,12 +553,12 @@ ul#highhand-list, ul#public-highhand-list {
   font-weight: 700;
   margin-bottom: 4px;
 }
-
+ 
 #next-game-text {
   font-size: 1rem;
   font-weight: 600;
 }
-
+ 
 .feedback-type-row {
   display: flex;
   flex-direction: column;
@@ -565,14 +566,14 @@ ul#highhand-list, ul#public-highhand-list {
   font-size: 0.85rem;
   color: var(--text);
 }
-
+ 
 .radio-label {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-direction: row;
 }
-
+ 
 ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   list-style: none;
   margin: 0;
@@ -581,7 +582,7 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   flex-direction: column;
   gap: 8px;
 }
-
+ 
 .feedback-row {
   display: flex;
   align-items: flex-start;
@@ -592,18 +593,18 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   border-radius: 10px;
   padding: 10px 12px;
 }
-
+ 
 .feedback-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .feedback-message { white-space: pre-wrap; word-break: break-word; }
 .feedback-meta { font-size: 0.78rem; color: var(--muted); }
-
+ 
 .app-footer {
   text-align: center;
   padding: 16px;
   color: var(--muted);
   font-size: 0.8rem;
 }
-
+ 
 .app-footer p {
   display: flex;
   align-items: center;
@@ -611,15 +612,124 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   gap: 6px;
   margin: 0;
 }
-
+ 
 .app-footer p.last-updated {
   font-size: 0.72rem;
   margin: 0 0 6px;
 }
-
+ 
 .footer-logo {
   height: 1.6em;
   width: 1.6em;
   object-fit: contain;
   flex-shrink: 0;
 }
+ 
+/* ------------------------------------------------------------------
+   Insult Slot Machine
+   ------------------------------------------------------------------ */
+.slot-cabinet {
+  background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
+  border: 2px solid #d4af37;
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  text-align: center;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12);
+}
+ 
+.slot-marquee {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #d4af37;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+ 
+.slot-intro {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+}
+ 
+.slot-reels {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+ 
+.slot-reel {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background: var(--field-bg);
+  border: 1px solid #d4af37;
+  border-radius: 10px;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
+}
+ 
+.slot-reel.spinning {
+  animation: slot-reel-spin 0.09s linear infinite;
+}
+ 
+@keyframes slot-reel-spin {
+  0% { transform: scaleY(1); filter: blur(0); }
+  50% { transform: scaleY(0.85); filter: blur(1.5px); }
+  100% { transform: scaleY(1); filter: blur(0); }
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .slot-reel.spinning { animation: none; }
+}
+ 
+.slot-intensity-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+ 
+.slot-spin-btn {
+  background: linear-gradient(180deg, #d4af37, #b8860b);
+  color: #2a1e00;
+  width: 100%;
+  max-width: 220px;
+  font-size: 1.05rem;
+}
+ 
+.slot-spin-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+ 
+.slot-jackpot-banner {
+  margin-top: 14px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #d4af37;
+}
+ 
+.slot-result {
+  margin-top: 14px;
+  min-height: 1.5em;
+}
+ 
+.slot-result-player {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+ 
+.slot-result-insult {
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+ 
+@media (max-width: 400px) {
+  .slot-reel { width: 52px; height: 52px; font-size: 1.6rem; }
+}
+ 

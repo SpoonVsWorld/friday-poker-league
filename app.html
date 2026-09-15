@@ -1,10 +1,348 @@
-A
-♠
-♠
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Friday Poker League</title>
+<!--OG_TAGS-->
+<link rel="stylesheet" href="styles.css" />
  
-♠
-Friday Poker League
-Admin
-Standings Players Fridays High Hands Pot Feedback 🎰 Slots
-#	Player	Pts	Played	Avg	Wins	Bounties
-Created by: Spoon Lab Creations
+<!-- PWA: lets Android/Chrome offer "Install app" and iPhone "Add to Home Screen" -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0f1720" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Poker League" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="title-row">
+      <span class="card-icon" aria-hidden="true">
+        <span class="card-flip">
+          <span class="card-face card-front">
+            <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="2" width="96" height="136" rx="10" fill="#fdfdfd" stroke="#1a1a1a" stroke-width="3"/>
+              <text x="11" y="27" font-family="Georgia, 'Times New Roman', serif" font-size="21" font-weight="700" fill="#1a1a1a">A</text>
+              <text x="10.5" y="44" font-size="16" fill="#1a1a1a">♠</text>
+              <text x="50" y="94" font-size="62" text-anchor="middle" fill="#1a1a1a">♠</text>
+            </svg>
+          </span>
+          <span class="card-face card-back">
+            <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="2" width="96" height="136" rx="10" fill="#123626" stroke="#d4af37" stroke-width="3"/>
+              <rect x="10" y="10" width="80" height="120" rx="6" fill="none" stroke="#d4af37" stroke-width="1.5" stroke-dasharray="2 3"/>
+              <text x="50" y="82" font-size="42" text-anchor="middle" fill="#d4af37">♠</text>
+            </svg>
+          </span>
+        </span>
+      </span>
+      <h1>Friday Poker League</h1>
+    </div>
+    <button id="admin-toggle" class="link-btn" type="button">Admin</button>
+  </header>
+ 
+  <main class="container">
+    <!-- ===================== PUBLIC VIEW ===================== -->
+    <section id="public-view" class="card">
+      <div id="next-game-banner" class="next-game-banner" hidden>
+        <div class="next-game-label">Next Game</div>
+        <div id="next-game-text"></div>
+      </div>
+ 
+      <div id="public-list-view">
+        <nav class="public-tabs">
+          <button class="tab-btn active" data-tab="standings" type="button">Standings</button>
+          <button class="tab-btn" data-tab="players" type="button">Players</button>
+          <button class="tab-btn" data-tab="fridays" type="button">Fridays</button>
+          <button class="tab-btn" data-tab="highhands" type="button">High Hands</button>
+          <button class="tab-btn" data-tab="pot" type="button">Pot</button>
+          <button class="tab-btn" data-tab="feedback" type="button">Feedback</button>
+          <button class="tab-btn" data-tab="slots" type="button">🎰 Slots</button>
+        </nav>
+ 
+        <div id="public-tab-standings" class="public-tab">
+          <p id="season-progress-line" class="muted"></p>
+          <div class="table-wrap">
+            <table class="standings-table">
+              <thead>
+                <tr><th>#</th><th>Player</th><th>Pts</th><th>Played</th><th>Avg</th><th>Wins</th><th>Bounties</th></tr>
+              </thead>
+              <tbody id="standings-body"></tbody>
+            </table>
+          </div>
+        </div>
+ 
+        <div id="public-tab-players" class="public-tab" hidden>
+          <ul id="public-player-list" class="clickable-list"></ul>
+        </div>
+ 
+        <div id="public-tab-fridays" class="public-tab" hidden>
+          <ul id="public-friday-list" class="clickable-list"></ul>
+        </div>
+ 
+        <div id="public-tab-highhands" class="public-tab" hidden>
+          <div id="season-high-hand-box"></div>
+          <h3 style="margin-top:16px; font-size:0.85rem; text-transform:uppercase; color:var(--muted);">High Hand History</h3>
+          <ul id="public-highhand-list"></ul>
+        </div>
+ 
+        <div id="public-tab-pot" class="public-tab" hidden>
+          <div class="high-hand-callout">
+            <div class="hh-callout-label">🏆 Championship Game Pot</div>
+            <div class="hh-callout-desc" id="public-pot-dollars">$0</div>
+            <div class="hh-callout-meta" id="public-pot-meta"></div>
+          </div>
+        </div>
+ 
+        <div id="public-tab-feedback" class="public-tab" hidden>
+          <form id="feedback-form">
+            <label>Your name (optional)
+              <input type="text" id="feedback-name-input" placeholder="Your name">
+            </label>
+            <label>Message
+              <textarea id="feedback-message-input" rows="3" required placeholder="Share a comment, or describe a problem..."></textarea>
+            </label>
+            <div class="feedback-type-row">
+              <label class="radio-label">
+                <input type="radio" name="feedback-type" value="comment" checked>
+                Post as a comment <span class="muted">(everyone can see it)</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="feedback-type" value="problem">
+                Report a problem <span class="muted">(only the host sees it)</span>
+              </label>
+            </div>
+            <button type="submit" class="btn">Submit</button>
+            <p id="feedback-form-msg" class="muted"></p>
+          </form>
+ 
+          <h3 style="margin-top:20px; font-size:0.85rem; text-transform:uppercase; color:var(--muted);">Comments</h3>
+          <ul id="public-comment-list"></ul>
+        </div>
+ 
+        <div id="public-tab-slots" class="public-tab" hidden>
+          <div class="slot-cabinet">
+            <div class="slot-marquee">🎰 INSULT SLOT MACHINE 🎰</div>
+            <p class="muted slot-intro">Spin to pick a random player and roast them. All in good fun — nobody's data or points are affected.</p>
+ 
+            <div class="slot-reels">
+              <div class="slot-reel" id="slot-reel-1">♠</div>
+              <div class="slot-reel" id="slot-reel-2">♥</div>
+              <div class="slot-reel" id="slot-reel-3">♦</div>
+            </div>
+ 
+            <div class="slot-intensity-row" role="radiogroup" aria-label="Roast intensity">
+              <label class="radio-label"><input type="radio" name="slot-intensity" value="playful" checked> Playful</label>
+              <label class="radio-label"><input type="radio" name="slot-intensity" value="savage"> Savage</label>
+              <label class="radio-label"><input type="radio" name="slot-intensity" value="adult"> Adult</label>
+            </div>
+ 
+            <button id="slot-spin-btn" class="btn slot-spin-btn" type="button">🎰 SPIN</button>
+ 
+            <div id="slot-jackpot-banner" class="slot-jackpot-banner" hidden>🎉 ROAST JACKPOT! 🎉</div>
+ 
+            <div id="slot-result" class="slot-result" aria-live="polite">
+              <div id="slot-result-player" class="slot-result-player"></div>
+              <div id="slot-result-insult" class="slot-result-insult"></div>
+            </div>
+ 
+            <p id="slot-error" class="error"></p>
+          </div>
+        </div>
+      </div>
+ 
+      <div id="public-player-profile" class="public-detail" hidden>
+        <button class="btn btn-small btn-secondary back-btn" data-back="players" type="button">&larr; Back to Players</button>
+        <h2 id="profile-name"></h2>
+        <p id="profile-nickname" class="muted"></p>
+        <div class="stat-grid" id="profile-stats"></div>
+        <h3 style="margin-top:20px; font-size:0.95rem;">Points History</h3>
+        <div class="table-wrap">
+          <table class="standings-table">
+            <thead><tr><th>Date</th><th>Season</th><th>Finish</th><th>Bounty</th><th>Pts</th></tr></thead>
+            <tbody id="profile-history-body"></tbody>
+          </table>
+        </div>
+      </div>
+ 
+      <div id="public-friday-detail" class="public-detail" hidden>
+        <button class="btn btn-small btn-secondary back-btn" data-back="fridays" type="button">&larr; Back to Fridays</button>
+        <h2 id="friday-detail-date"></h2>
+        <p id="friday-detail-meta" class="muted"></p>
+        <div class="table-wrap">
+          <table class="standings-table">
+            <thead><tr><th>Finish</th><th>Player</th><th>Bounty</th><th>Pts</th></tr></thead>
+            <tbody id="friday-detail-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+ 
+    <!-- ===================== ADMIN VIEW ===================== -->
+    <section id="admin-view" class="card" hidden>
+ 
+      <!-- Login form -->
+      <div id="admin-login">
+        <h2>Admin Login</h2>
+        <form id="login-form">
+          <label>Email
+            <input type="email" id="login-email" required autocomplete="username">
+          </label>
+          <label>Password
+            <input type="password" id="login-password" required autocomplete="current-password">
+          </label>
+          <button type="submit">Log In</button>
+          <p id="login-error" class="error"></p>
+        </form>
+      </div>
+ 
+      <!-- Admin dashboard, shown once logged in -->
+      <div id="admin-dashboard" hidden>
+        <div class="admin-bar">
+          <span id="admin-email"></span>
+          <button id="logout-btn" class="btn btn-small btn-secondary" type="button">Log Out</button>
+        </div>
+ 
+        <h2>Seasons</h2>
+        <form id="add-season-form">
+          <label>Season name
+            <input type="text" id="new-season-name" placeholder="e.g. Fall 2026" required>
+          </label>
+          <label>Start date
+            <input type="date" id="new-season-start" required>
+          </label>
+          <button type="submit">Create Season</button>
+        </form>
+        <p id="season-error" class="error"></p>
+        <ul id="season-list"></ul>
+ 
+        <h2 style="margin-top:24px;">Friday Results</h2>
+        <p id="results-no-season" class="muted" hidden>Create and activate a season above before entering Friday results.</p>
+        <div id="results-editor" hidden>
+          <label>Friday date
+            <input type="date" id="friday-date-input">
+          </label>
+          <p id="friday-status-line" class="muted"></p>
+ 
+          <label>Location (optional) — announce this before results are in
+            <input type="text" id="friday-location-input" placeholder="e.g. Mike's house">
+          </label>
+          <button id="save-location-btn" class="btn btn-small btn-secondary" type="button">Save Location</button>
+          <p id="location-error" class="error"></p>
+ 
+          <label>Players who played tonight (Championship Pot — $5 each)
+            <input type="number" id="friday-pot-players-input" min="0" step="1" placeholder="e.g. 6">
+          </label>
+          <button id="save-pot-btn" class="btn btn-small btn-secondary" type="button">Save Player Count</button>
+          <p id="pot-error" class="error"></p>
+ 
+          <div id="results-player-rows"></div>
+          <p id="results-error" class="error"></p>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button id="save-results-btn" class="btn" type="button">Save Results</button>
+            <button id="cancel-friday-btn" class="btn btn-danger" type="button">Mark Cancelled / No Game</button>
+          </div>
+ 
+          <h3 style="margin-top:22px; font-size:0.95rem;">Recorded Fridays This Season</h3>
+          <ul id="friday-list"></ul>
+        </div>
+ 
+        <h2 style="margin-top:24px;">Championship Game Pot</h2>
+        <p class="muted">$5 per player, added up across every Friday recorded this season.</p>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="value" id="pot-total-buyins">—</div><div class="label">Total Buy-ins</div></div>
+          <div class="stat-box"><div class="value" id="pot-total-dollars">—</div><div class="label">Pot Total</div></div>
+        </div>
+ 
+        <h2 style="margin-top:24px;">High Hands</h2>
+        <form id="add-highhand-form">
+          <label>Date
+            <input type="date" id="hh-date-input" required>
+          </label>
+          <label>Player
+            <select id="hh-player-select" required></select>
+          </label>
+          <div id="hh-card-rows">
+            <div class="card-input-row"><span class="card-label">Card 1</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 2</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 3</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 4</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+            <div class="card-input-row"><span class="card-label">Card 5</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+          </div>
+          <p id="hh-preview" class="muted"></p>
+          <div style="display:flex; gap:8px;">
+            <button type="submit" class="btn">Save High Hand</button>
+            <button type="button" id="hh-cancel-edit-btn" class="btn btn-secondary" hidden>Cancel Edit</button>
+          </div>
+          <p id="highhand-error" class="error"></p>
+        </form>
+        <h3 style="margin-top:22px; font-size:0.95rem;">Recorded High Hands</h3>
+        <ul id="highhand-list"></ul>
+ 
+        <h2 style="margin-top:24px;">Players</h2>
+        <form id="add-player-form">
+          <label>Player name
+            <input type="text" id="new-player-name" placeholder="Full name" required>
+          </label>
+          <label>Nickname (optional)
+            <input type="text" id="new-player-nickname" placeholder="Nickname">
+          </label>
+          <button type="submit">Add Player</button>
+        </form>
+        <p id="player-error" class="error"></p>
+        <ul id="player-list"></ul>
+ 
+        <h2 style="margin-top:24px;">Site Stats</h2>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="value" id="stat-total-views">—</div><div class="label">Total Views</div></div>
+          <div class="stat-box"><div class="value" id="stat-week-views">—</div><div class="label">Last 7 Days</div></div>
+        </div>
+        <p class="muted" style="margin-top:6px;">Counts page loads by visitors who aren't logged in as admin. Starts counting from when this feature was added — earlier visits aren't included.</p>
+        <button id="reset-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Counter</button>
+        <p id="stats-error" class="error"></p>
+ 
+        <h2 style="margin-top:24px;">Feedback</h2>
+        <h3 style="font-size:0.9rem;">Problems Reported</h3>
+        <ul id="admin-problem-list"></ul>
+        <h3 style="margin-top:16px; font-size:0.9rem;">Comments Posted</h3>
+        <ul id="admin-comment-list"></ul>
+        <p id="feedback-admin-error" class="error"></p>
+ 
+        <h2 style="margin-top:24px;">Export &amp; Backup</h2>
+        <label>Season for the exports below
+          <select id="export-season-select"></select>
+        </label>
+        <p class="muted" style="margin-top:6px;">These download straight to your device — nothing is emailed or uploaded anywhere.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+          <button id="export-standings-btn" class="btn btn-small btn-secondary" type="button">Standings (CSV)</button>
+          <button id="export-results-btn" class="btn btn-small btn-secondary" type="button">Results History (CSV)</button>
+          <button id="export-highhands-btn" class="btn btn-small btn-secondary" type="button">High Hands (CSV)</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+          <button id="export-players-btn" class="btn btn-small btn-secondary" type="button">Players (CSV)</button>
+          <button id="export-backup-btn" class="btn btn-small" type="button">Full Backup — All Seasons (JSON)</button>
+        </div>
+        <p id="export-error" class="error"></p>
+      </div>
+    </section>
+  </main>
+ 
+  <footer class="app-footer">
+    <p id="footer-last-updated" class="last-updated"></p>
+    <p><img src="icons/spoonlab-logo.png" alt="" class="footer-logo">Created by: Spoon Lab Creations</p>
+  </footer>
+ 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
+ 

@@ -1,2400 +1,735 @@
-// ------------------------------------------------------------------
-    // Shared configuration
-    // The URL and "anon" key below are safe to be public: they only ever
-    // let a visitor READ data. All write access is enforced by database
-    // rules (row-level security), not by anything in this file.
-    // ------------------------------------------------------------------
-    const SUPABASE_URL = "https://kvdsmrlzsjzovbegdalq.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2ZHNtcmx6c2p6b3ZiZWdkYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTQ4MzAsImV4cCI6MjEwMzc3MDgzMH0.gGIFNPXR7b4Iq_eRiFIEr4-TF6UE53HKvwXnKX8caxM";
- 
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
- 
-    // ------------------------------------------------------------------
-    // Elements
-    // ------------------------------------------------------------------
-    const adminToggle = document.getElementById("admin-toggle");
-    const publicView = document.getElementById("public-view");
-    const adminView = document.getElementById("admin-view");
-    const adminLogin = document.getElementById("admin-login");
-    const adminDashboard = document.getElementById("admin-dashboard");
-    const loginForm = document.getElementById("login-form");
-    const loginError = document.getElementById("login-error");
-    const adminEmailEl = document.getElementById("admin-email");
-    const logoutBtn = document.getElementById("logout-btn");
- 
-    const addPlayerForm = document.getElementById("add-player-form");
-    const playerError = document.getElementById("player-error");
-    const playerList = document.getElementById("player-list");
- 
-    const addSeasonForm = document.getElementById("add-season-form");
-    const seasonError = document.getElementById("season-error");
-    const seasonList = document.getElementById("season-list");
- 
-    const resultsNoSeason = document.getElementById("results-no-season");
-    const resultsEditor = document.getElementById("results-editor");
-    const fridayDateInput = document.getElementById("friday-date-input");
-    const fridayStatusLine = document.getElementById("friday-status-line");
-    const fridayLocationInput = document.getElementById("friday-location-input");
-    const saveLocationBtn = document.getElementById("save-location-btn");
-    const locationError = document.getElementById("location-error");
-    const fridayPotPlayersInput = document.getElementById("friday-pot-players-input");
-    const savePotBtn = document.getElementById("save-pot-btn");
-    const potError = document.getElementById("pot-error");
-    const potTotalBuyins = document.getElementById("pot-total-buyins");
-    const potTotalDollars = document.getElementById("pot-total-dollars");
-    const resultsPlayerRows = document.getElementById("results-player-rows");
-    const resultsError = document.getElementById("results-error");
-    const saveResultsBtn = document.getElementById("save-results-btn");
-    const cancelFridayBtn = document.getElementById("cancel-friday-btn");
-    const fridayList = document.getElementById("friday-list");
- 
-    const publicListView = document.getElementById("public-list-view");
-    const seasonProgressLine = document.getElementById("season-progress-line");
-    const standingsBody = document.getElementById("standings-body");
-    const publicPlayerList = document.getElementById("public-player-list");
-    const publicFridayList = document.getElementById("public-friday-list");
-    const nextGameBanner = document.getElementById("next-game-banner");
-    const nextGameText = document.getElementById("next-game-text");
-    const publicPotDollars = document.getElementById("public-pot-dollars");
-    const publicPotMeta = document.getElementById("public-pot-meta");
-    const footerLastUpdated = document.getElementById("footer-last-updated");
- 
-    const publicPlayerProfile = document.getElementById("public-player-profile");
-    const profileName = document.getElementById("profile-name");
-    const profileNickname = document.getElementById("profile-nickname");
-    const profileStats = document.getElementById("profile-stats");
-    const profileHistoryBody = document.getElementById("profile-history-body");
- 
-    const publicFridayDetail = document.getElementById("public-friday-detail");
-    const fridayDetailDate = document.getElementById("friday-detail-date");
-    const fridayDetailMeta = document.getElementById("friday-detail-meta");
-    const fridayDetailBody = document.getElementById("friday-detail-body");
- 
-    const seasonHighHandBox = document.getElementById("season-high-hand-box");
-    const publicHighHandList = document.getElementById("public-highhand-list");
- 
-    const hhDateInput = document.getElementById("hh-date-input");
-    const hhPlayerSelect = document.getElementById("hh-player-select");
-    const hhPreview = document.getElementById("hh-preview");
-    const addHighHandForm = document.getElementById("add-highhand-form");
-    const highHandError = document.getElementById("highhand-error");
-    const hhCancelEditBtn = document.getElementById("hh-cancel-edit-btn");
-    const highHandList = document.getElementById("highhand-list");
-    const hhCardRows = [...document.querySelectorAll(".card-input-row")];
- 
-    const exportSeasonSelect = document.getElementById("export-season-select");
-    const exportStandingsBtn = document.getElementById("export-standings-btn");
-    const exportResultsBtn = document.getElementById("export-results-btn");
-    const exportHighHandsBtn = document.getElementById("export-highhands-btn");
-    const exportPlayersBtn = document.getElementById("export-players-btn");
-    const exportBackupBtn = document.getElementById("export-backup-btn");
-    const exportError = document.getElementById("export-error");
- 
-    const statTotalViews = document.getElementById("stat-total-views");
-    const statWeekViews = document.getElementById("stat-week-views");
-    const resetViewsBtn = document.getElementById("reset-views-btn");
-    const statsError = document.getElementById("stats-error");
- 
-    const adminProblemList = document.getElementById("admin-problem-list");
-    const adminCommentList = document.getElementById("admin-comment-list");
-    const feedbackAdminError = document.getElementById("feedback-admin-error");
- 
-    const feedbackForm = document.getElementById("feedback-form");
-    const feedbackNameInput = document.getElementById("feedback-name-input");
-    const feedbackMessageInput = document.getElementById("feedback-message-input");
-    const feedbackFormMsg = document.getElementById("feedback-form-msg");
-    const publicCommentList = document.getElementById("public-comment-list");
- 
-    const PLACEMENT_POINTS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
-    const ORDINALS = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
- 
-    // Card ranks/suits used for High Hand entry. Cards are stored as short
-    // codes like "AS" (Ace of Spades) or "TD" (Ten of Diamonds).
-    const RANK_OPTIONS = [
-      { value: "2", label: "2", numeric: 2 },
-      { value: "3", label: "3", numeric: 3 },
-      { value: "4", label: "4", numeric: 4 },
-      { value: "5", label: "5", numeric: 5 },
-      { value: "6", label: "6", numeric: 6 },
-      { value: "7", label: "7", numeric: 7 },
-      { value: "8", label: "8", numeric: 8 },
-      { value: "9", label: "9", numeric: 9 },
-      { value: "T", label: "10", numeric: 10 },
-      { value: "J", label: "J", numeric: 11 },
-      { value: "Q", label: "Q", numeric: 12 },
-      { value: "K", label: "K", numeric: 13 },
-      { value: "A", label: "A", numeric: 14 },
-    ];
-    const RANK_NUMERIC = Object.fromEntries(RANK_OPTIONS.map((r) => [r.value, r.numeric]));
-    const RANK_NAME_SINGULAR = {
-      2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven",
-      8: "Eight", 9: "Nine", 10: "Ten", 11: "Jack", 12: "Queen", 13: "King", 14: "Ace",
-    };
-    const RANK_NAME_PLURAL = {
-      2: "Twos", 3: "Threes", 4: "Fours", 5: "Fives", 6: "Sixes", 7: "Sevens",
-      8: "Eights", 9: "Nines", 10: "Tens", 11: "Jacks", 12: "Queens", 13: "Kings", 14: "Aces",
-    };
-    const SUIT_OPTIONS = [
-      { value: "S", label: "♠ Spades" },
-      { value: "H", label: "♥ Hearts" },
-      { value: "D", label: "♦ Diamonds" },
-      { value: "C", label: "♣ Clubs" },
-    ];
-    const SUIT_SYMBOL = { S: "♠", H: "♥", D: "♦", C: "♣" };
-    const SUIT_COLOR = { S: "black", H: "red", D: "red", C: "black" };
- 
-    let adminViewOpen = false;
-    let activeSeason = null;
-    let currentFridayId = null;
-    let editingHighHandId = null;
- 
-    // ------------------------------------------------------------------
-    // Navigation: toggle between the public view and the admin panel
-    // ------------------------------------------------------------------
-    adminToggle.addEventListener("click", () => {
-      adminViewOpen = !adminViewOpen;
-      publicView.hidden = adminViewOpen;
-      adminView.hidden = !adminViewOpen;
-      adminToggle.textContent = adminViewOpen ? "Close" : "Admin";
-    });
- 
-    // ------------------------------------------------------------------
-    // Auth
-    // ------------------------------------------------------------------
-    async function showLoggedIn(session) {
-      adminLogin.hidden = true;
-      adminDashboard.hidden = false;
-      adminEmailEl.textContent = session.user.email;
-      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin()]);
-    }
- 
-    function showLoggedOut() {
-      adminLogin.hidden = false;
-      adminDashboard.hidden = true;
-      loginForm.reset();
-    }
- 
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
-      if (session) showLoggedIn(session);
-      else showLoggedOut();
-    });
- 
-    // Check for an already-active session on page load. Only log a "view"
-    // when nobody is logged in as admin, so the counter reflects visitors
-    // checking the app rather than the admin's own repeated visits.
-    supabaseClient.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        showLoggedIn(data.session);
-      } else {
-        supabaseClient.from("page_views").insert({}).then(() => {});
-      }
-    });
- 
-    loginForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      loginError.textContent = "";
-      const email = document.getElementById("login-email").value.trim();
-      const password = document.getElementById("login-password").value;
- 
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) {
-        loginError.textContent = error.message;
-        return;
-      }
-      await showLoggedIn(data.session);
-    });
- 
-    logoutBtn.addEventListener("click", async () => {
-      await supabaseClient.auth.signOut();
-      showLoggedOut();
-    });
- 
-    // ------------------------------------------------------------------
-    // Players
-    // ------------------------------------------------------------------
-    async function loadPlayers() {
-      playerError.textContent = "";
-      const { data, error } = await supabaseClient
-        .from("players")
-        .select("*")
-        .order("name", { ascending: true });
- 
-      if (error) {
-        playerError.textContent = "Could not load players: " + error.message;
-        return;
-      }
-      renderPlayers(data);
-    }
- 
-    function renderPlayers(players) {
-      playerList.innerHTML = "";
-      if (!players.length) {
-        playerList.innerHTML = '<li class="muted">No players yet. Add your first player above.</li>';
-        return;
-      }
-      for (const p of players) {
-        const li = document.createElement("li");
-        li.className = "player-row";
-        li.innerHTML = `
-          <div class="player-info ${p.is_active ? "" : "inactive"}">
-            <span class="name">${escapeHtml(p.name)}</span>
-            ${p.nickname ? `<span class="nickname">"${escapeHtml(p.nickname)}"</span>` : ""}
-          </div>
-          <div class="row-actions">
-            <button class="btn btn-small btn-secondary" data-action="rename">Rename</button>
-            <button class="btn btn-small ${p.is_active ? "btn-danger" : ""}" data-action="toggle">
-              ${p.is_active ? "Deactivate" : "Reactivate"}
-            </button>
-          </div>
-        `;
-        li.querySelector('[data-action="rename"]').addEventListener("click", () => renamePlayer(p));
-        li.querySelector('[data-action="toggle"]').addEventListener("click", () => togglePlayerActive(p));
-        playerList.appendChild(li);
-      }
-    }
- 
-    addPlayerForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      playerError.textContent = "";
-      const name = document.getElementById("new-player-name").value.trim();
-      const nickname = document.getElementById("new-player-nickname").value.trim();
- 
-      if (!name) return;
- 
-      const { error } = await supabaseClient
-        .from("players")
-        .insert({ name, nickname: nickname || null });
- 
-      if (error) {
-        playerError.textContent = "Could not add player: " + error.message;
-        return;
-      }
-      addPlayerForm.reset();
-      loadPlayers();
-      if (activeSeason) loadActivePlayersForResults().then(loadResultsForSelectedDate);
-      loadPlayersForHighHand();
-      refreshPublicView();
-    });
- 
-    async function renamePlayer(player) {
-      const newName = window.prompt("Player name:", player.name);
-      if (newName === null) return;
-      const newNickname = window.prompt("Nickname (leave blank for none):", player.nickname || "");
-      if (newNickname === null) return;
- 
-      const { error } = await supabaseClient
-        .from("players")
-        .update({ name: newName.trim(), nickname: newNickname.trim() || null })
-        .eq("id", player.id);
- 
-      if (error) {
-        playerError.textContent = "Could not update player: " + error.message;
-        return;
-      }
-      loadPlayers();
-      if (activeSeason) loadActivePlayersForResults().then(loadResultsForSelectedDate);
-      loadPlayersForHighHand();
-      refreshPublicView();
-    }
- 
-    async function togglePlayerActive(player) {
-      const verb = player.is_active ? "deactivate" : "reactivate";
-      if (!window.confirm(`Are you sure you want to ${verb} ${player.name}?`)) return;
- 
-      const { error } = await supabaseClient
-        .from("players")
-        .update({ is_active: !player.is_active })
-        .eq("id", player.id);
- 
-      if (error) {
-        playerError.textContent = "Could not update player: " + error.message;
-        return;
-      }
-      loadPlayers();
-      if (activeSeason) loadActivePlayersForResults().then(loadResultsForSelectedDate);
-      loadPlayersForHighHand();
-      refreshPublicView();
-    }
- 
-    // ------------------------------------------------------------------
-    // Seasons
-    // ------------------------------------------------------------------
-    async function loadSeasons() {
-      seasonError.textContent = "";
-      const { data, error } = await supabaseClient
-        .from("seasons")
-        .select("*")
-        .order("start_date", { ascending: false });
- 
-      if (error) {
-        seasonError.textContent = "Could not load seasons: " + error.message;
-        return;
-      }
-      renderSeasons(data);
-      activeSeason = data.find((s) => s.is_active) || null;
-      refreshResultsAvailability();
-      refreshPublicView();
-      populateExportSeasonSelect(data);
-      loadPotTotal();
-    }
- 
-    function populateExportSeasonSelect(seasons) {
-      if (!exportSeasonSelect) return;
-      const previousValue = exportSeasonSelect.value;
-      exportSeasonSelect.innerHTML = seasons
-        .map((s) => `<option value="${s.id}">${escapeHtml(s.name)}${s.is_active ? " (active)" : ""}</option>`)
-        .join("");
-      if (previousValue && seasons.some((s) => s.id === previousValue)) {
-        exportSeasonSelect.value = previousValue;
-      } else if (activeSeason) {
-        exportSeasonSelect.value = activeSeason.id;
-      }
-    }
- 
-    function renderSeasons(seasons) {
-      seasonList.innerHTML = "";
-      if (!seasons.length) {
-        seasonList.innerHTML = '<li class="muted">No seasons yet. Create your first season above.</li>';
-        return;
-      }
-      for (const s of seasons) {
-        const li = document.createElement("li");
-        li.className = "season-row";
-        li.innerHTML = `
-          <div class="season-info">
-            <span class="name">${escapeHtml(s.name)} ${s.is_active ? '<span class="badge">ACTIVE</span>' : ""}</span>
-            <span class="dates">${s.start_date}${s.end_date ? " – " + s.end_date : ""}</span>
-          </div>
-          <div class="row-actions">
-            ${s.is_active ? "" : '<button class="btn btn-small btn-secondary" data-action="activate">Make Active</button>'}
-            <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
-            <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
-          </div>
-        `;
-        const activateBtn = li.querySelector('[data-action="activate"]');
-        if (activateBtn) activateBtn.addEventListener("click", () => makeSeasonActive(s));
-        li.querySelector('[data-action="edit"]').addEventListener("click", () => editSeason(s));
-        li.querySelector('[data-action="delete"]').addEventListener("click", () => deleteSeason(s));
-        seasonList.appendChild(li);
-      }
-    }
- 
-    async function editSeason(season) {
-      seasonError.textContent = "";
-      const newName = window.prompt("Season name:", season.name);
-      if (newName === null) return;
-      const trimmedName = newName.trim();
-      if (!trimmedName) {
-        seasonError.textContent = "Season name can't be blank.";
-        return;
-      }
- 
-      const newStartDate = window.prompt("Start date (YYYY-MM-DD):", season.start_date);
-      if (newStartDate === null) return;
-      const trimmedDate = newStartDate.trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedDate) || isNaN(Date.parse(trimmedDate))) {
-        seasonError.textContent = "Start date must be in YYYY-MM-DD format, like 2026-07-03.";
-        return;
-      }
- 
-      const { error } = await supabaseClient
-        .from("seasons")
-        .update({ name: trimmedName, start_date: trimmedDate })
-        .eq("id", season.id);
- 
-      if (error) {
-        seasonError.textContent = "Could not update season: " + error.message;
-        return;
-      }
-      loadSeasons();
-    }
- 
-    async function deleteSeason(season) {
-      seasonError.textContent = "";
-      const typed = window.prompt(
-        `This permanently deletes "${season.name}" AND every Friday, result, and high hand recorded under it. This cannot be undone.\n\nIf you want a copy first, cancel this and use Export & Backup below.\n\nTo confirm, type the season name exactly: ${season.name}`
-      );
-      if (typed === null) return;
-      if (typed.trim() !== season.name) {
-        seasonError.textContent = "That didn't match the season name exactly, so nothing was deleted.";
-        return;
-      }
- 
-      const { error } = await supabaseClient.from("seasons").delete().eq("id", season.id);
-      if (error) {
-        seasonError.textContent = "Could not delete season: " + error.message;
-        return;
-      }
-      loadSeasons();
-    }
- 
-    addSeasonForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      seasonError.textContent = "";
-      const name = document.getElementById("new-season-name").value.trim();
-      const start_date = document.getElementById("new-season-start").value;
-      if (!name || !start_date) return;
- 
-      const { error } = await supabaseClient
-        .from("seasons")
-        .insert({ name, start_date });
- 
-      if (error) {
-        seasonError.textContent = "Could not create season: " + error.message;
-        return;
-      }
-      addSeasonForm.reset();
-      loadSeasons();
-    });
- 
-    async function makeSeasonActive(season) {
-      if (!window.confirm(`Make "${season.name}" the active season? Any currently active season will be closed.`)) return;
- 
-      // Step 1: deactivate whichever season is currently active
-      const { error: clearError } = await supabaseClient
-        .from("seasons")
-        .update({ is_active: false })
-        .eq("is_active", true);
- 
-      if (clearError) {
-        seasonError.textContent = "Could not update seasons: " + clearError.message;
-        return;
-      }
- 
-      // Step 2: activate the chosen season
-      const { error: setError } = await supabaseClient
-        .from("seasons")
-        .update({ is_active: true })
-        .eq("id", season.id);
- 
-      if (setError) {
-        seasonError.textContent = "Could not activate season: " + setError.message;
-        return;
-      }
-      loadSeasons();
-    }
- 
-    // ------------------------------------------------------------------
-    // Friday Results
-    // ------------------------------------------------------------------
- 
-    function todayIso() {
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, "0");
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    }
- 
-    async function refreshResultsAvailability() {
-      if (!activeSeason) {
-        resultsNoSeason.hidden = false;
-        resultsEditor.hidden = true;
-        return;
-      }
-      resultsNoSeason.hidden = true;
-      resultsEditor.hidden = false;
- 
-      if (!fridayDateInput.value) fridayDateInput.value = todayIso();
- 
-      await loadActivePlayersForResults();
-      await loadResultsForSelectedDate();
-      await loadFridayList();
-    }
- 
-    async function loadActivePlayersForResults() {
-      const { data, error } = await supabaseClient
-        .from("players")
-        .select("*")
-        .eq("is_active", true)
-        .order("name", { ascending: true });
- 
-      if (error) {
-        resultsError.textContent = "Could not load players: " + error.message;
-        return;
-      }
-      renderResultPlayerRows(data);
-    }
- 
-    function renderResultPlayerRows(players) {
-      resultsPlayerRows.innerHTML = "";
-      if (!players.length) {
-        resultsPlayerRows.innerHTML = '<p class="muted">No active players yet — add players below first.</p>';
-        return;
-      }
-      for (const p of players) {
-        const row = document.createElement("div");
-        row.className = "result-row";
-        row.dataset.playerId = p.id;
-        row.innerHTML = `
-          <label class="played-label">
-            <input type="checkbox" class="played-checkbox">
-            ${escapeHtml(p.name)}
-          </label>
-          <select class="placement-select">
-            <option value="">No placement</option>
-            <option value="1">1st (5 pts)</option>
-            <option value="2">2nd (4 pts)</option>
-            <option value="3">3rd (3 pts)</option>
-            <option value="4">4th (2 pts)</option>
-            <option value="5">5th (1 pt)</option>
-          </select>
-          <label class="bounty-label">
-            <input type="radio" name="bounty-winner" class="bounty-radio"> Bounty (+1)
-          </label>
-          <span class="points-preview">0 pts</span>
-        `;
- 
-        const playedCheckbox = row.querySelector(".played-checkbox");
-        const placementSelect = row.querySelector(".placement-select");
-        const bountyRadio = row.querySelector(".bounty-radio");
-        const pointsPreview = row.querySelector(".points-preview");
- 
-        function updateRowState() {
-          const enabled = playedCheckbox.checked;
-          placementSelect.disabled = !enabled;
-          bountyRadio.disabled = !enabled;
-          row.classList.toggle("disabled", !enabled);
-          if (!enabled) {
-            placementSelect.value = "";
-            bountyRadio.checked = false;
-          }
-          const placementPts = PLACEMENT_POINTS[placementSelect.value] || 0;
-          const bountyPts = bountyRadio.checked ? 1 : 0;
-          pointsPreview.textContent = `${placementPts + bountyPts} pts`;
-        }
- 
-        playedCheckbox.addEventListener("change", updateRowState);
-        placementSelect.addEventListener("change", updateRowState);
-        bountyRadio.addEventListener("change", updateRowState);
-        updateRowState();
- 
-        resultsPlayerRows.appendChild(row);
-      }
-    }
- 
-    fridayDateInput.addEventListener("change", loadResultsForSelectedDate);
- 
-    saveLocationBtn.addEventListener("click", async () => {
-      locationError.textContent = "";
-      const date = fridayDateInput.value;
-      if (!date) {
-        locationError.textContent = "Pick a date first.";
-        return;
-      }
-      if (!activeSeason) {
-        locationError.textContent = "Create and activate a season first.";
-        return;
-      }
- 
-      const location = fridayLocationInput.value.trim() || null;
- 
-      if (!currentFridayId) {
-        const { data: inserted, error: insertErr } = await supabaseClient
-          .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "scheduled", location })
-          .select()
-          .single();
-        if (insertErr) {
-          locationError.textContent = "Could not save location: " + insertErr.message;
-          return;
-        }
-        currentFridayId = inserted.id;
-      } else {
-        const { error: updateErr } = await supabaseClient
-          .from("fridays")
-          .update({ location })
-          .eq("id", currentFridayId);
-        if (updateErr) {
-          locationError.textContent = "Could not save location: " + updateErr.message;
-          return;
-        }
-      }
- 
-      await loadResultsForSelectedDate();
-      await loadFridayList();
-      refreshPublicView();
- 
-      locationError.classList.add("ok");
-      locationError.textContent = "Location saved.";
-      setTimeout(() => {
-        locationError.textContent = "";
-        locationError.classList.remove("ok");
-      }, 2500);
-    });
- 
-    savePotBtn.addEventListener("click", async () => {
-      potError.textContent = "";
-      potError.classList.remove("ok");
-      const date = fridayDateInput.value;
-      if (!date) {
-        potError.textContent = "Pick a date first.";
-        return;
-      }
-      if (!activeSeason) {
-        potError.textContent = "Create and activate a season first.";
-        return;
-      }
- 
-      const raw = fridayPotPlayersInput.value.trim();
-      if (raw === "") {
-        potError.textContent = "Enter how many players played.";
-        return;
-      }
-      const potPlayers = Number(raw);
-      if (!Number.isInteger(potPlayers) || potPlayers < 0) {
-        potError.textContent = "Enter a whole number, 0 or higher.";
-        return;
-      }
- 
-      if (!currentFridayId) {
-        const { data: inserted, error: insertErr } = await supabaseClient
-          .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "scheduled", pot_players: potPlayers })
-          .select()
-          .single();
-        if (insertErr) {
-          potError.textContent = "Could not save player count: " + insertErr.message;
-          return;
-        }
-        currentFridayId = inserted.id;
-      } else {
-        const { error: updateErr } = await supabaseClient
-          .from("fridays")
-          .update({ pot_players: potPlayers })
-          .eq("id", currentFridayId);
-        if (updateErr) {
-          potError.textContent = "Could not save player count: " + updateErr.message;
-          return;
-        }
-      }
- 
-      await loadResultsForSelectedDate();
-      await loadFridayList();
-      loadPotTotal();
- 
-      potError.classList.add("ok");
-      potError.textContent = "Player count saved.";
-      setTimeout(() => {
-        potError.textContent = "";
-        potError.classList.remove("ok");
-      }, 2500);
-    });
- 
-    async function loadPotTotal() {
-      if (!activeSeason) {
-        potTotalBuyins.textContent = "—";
-        potTotalDollars.textContent = "—";
-        return;
-      }
- 
-      const { data, error } = await supabaseClient
-        .from("fridays")
-        .select("pot_players")
-        .eq("season_id", activeSeason.id);
- 
-      if (error) {
-        potTotalBuyins.textContent = "—";
-        potTotalDollars.textContent = "—";
-        return;
-      }
- 
-      const totalBuyins = (data || []).reduce((sum, f) => sum + (f.pot_players || 0), 0);
-      potTotalBuyins.textContent = totalBuyins;
-      potTotalDollars.textContent = "$" + (totalBuyins * 5).toLocaleString();
-    }
- 
-    async function loadResultsForSelectedDate() {
-      resultsError.textContent = "";
-      locationError.textContent = "";
-      potError.textContent = "";
-      const date = fridayDateInput.value;
-      if (!date || !activeSeason) return;
- 
-      // reset all rows to blank before loading
-      for (const row of resultsPlayerRows.querySelectorAll(".result-row")) {
-        row.querySelector(".played-checkbox").checked = false;
-        row.querySelector(".placement-select").value = "";
-        row.querySelector(".bounty-radio").checked = false;
-        row.querySelector(".placement-select").dispatchEvent(new Event("change"));
-      }
- 
-      const { data: friday, error: fridayError } = await supabaseClient
-        .from("fridays")
-        .select("*")
-        .eq("season_id", activeSeason.id)
-        .eq("game_date", date)
-        .maybeSingle();
- 
-      if (fridayError) {
-        resultsError.textContent = "Could not check this date: " + fridayError.message;
-        return;
-      }
- 
-      if (!friday) {
-        currentFridayId = null;
-        fridayLocationInput.value = "";
-        fridayPotPlayersInput.value = "";
-        fridayStatusLine.textContent = "Not yet recorded — fill in results below and click Save.";
-        return;
-      }
- 
-      currentFridayId = friday.id;
-      fridayLocationInput.value = friday.location || "";
-      fridayPotPlayersInput.value = friday.pot_players ?? "";
-      fridayStatusLine.textContent =
-        friday.status === "cancelled"
-          ? "This Friday is marked cancelled. Entering results below and saving will reactivate it."
-          : `Status: ${friday.status}`;
- 
-      const { data: results, error: resultsErr } = await supabaseClient
-        .from("results")
-        .select("*")
-        .eq("friday_id", friday.id);
- 
-      if (resultsErr) {
-        resultsError.textContent = "Could not load results: " + resultsErr.message;
-        return;
-      }
- 
-      for (const r of results) {
-        const row = resultsPlayerRows.querySelector(`.result-row[data-player-id="${r.player_id}"]`);
-        if (!row) continue; // player may have since been deactivated
-        row.querySelector(".played-checkbox").checked = true;
-        row.querySelector(".placement-select").value = r.placement || "";
-        row.querySelector(".bounty-radio").checked = r.bounty_winner;
-        row.querySelector(".played-checkbox").dispatchEvent(new Event("change"));
-      }
-    }
- 
-    saveResultsBtn.addEventListener("click", async () => {
-      resultsError.textContent = "";
-      const date = fridayDateInput.value;
-      if (!date) {
-        resultsError.textContent = "Pick a date first.";
-        return;
-      }
- 
-      const rows = [...resultsPlayerRows.querySelectorAll(".result-row")];
-      const placementsUsed = new Set();
-      for (const row of rows) {
-        const played = row.querySelector(".played-checkbox").checked;
-        const placement = row.querySelector(".placement-select").value;
-        if (played && placement) {
-          if (placementsUsed.has(placement)) {
-            resultsError.textContent = `Two players can't both finish in position ${placement}. Fix that before saving.`;
-            return;
-          }
-          placementsUsed.add(placement);
-        }
-      }
- 
-      const playedRows = rows
-        .filter((row) => row.querySelector(".played-checkbox").checked)
-        .map((row) => ({
-          player_id: row.dataset.playerId,
-          placement: row.querySelector(".placement-select").value
-            ? Number(row.querySelector(".placement-select").value)
-            : null,
-          bounty_winner: row.querySelector(".bounty-radio").checked,
-        }));
- 
-      if (!playedRows.length && !window.confirm("No players are marked as played. Save anyway?")) {
-        return;
-      }
- 
-      // Step 1: make sure a fridays row exists for this date, and it's marked completed
-      const location = fridayLocationInput.value.trim() || null;
-      const potPlayersRaw = fridayPotPlayersInput.value.trim();
-      const potPlayers = potPlayersRaw === "" ? null : Number(potPlayersRaw);
-      let fridayId = currentFridayId;
-      if (!fridayId) {
-        const { data: inserted, error: insertErr } = await supabaseClient
-          .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "completed", location, pot_players: potPlayers })
-          .select()
-          .single();
-        if (insertErr) {
-          resultsError.textContent = "Could not create this Friday: " + insertErr.message;
-          return;
-        }
-        fridayId = inserted.id;
-      } else {
-        const { error: updateErr } = await supabaseClient
-          .from("fridays")
-          .update({ status: "completed", location, pot_players: potPlayers })
-          .eq("id", fridayId);
-        if (updateErr) {
-          resultsError.textContent = "Could not update this Friday: " + updateErr.message;
-          return;
-        }
-      }
- 
-      // Step 2: replace any existing results for this Friday with the new set
-      const { error: deleteErr } = await supabaseClient.from("results").delete().eq("friday_id", fridayId);
-      if (deleteErr) {
-        resultsError.textContent = "Could not clear old results: " + deleteErr.message;
-        return;
-      }
- 
-      if (playedRows.length) {
-        const { error: insertResultsErr } = await supabaseClient
-          .from("results")
-          .insert(playedRows.map((r) => ({ ...r, friday_id: fridayId })));
-        if (insertResultsErr) {
-          resultsError.textContent = "Could not save results: " + insertResultsErr.message;
-          return;
-        }
-      }
- 
-      currentFridayId = fridayId;
-      await loadResultsForSelectedDate();
-      await loadFridayList();
-      refreshPublicView();
-      loadPotTotal();
-    });
- 
-    cancelFridayBtn.addEventListener("click", async () => {
-      resultsError.textContent = "";
-      const date = fridayDateInput.value;
-      if (!date) {
-        resultsError.textContent = "Pick a date first.";
-        return;
-      }
-      if (
-        !window.confirm(
-          "Mark this Friday as cancelled / no game? Any recorded results and pot player count for it will be removed."
-        )
-      ) {
-        return;
-      }
- 
-      const location = fridayLocationInput.value.trim() || null;
-      let fridayId = currentFridayId;
-      if (!fridayId) {
-        const { data: inserted, error: insertErr } = await supabaseClient
-          .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "cancelled", location, pot_players: null })
-          .select()
-          .single();
-        if (insertErr) {
-          resultsError.textContent = "Could not save: " + insertErr.message;
-          return;
-        }
-        fridayId = inserted.id;
-      } else {
-        const { error: deleteErr } = await supabaseClient.from("results").delete().eq("friday_id", fridayId);
-        if (deleteErr) {
-          resultsError.textContent = "Could not clear results: " + deleteErr.message;
-          return;
-        }
-        const { error: updateErr } = await supabaseClient
-          .from("fridays")
-          .update({ status: "cancelled", location, pot_players: null })
-          .eq("id", fridayId);
-        if (updateErr) {
-          resultsError.textContent = "Could not update this Friday: " + updateErr.message;
-          return;
-        }
-      }
- 
-      currentFridayId = fridayId;
-      await loadResultsForSelectedDate();
-      await loadFridayList();
-      refreshPublicView();
-      loadPotTotal();
-    });
- 
-    async function loadFridayList() {
-      if (!activeSeason) return;
-      const { data, error } = await supabaseClient
-        .from("fridays")
-        .select("*")
-        .eq("season_id", activeSeason.id)
-        .order("game_date", { ascending: false });
- 
-      if (error) {
-        fridayList.innerHTML = `<li class="muted">Could not load Fridays: ${escapeHtml(error.message)}</li>`;
-        return;
-      }
- 
-      fridayList.innerHTML = "";
-      if (!data.length) {
-        fridayList.innerHTML = '<li class="muted">No Fridays recorded yet this season.</li>';
-        return;
-      }
- 
-      for (const f of data) {
-        const li = document.createElement("li");
-        li.className = "friday-row";
-        const badgeClass =
-          f.status === "cancelled" ? "badge-cancelled" : f.status === "scheduled" ? "badge-muted" : "";
-        li.innerHTML = `
-          <span>${f.game_date} <span class="badge ${badgeClass}">${f.status.toUpperCase()}</span></span>
-          <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
-        `;
-        li.querySelector('[data-action="edit"]').addEventListener("click", () => {
-          fridayDateInput.value = f.game_date;
-          loadResultsForSelectedDate();
-          window.scrollTo({ top: resultsEditor.offsetTop, behavior: "smooth" });
-        });
-        fridayList.appendChild(li);
-      }
-    }
- 
-    // ------------------------------------------------------------------
-    // High Hands — poker hand evaluation + admin entry
-    // ------------------------------------------------------------------
- 
-    // Works out what a 5-card hand is (Royal Flush ... High Card), its
-    // tiebreak ranks (for comparing two hands of the same category), and a
-    // human-readable description — all calculated automatically so no one
-    // has to type in "Full House" by hand and get it wrong.
-    function evaluatePokerHand(cards) {
-      const parsed = cards.map((c) => ({ rank: RANK_NUMERIC[c.slice(0, -1)], suit: c.slice(-1) }));
-      const ranks = parsed.map((c) => c.rank).sort((a, b) => b - a);
-      const isFlush = parsed.every((c) => c.suit === parsed[0].suit);
- 
-      const uniqueRanks = [...new Set(ranks)];
-      let isStraight = false;
-      let straightHigh = null;
-      if (uniqueRanks.length === 5) {
-        if (uniqueRanks[0] - uniqueRanks[4] === 4) {
-          isStraight = true;
-          straightHigh = uniqueRanks[0];
-        } else if (uniqueRanks.join(",") === "14,5,4,3,2") {
-          // wheel: Ace-2-3-4-5, Ace plays low, straight is "5 high"
-          isStraight = true;
-          straightHigh = 5;
-        }
-      }
- 
-      const countMap = new Map();
-      for (const r of ranks) countMap.set(r, (countMap.get(r) || 0) + 1);
-      const groups = [...countMap.entries()]
-        .map(([rank, count]) => ({ rank, count }))
-        .sort((a, b) => b.count - a.count || b.rank - a.rank);
-      const counts = groups.map((g) => g.count);
- 
-      let category, tiebreak, description;
- 
-      if (isStraight && isFlush && straightHigh === 14) {
-        category = 1;
-        tiebreak = [14];
-        description = "Royal Flush";
-      } else if (isStraight && isFlush) {
-        category = 2;
-        tiebreak = [straightHigh];
-        description = `Straight Flush, ${RANK_NAME_SINGULAR[straightHigh]} High`;
-      } else if (counts[0] === 4) {
-        category = 3;
-        tiebreak = [groups[0].rank, groups[1].rank];
-        description = `Four of a Kind, ${RANK_NAME_PLURAL[groups[0].rank]}`;
-      } else if (counts[0] === 3 && counts[1] === 2) {
-        category = 4;
-        tiebreak = [groups[0].rank, groups[1].rank];
-        description = `Full House, ${RANK_NAME_PLURAL[groups[0].rank]} full of ${RANK_NAME_PLURAL[groups[1].rank]}`;
-      } else if (isFlush) {
-        category = 5;
-        tiebreak = [...ranks];
-        description = `Flush, ${RANK_NAME_SINGULAR[ranks[0]]} High`;
-      } else if (isStraight) {
-        category = 6;
-        tiebreak = [straightHigh];
-        description = `Straight, ${RANK_NAME_SINGULAR[straightHigh]} High`;
-      } else if (counts[0] === 3) {
-        category = 7;
-        tiebreak = [groups[0].rank, groups[1].rank, groups[2].rank];
-        description = `Three of a Kind, ${RANK_NAME_PLURAL[groups[0].rank]}`;
-      } else if (counts[0] === 2 && counts[1] === 2) {
-        category = 8;
-        tiebreak = [groups[0].rank, groups[1].rank, groups[2].rank];
-        description = `Two Pair, ${RANK_NAME_PLURAL[groups[0].rank]} and ${RANK_NAME_PLURAL[groups[1].rank]}`;
-      } else if (counts[0] === 2) {
-        category = 9;
-        tiebreak = [groups[0].rank, groups[1].rank, groups[2].rank, groups[3].rank];
-        description = `Pair of ${RANK_NAME_PLURAL[groups[0].rank]}`;
-      } else {
-        category = 10;
-        tiebreak = [...ranks];
-        description = `High Card, ${RANK_NAME_SINGULAR[ranks[0]]}`;
-      }
- 
-      return { category, tiebreak, description };
-    }
- 
-    // Compares two hands (each with hand_category + tiebreak_ranks). Negative
-    // means "a" is the better hand — sorting an array with this puts the best
-    // hand first.
-    function compareHandStrength(a, b) {
-      if (a.hand_category !== b.hand_category) return a.hand_category - b.hand_category;
-      const len = Math.max(a.tiebreak_ranks.length, b.tiebreak_ranks.length);
-      for (let i = 0; i < len; i++) {
-        const va = a.tiebreak_ranks[i] ?? 0;
-        const vb = b.tiebreak_ranks[i] ?? 0;
-        if (va !== vb) return vb - va;
-      }
-      return 0;
-    }
- 
-    function renderCardsInline(cards) {
-      return cards
-        .map((c) => {
-          const rank = c.slice(0, -1);
-          const suit = c.slice(-1);
-          const rankLabel = rank === "T" ? "10" : rank;
-          const color = SUIT_COLOR[suit] || "black";
-          return `<span class="card-chip card-${color}">${rankLabel}${SUIT_SYMBOL[suit] || suit}</span>`;
-        })
-        .join(" ");
-    }
- 
-    // Realistic flipping card graphics, used just for the featured
-    // "Season Best" high hand callout.
-    const REAL_CARD_BACK_SVG = `
-      <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="2" width="96" height="136" rx="10" fill="#123626" stroke="#d4af37" stroke-width="3"/>
-        <rect x="10" y="10" width="80" height="120" rx="6" fill="none" stroke="#d4af37" stroke-width="1.5" stroke-dasharray="2 3"/>
-        <text x="50" y="82" font-size="42" text-anchor="middle" fill="#d4af37">♠</text>
-      </svg>
-    `;
- 
-    function realCardFrontSvg(rank, suit) {
-      const rankLabel = rank === "T" ? "10" : rank;
-      const symbol = SUIT_SYMBOL[suit] || suit;
-      const color = SUIT_COLOR[suit] === "red" ? "#c0392b" : "#1a1a1a";
-      const rankFontSize = rankLabel.length > 1 ? 16 : 21;
-      return `
-        <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
-          <rect x="2" y="2" width="96" height="136" rx="10" fill="#fdfdfd" stroke="#1a1a1a" stroke-width="3"/>
-          <text x="11" y="27" font-family="Georgia, 'Times New Roman', serif" font-size="${rankFontSize}" font-weight="700" fill="${color}">${escapeHtml(rankLabel)}</text>
-          <text x="10.5" y="44" font-size="16" fill="${color}">${symbol}</text>
-          <text x="50" y="94" font-size="56" text-anchor="middle" fill="${color}">${symbol}</text>
-        </svg>
-      `;
-    }
- 
-    function renderRealCard(cardStr, index) {
-      const rank = cardStr.slice(0, -1);
-      const suit = cardStr.slice(-1);
-      return `
-        <span class="real-card">
-          <span class="real-card-flip" style="animation-delay:${(index * 0.12).toFixed(2)}s">
-            <span class="card-face card-front">${realCardFrontSvg(rank, suit)}</span>
-            <span class="card-face card-back">${REAL_CARD_BACK_SVG}</span>
-          </span>
-        </span>
-      `;
-    }
- 
-    function renderRealHandCards(cards) {
-      return cards.map((c, i) => renderRealCard(c, i)).join("");
-    }
- 
-    // Populate the rank/suit dropdowns for each of the 5 card rows, once.
-    for (const row of hhCardRows) {
-      const rankSelect = row.querySelector(".hh-rank-select");
-      const suitSelect = row.querySelector(".hh-suit-select");
-      rankSelect.innerHTML =
-        '<option value="">Rank</option>' + RANK_OPTIONS.map((r) => `<option value="${r.value}">${r.label}</option>`).join("");
-      suitSelect.innerHTML =
-        '<option value="">Suit</option>' + SUIT_OPTIONS.map((s) => `<option value="${s.value}">${s.label}</option>`).join("");
-      rankSelect.addEventListener("change", updateHighHandPreview);
-      suitSelect.addEventListener("change", updateHighHandPreview);
-    }
- 
-    if (hhDateInput) hhDateInput.value = todayIso();
- 
-    function getSelectedCards() {
-      return hhCardRows.map((row) => {
-        const rank = row.querySelector(".hh-rank-select").value;
-        const suit = row.querySelector(".hh-suit-select").value;
-        return rank && suit ? rank + suit : null;
-      });
-    }
- 
-    function updateHighHandPreview() {
-      const cards = getSelectedCards();
-      highHandError.textContent = "";
-      if (cards.some((c) => !c)) {
-        hhPreview.textContent = "Pick all 5 cards to see the hand.";
-        return;
-      }
-      if (new Set(cards).size !== 5) {
-        hhPreview.textContent = "";
-        highHandError.textContent = "Each card can only be used once.";
-        return;
-      }
-      const evalResult = evaluatePokerHand(cards);
-      hhPreview.innerHTML = `${renderCardsInline(cards)} &nbsp; <strong>${escapeHtml(evalResult.description)}</strong>`;
-    }
- 
-    async function loadPlayersForHighHand() {
-      const { data, error } = await supabaseClient
-        .from("players")
-        .select("*")
-        .order("is_active", { ascending: false })
-        .order("name", { ascending: true });
- 
-      if (error) {
-        highHandError.textContent = "Could not load players: " + error.message;
-        return;
-      }
-      const previousValue = hhPlayerSelect.value;
-      hhPlayerSelect.innerHTML = data
-        .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}${p.is_active ? "" : " (inactive)"}</option>`)
-        .join("");
-      if (previousValue) hhPlayerSelect.value = previousValue;
-    }
- 
-    function resetHighHandForm() {
-      editingHighHandId = null;
-      addHighHandForm.reset();
-      hhDateInput.value = todayIso();
-      for (const row of hhCardRows) {
-        row.querySelector(".hh-rank-select").value = "";
-        row.querySelector(".hh-suit-select").value = "";
-      }
-      hhCancelEditBtn.hidden = true;
-      highHandError.textContent = "";
-      updateHighHandPreview();
-    }
- 
-    hhCancelEditBtn.addEventListener("click", resetHighHandForm);
- 
-    addHighHandForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      highHandError.textContent = "";
-      const date = hhDateInput.value;
-      const playerId = hhPlayerSelect.value;
-      const cards = getSelectedCards();
- 
-      if (!date) {
-        highHandError.textContent = "Pick a date.";
-        return;
-      }
-      if (!playerId) {
-        highHandError.textContent = "Pick a player.";
-        return;
-      }
-      if (cards.some((c) => !c)) {
-        highHandError.textContent = "Pick all 5 cards.";
-        return;
-      }
-      if (new Set(cards).size !== 5) {
-        highHandError.textContent = "Each card can only be used once.";
-        return;
-      }
-      if (!activeSeason) {
-        highHandError.textContent = "Create and activate a season first.";
-        return;
-      }
- 
-      const evalResult = evaluatePokerHand(cards);
- 
-      // Find or create the Friday this hand happened on.
-      const { data: existingFriday, error: fridayLookupErr } = await supabaseClient
-        .from("fridays")
-        .select("*")
-        .eq("season_id", activeSeason.id)
-        .eq("game_date", date)
-        .maybeSingle();
- 
-      if (fridayLookupErr) {
-        highHandError.textContent = "Could not check this date: " + fridayLookupErr.message;
-        return;
-      }
- 
-      let fridayId;
-      if (existingFriday) {
-        fridayId = existingFriday.id;
-      } else {
-        const { data: inserted, error: insertFridayErr } = await supabaseClient
-          .from("fridays")
-          .insert({ season_id: activeSeason.id, game_date: date, status: "scheduled" })
-          .select()
-          .single();
-        if (insertFridayErr) {
-          highHandError.textContent = "Could not save this date: " + insertFridayErr.message;
-          return;
-        }
-        fridayId = inserted.id;
-      }
- 
-      const payload = {
-        friday_id: fridayId,
-        player_id: playerId,
-        cards,
-        hand_category: evalResult.category,
-        tiebreak_ranks: evalResult.tiebreak,
-        description: evalResult.description,
-      };
- 
-      if (editingHighHandId) {
-        const { error } = await supabaseClient.from("high_hands").update(payload).eq("id", editingHighHandId);
-        if (error) {
-          highHandError.textContent = "Could not update: " + error.message;
-          return;
-        }
-      } else {
-        const { error } = await supabaseClient.from("high_hands").insert(payload);
-        if (error) {
-          highHandError.textContent = "Could not save: " + error.message;
-          return;
-        }
-      }
- 
-      resetHighHandForm();
-      loadHighHandsAdmin();
-      refreshPublicView();
-    });
- 
-    async function loadHighHandsAdmin() {
-      const { data, error } = await supabaseClient
-        .from("high_hands")
-        .select("*, fridays(game_date, seasons(name)), players(name)")
-        .order("recorded_at", { ascending: false });
- 
-      if (error) {
-        highHandList.innerHTML = `<li class="muted">Could not load high hands: ${escapeHtml(error.message)}</li>`;
-        return;
-      }
-      if (!data.length) {
-        highHandList.innerHTML = '<li class="muted">No high hands recorded yet.</li>';
-        return;
-      }
- 
-      highHandList.innerHTML = "";
-      for (const hh of data) {
-        const li = document.createElement("li");
-        li.className = "friday-row";
-        li.innerHTML = `
-          <div class="player-info">
-            <span class="name">${escapeHtml(hh.players?.name || "Unknown")} &mdash; ${escapeHtml(hh.description)}</span>
-            <span class="nickname">${hh.fridays?.game_date || ""} &middot; ${escapeHtml(hh.fridays?.seasons?.name || "")}</span>
-          </div>
-          <div class="row-actions">
-            <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
-            <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
-          </div>
-        `;
-        li.querySelector('[data-action="edit"]').addEventListener("click", () => editHighHand(hh));
-        li.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHighHand(hh));
-        highHandList.appendChild(li);
-      }
-    }
- 
-    function editHighHand(hh) {
-      editingHighHandId = hh.id;
-      hhDateInput.value = hh.fridays?.game_date || todayIso();
-      hhPlayerSelect.value = hh.player_id;
-      hh.cards.forEach((card, i) => {
-        const row = hhCardRows[i];
-        if (!row) return;
-        row.querySelector(".hh-rank-select").value = card.slice(0, -1);
-        row.querySelector(".hh-suit-select").value = card.slice(-1);
-      });
-      updateHighHandPreview();
-      hhCancelEditBtn.hidden = false;
-      window.scrollTo({ top: addHighHandForm.offsetTop, behavior: "smooth" });
-    }
- 
-    async function deleteHighHand(hh) {
-      if (
-        !window.confirm(
-          `Delete this high hand — ${hh.description} by ${hh.players?.name || "Unknown"}? This cannot be undone.`
-        )
-      ) {
-        return;
-      }
-      const { error } = await supabaseClient.from("high_hands").delete().eq("id", hh.id);
-      if (error) {
-        highHandError.textContent = "Could not delete: " + error.message;
-        return;
-      }
-      if (editingHighHandId === hh.id) resetHighHandForm();
-      loadHighHandsAdmin();
-      refreshPublicView();
-    }
- 
-    // ------------------------------------------------------------------
-    // Site Stats — a simple page-view counter, admin-only.
-    // ------------------------------------------------------------------
- 
-    async function loadSiteStats() {
-      statsError.textContent = "";
- 
-      const { count: totalCount, error: totalErr } = await supabaseClient
-        .from("page_views")
-        .select("*", { count: "exact", head: true });
- 
-      if (totalErr) {
-        statsError.textContent = "Could not load view stats: " + totalErr.message;
-        return;
-      }
- 
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { count: weekCount, error: weekErr } = await supabaseClient
-        .from("page_views")
-        .select("*", { count: "exact", head: true })
-        .gte("viewed_at", sevenDaysAgo);
- 
-      statTotalViews.textContent = totalCount ?? 0;
-      statWeekViews.textContent = weekErr ? "—" : weekCount ?? 0;
-    }
- 
-    resetViewsBtn.addEventListener("click", async () => {
-      statsError.textContent = "";
-      if (
-        !window.confirm(
-          "Reset the view counter to zero? This permanently deletes all recorded page views and cannot be undone."
-        )
-      ) {
-        return;
-      }
- 
-      const { error } = await supabaseClient.from("page_views").delete().gt("viewed_at", "1970-01-01");
-      if (error) {
-        statsError.textContent = "Could not reset counter: " + error.message;
-        return;
-      }
-      loadSiteStats();
-    });
- 
-    // ------------------------------------------------------------------
-    // Feedback — public comments (visible to everyone) and problem
-    // reports (admin-only), both submitted from the public site.
-    // ------------------------------------------------------------------
- 
-    function renderFeedbackRow(item) {
-      const when = new Date(item.created_at).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      const who = item.name ? escapeHtml(item.name) : "Anonymous";
-      return `
-        <li class="feedback-row" data-id="${item.id}">
-          <div class="feedback-info">
-            <div class="feedback-message">${escapeHtml(item.message)}</div>
-            <div class="feedback-meta">${who} &middot; ${when}</div>
-          </div>
-          <div class="row-actions">
-            <button class="btn btn-small btn-danger delete-feedback-btn" data-id="${item.id}" type="button">Delete</button>
-          </div>
-        </li>
-      `;
-    }
- 
-    async function loadFeedbackAdmin() {
-      feedbackAdminError.textContent = "";
-      const { data, error } = await supabaseClient
-        .from("feedback")
-        .select("*")
-        .order("created_at", { ascending: false });
- 
-      if (error) {
-        feedbackAdminError.textContent = "Could not load feedback: " + error.message;
-        return;
-      }
- 
-      const problems = (data || []).filter((f) => f.type === "problem");
-      const comments = (data || []).filter((f) => f.type === "comment");
- 
-      adminProblemList.innerHTML = problems.length
-        ? problems.map(renderFeedbackRow).join("")
-        : '<li class="muted">No problems reported.</li>';
- 
-      adminCommentList.innerHTML = comments.length
-        ? comments.map(renderFeedbackRow).join("")
-        : '<li class="muted">No comments yet.</li>';
- 
-      document.querySelectorAll(".delete-feedback-btn").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          if (!window.confirm("Delete this permanently?")) return;
-          const { error: delErr } = await supabaseClient.from("feedback").delete().eq("id", btn.dataset.id);
-          if (delErr) {
-            feedbackAdminError.textContent = "Could not delete: " + delErr.message;
-            return;
-          }
-          loadFeedbackAdmin();
-          loadPublicComments();
-        });
-      });
-    }
- 
-    // ------------------------------------------------------------------
-    // Export & Backup — everything downloads straight to the admin's
-    // device as a file. Nothing here is emailed or sent anywhere.
-    // ------------------------------------------------------------------
- 
-    function csvEscape(value) {
-      if (value === null || value === undefined) return "";
-      const s = String(value);
-      if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-      return s;
-    }
- 
-    function rowsToCSV(columns, rows) {
-      const header = columns.map((c) => csvEscape(c.label)).join(",");
-      const lines = rows.map((row) => columns.map((c) => csvEscape(row[c.key])).join(","));
-      return [header, ...lines].join("\r\n");
-    }
- 
-    function slugify(str) {
-      return (
-        String(str || "")
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "") || "export"
-      );
-    }
- 
-    function downloadFile(filename, content, mimeType) {
-      const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
- 
-    function getSelectedExportSeasonId() {
-      if (!exportSeasonSelect || !exportSeasonSelect.value) {
-        exportError.textContent = "Create a season first.";
-        return null;
-      }
-      return exportSeasonSelect.value;
-    }
- 
-    exportStandingsBtn.addEventListener("click", async () => {
-      exportError.textContent = "";
-      const seasonId = getSelectedExportSeasonId();
-      if (!seasonId) return;
- 
-      const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
-      if (seasonErr || !season) {
-        exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
-        return;
-      }
- 
-      const { data: fridays, error: fridaysErr } = await supabaseClient
-        .from("fridays")
-        .select("id")
-        .eq("season_id", seasonId)
-        .eq("status", "completed");
-      if (fridaysErr) {
-        exportError.textContent = "Could not load Fridays: " + fridaysErr.message;
-        return;
-      }
- 
-      const fridayIds = (fridays || []).map((f) => f.id);
-      let results = [];
-      if (fridayIds.length) {
-        const { data, error } = await supabaseClient
-          .from("results")
-          .select("player_id, placement, bounty_winner, total_points")
-          .in("friday_id", fridayIds);
-        if (error) {
-          exportError.textContent = "Could not load results: " + error.message;
-          return;
-        }
-        results = data || [];
-      }
- 
-      const { data: players, error: playersErr } = await supabaseClient.from("players").select("id, name");
-      if (playersErr) {
-        exportError.textContent = "Could not load players: " + playersErr.message;
-        return;
-      }
-      const playerMap = new Map(players.map((p) => [p.id, p]));
- 
-      const agg = new Map();
-      for (const r of results) {
-        if (!agg.has(r.player_id)) agg.set(r.player_id, { points: 0, played: 0, wins: 0, bounties: 0 });
-        const a = agg.get(r.player_id);
-        a.points += r.total_points;
-        a.played += 1;
-        if (r.placement === 1) a.wins += 1;
-        if (r.bounty_winner) a.bounties += 1;
-      }
- 
-      const rows = [...agg.entries()]
-        .map(([playerId, stats]) => ({
-          name: playerMap.get(playerId)?.name || "Unknown player",
-          ...stats,
-        }))
-        .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
- 
-      rows.forEach((r, i) => {
-        r.rank = i + 1;
-        r.avg = r.played ? (r.points / r.played).toFixed(1) : "";
-      });
- 
-      const csv = rowsToCSV(
-        [
-          { key: "rank", label: "Rank" },
-          { key: "name", label: "Player" },
-          { key: "points", label: "Points" },
-          { key: "played", label: "Fridays Played" },
-          { key: "avg", label: "Avg Points / Game" },
-          { key: "wins", label: "Wins" },
-          { key: "bounties", label: "Bounties" },
-        ],
-        rows
-      );
- 
-      downloadFile(`standings-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
-    });
- 
-    exportResultsBtn.addEventListener("click", async () => {
-      exportError.textContent = "";
-      const seasonId = getSelectedExportSeasonId();
-      if (!seasonId) return;
- 
-      const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
-      if (seasonErr || !season) {
-        exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
-        return;
-      }
- 
-      const { data: fridays, error: fridaysErr } = await supabaseClient
-        .from("fridays")
-        .select("id, game_date, status")
-        .eq("season_id", seasonId)
-        .order("game_date", { ascending: true });
-      if (fridaysErr) {
-        exportError.textContent = "Could not load Fridays: " + fridaysErr.message;
-        return;
-      }
- 
-      const fridayMap = new Map((fridays || []).map((f) => [f.id, f]));
-      const fridayIds = [...fridayMap.keys()];
- 
-      let results = [];
-      if (fridayIds.length) {
-        const { data, error } = await supabaseClient
-          .from("results")
-          .select("friday_id, player_id, placement, bounty_winner, total_points, players(name)")
-          .in("friday_id", fridayIds);
-        if (error) {
-          exportError.textContent = "Could not load results: " + error.message;
-          return;
-        }
-        results = data || [];
-      }
- 
-      const rows = results
-        .map((r) => {
-          const friday = fridayMap.get(r.friday_id);
-          return {
-            date: friday?.game_date || "",
-            player: r.players?.name || "Unknown",
-            finish: r.placement ? ORDINALS[r.placement] || r.placement : "",
-            bounty: r.bounty_winner ? "Yes" : "No",
-            points: r.total_points,
-          };
-        })
-        .sort((a, b) => a.date.localeCompare(b.date) || (a.finish || "zzz").localeCompare(b.finish || "zzz"));
- 
-      const csv = rowsToCSV(
-        [
-          { key: "date", label: "Date" },
-          { key: "player", label: "Player" },
-          { key: "finish", label: "Finish" },
-          { key: "bounty", label: "Bounty" },
-          { key: "points", label: "Points" },
-        ],
-        rows
-      );
- 
-      downloadFile(`results-history-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
-    });
- 
-    exportHighHandsBtn.addEventListener("click", async () => {
-      exportError.textContent = "";
-      const seasonId = getSelectedExportSeasonId();
-      if (!seasonId) return;
- 
-      const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
-      if (seasonErr || !season) {
-        exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
-        return;
-      }
- 
-      const { data: hands, error } = await supabaseClient
-        .from("high_hands")
-        .select("*, fridays!inner(game_date, season_id), players(name)")
-        .eq("fridays.season_id", seasonId)
-        .order("recorded_at", { ascending: true });
- 
-      if (error) {
-        exportError.textContent = "Could not load high hands: " + error.message;
-        return;
-      }
- 
-      const rows = (hands || []).map((hh) => ({
-        date: hh.fridays?.game_date || "",
-        player: hh.players?.name || "Unknown",
-        hand: hh.description,
-        cards: hh.cards.join(" "),
-      }));
- 
-      const csv = rowsToCSV(
-        [
-          { key: "date", label: "Date" },
-          { key: "player", label: "Player" },
-          { key: "hand", label: "Hand" },
-          { key: "cards", label: "Cards" },
-        ],
-        rows
-      );
- 
-      downloadFile(`high-hands-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
-    });
- 
-    exportPlayersBtn.addEventListener("click", async () => {
-      exportError.textContent = "";
-      const { data: players, error } = await supabaseClient.from("players").select("*").order("name", { ascending: true });
-      if (error) {
-        exportError.textContent = "Could not load players: " + error.message;
-        return;
-      }
- 
-      const rows = players.map((p) => ({
-        name: p.name,
-        nickname: p.nickname || "",
-        status: p.is_active ? "Active" : "Inactive",
-        joined: p.joined_date,
-      }));
- 
-      const csv = rowsToCSV(
-        [
-          { key: "name", label: "Name" },
-          { key: "nickname", label: "Nickname" },
-          { key: "status", label: "Status" },
-          { key: "joined", label: "Joined" },
-        ],
-        rows
-      );
- 
-      downloadFile(`players-${todayIso()}.csv`, csv, "text/csv");
-    });
- 
-    exportBackupBtn.addEventListener("click", async () => {
-      exportError.textContent = "";
-      const tables = ["seasons", "players", "fridays", "results", "high_hands"];
-      const backup = { exported_at: new Date().toISOString() };
- 
-      for (const table of tables) {
-        const { data, error } = await supabaseClient.from(table).select("*");
-        if (error) {
-          exportError.textContent = `Could not back up "${table}": ` + error.message;
-          return;
-        }
-        backup[table] = data;
-      }
- 
-      downloadFile(`poker-league-full-backup-${todayIso()}.json`, JSON.stringify(backup, null, 2), "application/json");
-    });
- 
-    // ------------------------------------------------------------------
-    // Public view: Standings / Players / Fridays
-    // ------------------------------------------------------------------
- 
-    function refreshPublicView() {
-      loadStandings();
-      loadPublicPlayers();
-      loadPublicFridays();
-      loadHighHandsPublic();
-      loadNextGameBanner();
-      loadPublicComments();
-      loadPublicPot();
-      loadLastUpdated();
-    }
- 
-    async function loadLastUpdated() {
-      const { data, error } = await supabaseClient
-        .from("app_meta")
-        .select("last_updated")
-        .eq("id", 1)
-        .maybeSingle();
- 
-      if (error || !data) {
-        footerLastUpdated.textContent = "";
-        return;
-      }
- 
-      const when = new Date(data.last_updated).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-      footerLastUpdated.textContent = `Data last updated: ${when}`;
-    }
- 
-    async function loadPublicPot() {
-      const { data: seasons, error: seasonErr } = await supabaseClient
-        .from("seasons")
-        .select("*")
-        .eq("is_active", true)
-        .limit(1);
- 
-      if (seasonErr || !seasons || !seasons.length) {
-        publicPotDollars.textContent = "$0";
-        publicPotMeta.textContent = "No active season right now.";
-        return;
-      }
- 
-      const { data: fridays, error } = await supabaseClient
-        .from("fridays")
-        .select("pot_players")
-        .eq("season_id", seasons[0].id);
- 
-      if (error) {
-        publicPotDollars.textContent = "—";
-        publicPotMeta.textContent = "Could not load the pot total.";
-        return;
-      }
- 
-      const totalBuyins = (fridays || []).reduce((sum, f) => sum + (f.pot_players || 0), 0);
-      publicPotDollars.textContent = "$" + (totalBuyins * 5).toLocaleString();
-      publicPotMeta.textContent = `${totalBuyins} player buy-in${totalBuyins === 1 ? "" : "s"} so far this season — $5 each`;
-    }
- 
-    async function loadPublicComments() {
-      const { data, error } = await supabaseClient
-        .from("feedback")
-        .select("*")
-        .eq("type", "comment")
-        .order("created_at", { ascending: false });
- 
-      if (error) {
-        publicCommentList.innerHTML = `<li class="muted">Could not load comments: ${escapeHtml(error.message)}</li>`;
-        return;
-      }
- 
-      publicCommentList.innerHTML = (data || []).length
-        ? data
-            .map((c) => {
-              const when = new Date(c.created_at).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              });
-              const who = c.name ? escapeHtml(c.name) : "Anonymous";
-              return `
-            <li class="feedback-row">
-              <div class="feedback-info">
-                <div class="feedback-message">${escapeHtml(c.message)}</div>
-                <div class="feedback-meta">${who} &middot; ${when}</div>
-              </div>
-            </li>
-          `;
-            })
-            .join("")
-        : '<li class="muted">No comments yet — be the first!</li>';
-    }
- 
-    feedbackForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      feedbackFormMsg.textContent = "";
-      feedbackFormMsg.classList.remove("error", "ok");
- 
-      const message = feedbackMessageInput.value.trim();
-      if (!message) return;
- 
-      const name = feedbackNameInput.value.trim() || null;
-      const type = document.querySelector('input[name="feedback-type"]:checked').value;
- 
-      const { error } = await supabaseClient.from("feedback").insert({ type, name, message });
- 
-      if (error) {
-        feedbackFormMsg.classList.add("error");
-        feedbackFormMsg.textContent = "Could not submit: " + error.message;
-        return;
-      }
- 
-      feedbackForm.reset();
-      feedbackFormMsg.classList.add("ok");
-      feedbackFormMsg.textContent = type === "problem" ? "Thanks — the host will see this." : "Thanks for the comment!";
-      setTimeout(() => {
-        feedbackFormMsg.textContent = "";
-        feedbackFormMsg.classList.remove("ok");
-      }, 3000);
- 
-      if (type === "comment") loadPublicComments();
-    });
- 
-    async function loadNextGameBanner() {
-      const { data: seasons, error: seasonErr } = await supabaseClient
-        .from("seasons")
-        .select("*")
-        .eq("is_active", true)
-        .limit(1);
- 
-      if (seasonErr || !seasons || !seasons.length) {
-        nextGameBanner.hidden = true;
-        return;
-      }
- 
-      const today = new Date().toISOString().slice(0, 10);
- 
-      const { data: fridays, error } = await supabaseClient
-        .from("fridays")
-        .select("game_date, location")
-        .eq("season_id", seasons[0].id)
-        .neq("status", "cancelled")
-        .gte("game_date", today)
-        .not("location", "is", null)
-        .order("game_date", { ascending: true })
-        .limit(1);
- 
-      if (error || !fridays || !fridays.length || !fridays[0].location) {
-        nextGameBanner.hidden = true;
-        return;
-      }
- 
-      const next = fridays[0];
-      const dateLabel = new Date(next.game_date + "T00:00:00").toLocaleDateString(undefined, {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-      });
-      nextGameText.textContent = `${dateLabel} — ${next.location}`;
-      nextGameBanner.hidden = false;
-    }
- 
-    function showPublicList() {
-      publicListView.hidden = false;
-      publicPlayerProfile.hidden = true;
-      publicFridayDetail.hidden = true;
-    }
- 
-    function switchPublicTab(tab) {
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-      document.querySelectorAll(".public-tab").forEach((el) => {
-        el.hidden = el.id !== `public-tab-${tab}`;
-      });
-      showPublicList();
-    }
- 
-    // ------------------------------------------------------------------
-    // Sound effects — synthesized sounds (no audio files to upload),
-    // built with layered tones/noise plus a touch of algorithmic
-    // reverb so they read as "real" instead of flat beeps. They only
-    // ever play from directly inside a tap, since that's the only
-    // time phones allow a web page to make sound.
-    // ------------------------------------------------------------------
-    let audioCtx = null;
-    let audioGraph = null;
- 
-    function getAudioCtx() {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return null;
-      if (!audioCtx) audioCtx = new Ctx();
-      if (audioCtx.state === "suspended") audioCtx.resume();
-      return audioCtx;
-    }
- 
-    // A synthetic "impulse response" (decaying noise) fed into a
-    // ConvolverNode gives a cheap, file-free room reverb.
-    function createImpulseResponse(ctx, duration, decay) {
-      const rate = ctx.sampleRate;
-      const length = Math.floor(rate * duration);
-      const impulse = ctx.createBuffer(2, length, rate);
-      for (let ch = 0; ch < 2; ch++) {
-        const data = impulse.getChannelData(ch);
-        for (let i = 0; i < length; i++) {
-          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
-        }
-      }
-      return impulse;
-    }
- 
-    // Shared output chain every sound routes through: a dry path and
-    // a reverb ("wet") path, both glued together by a limiter so
-    // nothing clips.
-    function getAudioGraph(ctx) {
-      if (audioGraph) return audioGraph;
-      const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.value = -20;
-      compressor.knee.value = 24;
-      compressor.ratio.value = 4;
-      compressor.attack.value = 0.003;
-      compressor.release.value = 0.18;
-      compressor.connect(ctx.destination);
- 
-      const convolver = ctx.createConvolver();
-      convolver.buffer = createImpulseResponse(ctx, 1.1, 3.2);
-      const wetSend = ctx.createGain();
-      wetSend.gain.value = 0.32;
-      wetSend.connect(convolver);
-      convolver.connect(compressor);
- 
-      audioGraph = { compressor, wetSend };
-      return audioGraph;
-    }
- 
-    // Connects a gain node to both the dry and reverb paths.
-    function routeToOutput(ctx, gainNode) {
-      const { compressor, wetSend } = getAudioGraph(ctx);
-      gainNode.connect(compressor);
-      gainNode.connect(wetSend);
-    }
- 
-    function playChipClick() {
-      const ctx = getAudioCtx();
-      if (!ctx) return;
-      const now = ctx.currentTime;
- 
-      // Sharp plastic "clack" — bandpassed noise transient.
-      const bufferSize = Math.floor(ctx.sampleRate * 0.045);
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 6);
-      }
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = 3200;
-      bp.Q.value = 1.4;
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.55, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
-      noise.connect(bp).connect(noiseGain);
- 
-      // Short damped "thock" underneath, for a bit of body/resonance.
-      const osc = ctx.createOscillator();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(340, now);
-      osc.frequency.exponentialRampToValueAtTime(180, now + 0.05);
-      const oscGain = ctx.createGain();
-      oscGain.gain.setValueAtTime(0.16, now);
-      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-      osc.connect(oscGain);
- 
-      routeToOutput(ctx, noiseGain);
-      routeToOutput(ctx, oscGain);
- 
-      noise.start(now);
-      osc.start(now);
-      osc.stop(now + 0.07);
-    }
- 
-    function playCardSnap() {
-      const ctx = getAudioCtx();
-      if (!ctx) return;
-      const now = ctx.currentTime;
- 
-      const bufferSize = Math.floor(ctx.sampleRate * 0.08);
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 4);
-      }
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.setValueAtTime(2600, now);
-      bp.frequency.exponentialRampToValueAtTime(1300, now + 0.07);
-      bp.Q.value = 0.9;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.6, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
- 
-      noise.connect(bp).connect(gain);
-      routeToOutput(ctx, gain);
-      noise.start(now);
-    }
- 
-    // The Pot tab plays an actual recorded cash-register sound
-    // (sounds/cha-ching.mp3) rather than a synthesized one — cached
-    // after the first play so repeat taps are instant.
-    let chaChingAudio = null;
-    function playCoinCascade() {
-      if (!chaChingAudio) {
-        chaChingAudio = new Audio("sounds/cha-ching.mp3");
-        chaChingAudio.volume = 0.85;
-      }
-      chaChingAudio.currentTime = 0;
-      chaChingAudio.play().catch(() => {});
-    }
- 
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const tab = btn.dataset.tab;
-        if (tab === "pot") playCoinCascade();
-        else if (tab === "highhands") playCardSnap();
-        else playChipClick();
-        switchPublicTab(tab);
-      });
-    });
- 
-    document.querySelectorAll(".back-btn").forEach((btn) => {
-      btn.addEventListener("click", () => switchPublicTab(btn.dataset.back));
-    });
- 
-    async function loadStandings() {
-      const { data: seasons, error: seasonErr } = await supabaseClient
-        .from("seasons")
-        .select("*")
-        .eq("is_active", true)
-        .limit(1);
- 
-      if (seasonErr) {
-        seasonProgressLine.textContent = "Could not load the season: " + seasonErr.message;
-        standingsBody.innerHTML = "";
-        return;
-      }
- 
-      const season = seasons && seasons[0];
-      if (!season) {
-        seasonProgressLine.textContent = "No active season right now.";
-        standingsBody.innerHTML = "";
-        return;
-      }
- 
-      const { data: fridays, error: fridaysErr } = await supabaseClient
-        .from("fridays")
-        .select("id")
-        .eq("season_id", season.id)
-        .eq("status", "completed");
- 
-      if (fridaysErr) {
-        seasonProgressLine.textContent = "Could not load Fridays: " + fridaysErr.message;
-        return;
-      }
- 
-      const fridayIds = (fridays || []).map((f) => f.id);
-      seasonProgressLine.textContent = `${season.name} — ${fridayIds.length} Friday${fridayIds.length === 1 ? "" : "s"} played so far`;
- 
-      if (!fridayIds.length) {
-        standingsBody.innerHTML = '<tr><td colspan="7" class="muted">No results recorded yet this season.</td></tr>';
-        return;
-      }
- 
-      const { data: results, error: resultsErr } = await supabaseClient
-        .from("results")
-        .select("player_id, placement, bounty_winner, total_points")
-        .in("friday_id", fridayIds);
- 
-      if (resultsErr) {
-        standingsBody.innerHTML = `<tr><td colspan="7" class="muted">Could not load results: ${escapeHtml(resultsErr.message)}</td></tr>`;
-        return;
-      }
- 
-      const { data: players, error: playersErr } = await supabaseClient.from("players").select("id, name");
-      if (playersErr) {
-        standingsBody.innerHTML = `<tr><td colspan="7" class="muted">Could not load players: ${escapeHtml(playersErr.message)}</td></tr>`;
-        return;
-      }
-      const playerMap = new Map(players.map((p) => [p.id, p]));
- 
-      const agg = new Map();
-      for (const r of results || []) {
-        if (!agg.has(r.player_id)) agg.set(r.player_id, { points: 0, played: 0, wins: 0, bounties: 0 });
-        const a = agg.get(r.player_id);
-        a.points += r.total_points;
-        a.played += 1;
-        if (r.placement === 1) a.wins += 1;
-        if (r.bounty_winner) a.bounties += 1;
-      }
- 
-      const rows = [...agg.entries()].map(([playerId, stats]) => ({
-        playerId,
-        name: playerMap.get(playerId)?.name || "Unknown player",
-        ...stats,
-      }));
-      rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
- 
-      if (!rows.length) {
-        standingsBody.innerHTML = '<tr><td colspan="7" class="muted">No results recorded yet this season.</td></tr>';
-        return;
-      }
- 
-      const leaderPoints = rows[0].points;
- 
-      standingsBody.innerHTML = rows
-        .map(
-          (r, i) => `
-        <tr class="clickable-row" data-player-id="${r.playerId}">
-          <td>${i + 1}</td>
-          <td>${r.points > 0 && r.points === leaderPoints ? '<span class="crown" title="Leader">👑</span> ' : ""}${escapeHtml(r.name)}</td>
-          <td>${r.points}</td>
-          <td>${r.played}</td>
-          <td>${r.played ? (r.points / r.played).toFixed(1) : "—"}</td>
-          <td>${r.wins}</td>
-          <td>${r.bounties}</td>
-        </tr>
-      `
-        )
-        .join("");
- 
-      standingsBody.querySelectorAll("tr[data-player-id]").forEach((tr) => {
-        tr.addEventListener("click", () => showPlayerProfile(tr.dataset.playerId));
-      });
-    }
- 
-    async function loadPublicPlayers() {
-      const { data: players, error } = await supabaseClient.from("players").select("*").order("name", { ascending: true });
- 
-      if (error) {
-        publicPlayerList.innerHTML = `<li class="muted">Could not load players: ${escapeHtml(error.message)}</li>`;
-        return;
-      }
-      if (!players.length) {
-        publicPlayerList.innerHTML = '<li class="muted">No players yet.</li>';
-        return;
-      }
- 
-      publicPlayerList.innerHTML = players
-        .map(
-          (p) => `
-        <li data-player-id="${p.id}">
-          <span>${escapeHtml(p.name)}${p.nickname ? ` <span class="muted">"${escapeHtml(p.nickname)}"</span>` : ""}${p.is_active ? "" : ' <span class="badge badge-muted">INACTIVE</span>'}</span>
-          <span class="muted">&rsaquo;</span>
-        </li>
-      `
-        )
-        .join("");
- 
-      publicPlayerList.querySelectorAll("li[data-player-id]").forEach((li) => {
-        li.addEventListener("click", () => showPlayerProfile(li.dataset.playerId));
-      });
-    }
- 
-    async function loadPublicFridays() {
-      const { data: fridays, error } = await supabaseClient
-        .from("fridays")
-        .select("*, seasons(name)")
-        .order("game_date", { ascending: false });
- 
-      if (error) {
-        publicFridayList.innerHTML = `<li class="muted">Could not load Fridays: ${escapeHtml(error.message)}</li>`;
-        return;
-      }
-      if (!fridays.length) {
-        publicFridayList.innerHTML = '<li class="muted">No Fridays recorded yet.</li>';
-        return;
-      }
- 
-      publicFridayList.innerHTML = fridays
-        .map((f) => {
-          const badgeClass =
-            f.status === "cancelled" ? "badge-cancelled" : f.status === "scheduled" ? "badge-muted" : "";
-          return `
-        <li data-friday-id="${f.id}">
-          <span>${f.game_date} <span class="muted">(${escapeHtml(f.seasons?.name || "")})</span>${
-            f.location ? `<br><span class="muted">📍 ${escapeHtml(f.location)}</span>` : ""
-          }</span>
-          <span class="badge ${badgeClass}">${f.status.toUpperCase()}</span>
-        </li>
-      `;
-        })
-        .join("");
- 
-      publicFridayList.querySelectorAll("li[data-friday-id]").forEach((li) => {
-        li.addEventListener("click", () => showFridayDetail(li.dataset.fridayId));
-      });
-    }
- 
-    async function showPlayerProfile(playerId) {
-      const { data: player, error: playerErr } = await supabaseClient
-        .from("players")
-        .select("*")
-        .eq("id", playerId)
-        .single();
- 
-      if (playerErr || !player) return;
- 
-      profileName.textContent = player.name;
-      profileNickname.textContent = player.nickname ? `"${player.nickname}"` : "";
-      profileNickname.hidden = !player.nickname;
- 
-      const { data: history, error: historyErr } = await supabaseClient
-        .from("results")
-        .select("placement, bounty_winner, total_points, fridays(game_date, status, seasons(name))")
-        .eq("player_id", playerId)
-        .order("game_date", { foreignTable: "fridays", ascending: false });
- 
-      if (historyErr) {
-        profileHistoryBody.innerHTML = `<tr><td colspan="5" class="muted">Could not load history: ${escapeHtml(historyErr.message)}</td></tr>`;
-      } else {
-        const totalPoints = (history || []).reduce((sum, r) => sum + r.total_points, 0);
-        const played = (history || []).length;
-        const wins = (history || []).filter((r) => r.placement === 1).length;
-        const bounties = (history || []).filter((r) => r.bounty_winner).length;
- 
-        profileStats.innerHTML = `
-          <div class="stat-box"><div class="value">${totalPoints}</div><div class="label">Total Points</div></div>
-          <div class="stat-box"><div class="value">${played}</div><div class="label">Fridays Played</div></div>
-          <div class="stat-box"><div class="value">${played ? (totalPoints / played).toFixed(1) : "—"}</div><div class="label">Avg Pts / Game</div></div>
-          <div class="stat-box"><div class="value">${wins}</div><div class="label">Wins</div></div>
-          <div class="stat-box"><div class="value">${bounties}</div><div class="label">Bounties</div></div>
-        `;
- 
-        profileHistoryBody.innerHTML = (history || []).length
-          ? history
-              .map(
-                (r) => `
-          <tr>
-            <td>${r.fridays?.game_date || ""}</td>
-            <td>${escapeHtml(r.fridays?.seasons?.name || "")}</td>
-            <td>${r.placement ? ORDINALS[r.placement] : "—"}</td>
-            <td>${r.bounty_winner ? "✓" : ""}</td>
-            <td>${r.total_points}</td>
-          </tr>
-        `
-              )
-              .join("")
-          : '<tr><td colspan="5" class="muted">No Fridays played yet.</td></tr>';
-      }
- 
-      publicListView.hidden = true;
-      publicFridayDetail.hidden = true;
-      publicPlayerProfile.hidden = false;
-    }
- 
-    async function showFridayDetail(fridayId) {
-      const { data: friday, error: fridayErr } = await supabaseClient
-        .from("fridays")
-        .select("*, seasons(name)")
-        .eq("id", fridayId)
-        .single();
- 
-      if (fridayErr || !friday) return;
- 
-      fridayDetailDate.textContent = friday.game_date;
-      const statusLabel =
-        friday.status === "cancelled" ? "Cancelled / No Game" : friday.status === "scheduled" ? "Not Played Yet" : "Completed";
-      fridayDetailMeta.textContent = `${friday.seasons?.name || ""} — ${statusLabel}${
-        friday.location ? ` — 📍 ${friday.location}` : ""
-      }`;
- 
-      if (friday.status === "cancelled") {
-        fridayDetailBody.innerHTML = '<tr><td colspan="4" class="muted">No game was played this night.</td></tr>';
-      } else if (friday.status === "scheduled") {
-        fridayDetailBody.innerHTML = '<tr><td colspan="4" class="muted">Results haven\'t been recorded for this night yet.</td></tr>';
-      } else {
-        const { data: results, error: resultsErr } = await supabaseClient
-          .from("results")
-          .select("placement, bounty_winner, total_points, players(name, nickname)")
-          .eq("friday_id", fridayId)
-          .order("total_points", { ascending: false });
- 
-        if (resultsErr) {
-          fridayDetailBody.innerHTML = `<tr><td colspan="4" class="muted">Could not load results: ${escapeHtml(resultsErr.message)}</td></tr>`;
-        } else {
-          fridayDetailBody.innerHTML = (results || []).length
-            ? results
-                .map(
-                  (r) => `
-            <tr>
-              <td>${r.placement ? ORDINALS[r.placement] : "—"}</td>
-              <td>${escapeHtml(r.players?.name || "Unknown")}</td>
-              <td>${r.bounty_winner ? "✓" : ""}</td>
-              <td>${r.total_points}</td>
-            </tr>
-          `
-                )
-                .join("")
-            : '<tr><td colspan="4" class="muted">No results recorded.</td></tr>';
-        }
-      }
- 
-      publicListView.hidden = true;
-      publicPlayerProfile.hidden = true;
-      publicFridayDetail.hidden = false;
-    }
- 
-    async function loadHighHandsPublic() {
-      const { data: seasons, error: seasonErr } = await supabaseClient
-        .from("seasons")
-        .select("*")
-        .eq("is_active", true)
-        .limit(1);
- 
-      const activeSeasonRow = !seasonErr && seasons ? seasons[0] : null;
- 
-      const { data: allHands, error } = await supabaseClient
-        .from("high_hands")
-        .select("*, fridays(game_date, season_id, seasons(name)), players(name, nickname)")
-        .order("recorded_at", { ascending: false });
- 
-      if (error) {
-        publicHighHandList.innerHTML = `<li class="muted">Could not load high hands: ${escapeHtml(error.message)}</li>`;
-        seasonHighHandBox.innerHTML = "";
-        return;
-      }
- 
-      const hands = allHands || [];
- 
-      // Work out the best hand within each season, so we can show the
-      // current season's best up top, and mark it in the full history below
-      // (which stays visible even after a new season high is recorded).
-      const bestBySeasonId = new Map();
-      for (const hh of hands) {
-        const seasonId = hh.fridays?.season_id;
-        if (!seasonId) continue;
-        const current = bestBySeasonId.get(seasonId);
-        if (!current || compareHandStrength(hh, current) < 0) {
-          bestBySeasonId.set(seasonId, hh);
-        }
-      }
- 
-      if (!activeSeasonRow) {
-        seasonHighHandBox.innerHTML = '<p class="muted">No active season right now.</p>';
-      } else {
-        const best = bestBySeasonId.get(activeSeasonRow.id);
-        if (!best) {
-          seasonHighHandBox.innerHTML = `<p class="muted">No high hand recorded yet for ${escapeHtml(activeSeasonRow.name)}.</p>`;
-        } else {
-          seasonHighHandBox.innerHTML = `
-            <div class="high-hand-callout">
-              <div class="hh-callout-label">🏆 ${escapeHtml(activeSeasonRow.name)} High Hand</div>
-              <div class="hh-callout-cards">${renderRealHandCards(best.cards)}</div>
-              <div class="hh-callout-desc">${escapeHtml(best.description)}</div>
-              <div class="hh-callout-meta">${escapeHtml(best.players?.name || "Unknown")} &middot; ${best.fridays?.game_date || ""}</div>
-            </div>
-          `;
-        }
-      }
- 
-      if (!hands.length) {
-        publicHighHandList.innerHTML = '<li class="muted">No high hands recorded yet.</li>';
-        return;
-      }
- 
-      publicHighHandList.innerHTML = hands
-        .map((hh) => {
-          const seasonBest = bestBySeasonId.get(hh.fridays?.season_id);
-          const isBest = seasonBest && seasonBest.id === hh.id;
-          return `
-        <li class="high-hand-item">
-          <div class="hh-item-cards">${renderCardsInline(hh.cards)}</div>
-          <div class="hh-item-desc">${escapeHtml(hh.description)}${isBest ? ' <span class="badge">SEASON BEST</span>' : ""}</div>
-          <div class="hh-item-meta muted">${escapeHtml(hh.players?.name || "Unknown")} &middot; ${hh.fridays?.game_date || ""} &middot; ${escapeHtml(hh.fridays?.seasons?.name || "")}</div>
-        </li>
-      `;
-        })
-        .join("");
-    }
- 
-    refreshPublicView();
- 
-    // ------------------------------------------------------------------
-    // Utility
-    // ------------------------------------------------------------------
-    function escapeHtml(str) {
-      const div = document.createElement("div");
-      div.textContent = str;
-      return div.innerHTML;
-    }
+
+:root {
+  --bg: #0f1720;
+  --card-bg: #182430;
+  --field-bg: #101a24;
+  --border: #263340;
+  --text: #eef2f6;
+  --muted: #9aa9b8;
+  --accent: #2fae60;
+  --accent-2: #d64545;
+  --radius: 14px;
+}
+ 
+* { box-sizing: border-box; }
+ 
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+ 
+.app-header {
+  padding: max(20px, env(safe-area-inset-top)) 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+ 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+ 
+.card-icon {
+  position: relative;
+  display: inline-block;
+  width: 0.95em;
+  height: 1.35em;
+  font-size: 1.4rem;
+  perspective: 240px;
+  flex-shrink: 0;
+}
+ 
+.card-flip {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: card-flip 7s ease-in-out infinite;
+}
+ 
+.card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+ 
+.card-face svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+ 
+.card-back {
+  transform: rotateY(180deg);
+}
+ 
+@keyframes card-flip {
+  0%, 38% { transform: rotateY(0deg); }
+  50% { transform: rotateY(180deg); }
+  88%, 100% { transform: rotateY(360deg); }
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .card-flip { animation: none; }
+}
+ 
+.app-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #d4af37;
+  background: linear-gradient(
+    100deg,
+    #b8860b 0%,
+    #b8860b 35%,
+    #fff3c4 50%,
+    #b8860b 65%,
+    #b8860b 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-shimmer 4.5s linear infinite;
+}
+ 
+@keyframes title-shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .app-header h1 { animation: none; }
+}
+ 
+.link-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+ 
+@media (max-width: 400px) {
+  .app-header h1 { font-size: 1.15rem; }
+  .card-icon { font-size: 1.15rem; }
+}
+ 
+.link-btn:active { opacity: 0.7; }
+ 
+.container {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+ 
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+ 
+.card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+ 
+.muted { color: var(--muted); font-size: 0.9rem; }
+ 
+form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+ 
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+ 
+input, select, textarea {
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+ 
+textarea { resize: vertical; }
+ 
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); }
+ 
+button[type="submit"], .btn {
+  background: var(--accent);
+  color: #06210f;
+  border: none;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+ 
+button[type="submit"]:active, .btn:active { opacity: 0.85; }
+ 
+.btn-small {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  border-radius: 8px;
+}
+ 
+.btn-danger { background: var(--accent-2); color: #2a0a0a; }
+.btn-secondary { background: var(--field-bg); color: var(--text); border: 1px solid var(--border); }
+ 
+.error { color: var(--accent-2); font-size: 0.85rem; min-height: 1.1em; margin: 0; }
+.ok { color: var(--accent); }
+ 
+.admin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+ 
+.admin-bar span { font-size: 0.85rem; color: var(--muted); }
+ 
+ul#player-list, ul#season-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+ 
+.player-row, .season-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+ 
+.player-info, .season-info { display: flex; flex-direction: column; }
+.player-info .nickname, .season-info .dates { font-size: 0.78rem; color: var(--muted); }
+ 
+.player-info.inactive .name { text-decoration: line-through; color: var(--muted); }
+ 
+.row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+ 
+.badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #06210f;
+}
+ 
+.badge-cancelled { background: var(--accent-2); color: #2a0a0a; }
+.badge-muted { background: var(--border); color: var(--text); }
+ 
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+ 
+.result-row .played-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 120px;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+ 
+.result-row select {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+ 
+.result-row .bounty-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+ 
+.result-row .points-preview {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 3.2em;
+  text-align: right;
+}
+ 
+.result-row.disabled { opacity: 0.5; }
+ 
+.friday-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+ 
+.public-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+ 
+.tab-btn {
+  flex: 1;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+ 
+.tab-btn.active {
+  background: var(--accent);
+  color: #06210f;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+ 
+/* On narrow phones, 4 tabs squeezed into one row get too tight (labels like
+   "High Hands" wrap awkwardly). Switch to a clean 2x2 grid instead. */
+@media (max-width: 420px) {
+  .public-tabs {
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    flex: 1 1 calc(50% - 4px);
+  }
+}
+ 
+.table-wrap { overflow-x: auto; }
+ 
+.standings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+ 
+.standings-table th, .standings-table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+ 
+.standings-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+ 
+.clickable-row { cursor: pointer; }
+.clickable-row:active { opacity: 0.7; }
+ 
+.clickable-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+ 
+.clickable-list li {
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+ 
+.clickable-list li:active { opacity: 0.8; }
+ 
+.back-btn { margin-bottom: 12px; }
+ 
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+ 
+.stat-box {
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+ 
+.stat-box .value { font-size: 1.3rem; font-weight: 700; }
+.stat-box .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+ 
+.card-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+ 
+.card-input-row .card-label {
+  flex: 0 0 52px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+ 
+.card-input-row select {
+  flex: 1;
+  min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+ 
+.card-chip {
+  display: inline-block;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-right: 3px;
+}
+ 
+.card-chip.card-red { color: var(--accent-2); }
+.card-chip.card-black { color: var(--text); }
+ 
+.high-hand-callout {
+  background: linear-gradient(135deg, rgba(47,174,96,0.16), rgba(47,174,96,0.02));
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+ 
+.hh-callout-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+ 
+.hh-callout-cards {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.hh-callout-desc { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+.hh-callout-meta { font-size: 0.8rem; color: var(--muted); }
+ 
+.real-card {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 59px;
+  perspective: 240px;
+}
+ 
+.real-card-flip {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateY(180deg);
+  animation: card-reveal 0.7s ease-in-out forwards;
+}
+ 
+@keyframes card-reveal {
+  from { transform: rotateY(180deg); }
+  to { transform: rotateY(360deg); }
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .real-card-flip { animation: none; transform: rotateY(360deg); }
+}
+ 
+ul#highhand-list, ul#public-highhand-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+ 
+.high-hand-item {
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+ 
+.hh-item-cards { margin-bottom: 4px; }
+.hh-item-desc { font-weight: 600; margin-bottom: 2px; }
+.hh-item-desc .badge { margin-left: 6px; vertical-align: middle; }
+.hh-item-meta { font-size: 0.78rem; }
+ 
+.next-game-banner {
+  background: linear-gradient(135deg, rgba(47,174,96,0.16), rgba(47,174,96,0.02));
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+ 
+.next-game-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+ 
+#next-game-text {
+  font-size: 1rem;
+  font-weight: 600;
+}
+ 
+.feedback-type-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+ 
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-direction: row;
+}
+ 
+ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+ 
+.feedback-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+ 
+.feedback-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.feedback-message { white-space: pre-wrap; word-break: break-word; }
+.feedback-meta { font-size: 0.78rem; color: var(--muted); }
+ 
+.app-footer {
+  text-align: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+ 
+.app-footer p {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+}
+ 
+.app-footer p.last-updated {
+  font-size: 0.72rem;
+  margin: 0 0 6px;
+}
+ 
+.footer-logo {
+  height: 1.6em;
+  width: 1.6em;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+ 
+/* ------------------------------------------------------------------
+   Insult Slot Machine
+   ------------------------------------------------------------------ */
+.slot-cabinet {
+  background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
+  border: 2px solid #d4af37;
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  text-align: center;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12);
+}
+ 
+.slot-marquee {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #d4af37;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+ 
+.slot-intro {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+}
+ 
+.slot-reels {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+ 
+.slot-reel {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background: var(--field-bg);
+  border: 1px solid #d4af37;
+  border-radius: 10px;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
+}
+ 
+.slot-reel.spinning {
+  animation: slot-reel-spin 0.09s linear infinite;
+}
+ 
+@keyframes slot-reel-spin {
+  0% { transform: scaleY(1); filter: blur(0); }
+  50% { transform: scaleY(0.85); filter: blur(1.5px); }
+  100% { transform: scaleY(1); filter: blur(0); }
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .slot-reel.spinning { animation: none; }
+}
+ 
+.slot-intensity-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+ 
+.slot-spin-btn {
+  background: linear-gradient(180deg, #d4af37, #b8860b);
+  color: #2a1e00;
+  width: 100%;
+  max-width: 220px;
+  font-size: 1.05rem;
+}
+ 
+.slot-spin-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+ 
+.slot-jackpot-banner {
+  margin-top: 14px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #d4af37;
+}
+ 
+.slot-result {
+  margin-top: 14px;
+  min-height: 1.5em;
+}
+ 
+.slot-result-player {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+ 
+.slot-result-insult {
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+ 
+@media (max-width: 400px) {
+  .slot-reel { width: 52px; height: 52px; font-size: 1.6rem; }
+}
  

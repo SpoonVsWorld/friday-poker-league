@@ -728,6 +728,23 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   line-height: 1.4;
 }
  
+.slot-replay-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+ 
+.slot-replay-btn:hover,
+.slot-replay-btn:focus-visible {
+  text-decoration: underline;
+}
+ 
 @media (max-width: 400px) {
   .slot-reel { width: 52px; height: 52px; font-size: 1.6rem; }
 }

@@ -2405,7 +2405,35 @@
     const slotJackpotBanner = document.getElementById("slot-jackpot-banner");
     const slotResultPlayer = document.getElementById("slot-result-player");
     const slotResultInsult = document.getElementById("slot-result-insult");
+    const slotReplayBtn = document.getElementById("slot-replay-btn");
     const slotErrorEl = document.getElementById("slot-error");
+    let lastSlotInsult = "";
+ 
+    // Reads the insult out loud with the browser's built-in speech
+    // synthesis. Purely a nice-to-have — if the browser doesn't support
+    // it, or speaking fails for any reason, we just stay silent instead
+    // of breaking the rest of the machine.
+    function speakSlotInsult(text) {
+      if (!("speechSynthesis" in window) || !text) return;
+      try {
+        const speakable = text
+          .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!speakable) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(speakable);
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        // Speech is optional; ignore failures silently.
+      }
+    }
+ 
+    if (slotReplayBtn) {
+      slotReplayBtn.addEventListener("click", () => speakSlotInsult(lastSlotInsult));
+    }
  
     // Setup + punchline halves, combined and randomized, so the same
     // joke doesn't show up every time. {name} is swapped for the
@@ -2659,6 +2687,7 @@
       slotJackpotBanner.hidden = true;
       slotResultPlayer.textContent = "";
       slotResultInsult.textContent = "";
+      if (slotReplayBtn) slotReplayBtn.hidden = true;
  
       const chosenPlayer = pickRandom(players);
       const finalSymbols = [randomSlotSymbol(), randomSlotSymbol(), randomSlotSymbol()];
@@ -2707,6 +2736,10 @@
       }
  
       slotResultInsult.textContent = insult;
+ 
+      lastSlotInsult = `${chosenPlayer.name}. ${insult}`;
+      speakSlotInsult(lastSlotInsult);
+      if (slotReplayBtn) slotReplayBtn.hidden = false;
  
       slotSpinning = false;
       slotSpinBtn.disabled = false;

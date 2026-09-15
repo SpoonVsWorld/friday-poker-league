@@ -2409,6 +2409,25 @@
     const slotErrorEl = document.getElementById("slot-error");
     let lastSlotInsult = "";
  
+    // Cache of available speech voices, refreshed as the browser loads
+    // them (they often arrive asynchronously). Used to pick a random
+    // voice for each spin so the roast sounds a little different — and
+    // often funnier — every time.
+    let slotVoiceCache = [];
+    function refreshSlotVoiceCache() {
+      if (!("speechSynthesis" in window)) return;
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length) slotVoiceCache = voices;
+      } catch (err) {
+        // Ignore — falls back to the browser's default voice.
+      }
+    }
+    if ("speechSynthesis" in window) {
+      refreshSlotVoiceCache();
+      window.speechSynthesis.addEventListener("voiceschanged", refreshSlotVoiceCache);
+    }
+ 
     // Reads the insult out loud with the browser's built-in speech
     // synthesis. Purely a nice-to-have — if the browser doesn't support
     // it, or speaking fails for any reason, we just stay silent instead
@@ -2425,6 +2444,9 @@
         const utterance = new SpeechSynthesisUtterance(speakable);
         utterance.rate = 1;
         utterance.pitch = 1;
+        if (slotVoiceCache.length) {
+          utterance.voice = slotVoiceCache[Math.floor(Math.random() * slotVoiceCache.length)];
+        }
         window.speechSynthesis.speak(utterance);
       } catch (err) {
         // Speech is optional; ignore failures silently.

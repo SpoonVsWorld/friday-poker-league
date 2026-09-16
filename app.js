@@ -2466,6 +2466,31 @@
           "{name} has more \"just one more hand\" than a Vegas buffet has plates",
           "{name} treats every bluff like a surprise party nobody wanted",
           "{name} plays with the focus of someone watching TV in the next room",
+          "{name} squints at the flop like it's written in a foreign language",
+          "{name} treats every river card like a plot twist nobody asked for",
+          "{name} has more nervous energy than a rookie on their first hand",
+          "{name} plays it so safe the deck could nap between turns",
+          "{name} peeks at their cards like they're hoping for a different answer",
+          "{name} bets like they're rounding to the nearest guess",
+          "{name} has the poker instincts of someone who just learned the rules five minutes ago",
+          "{name} treats a small pair like it's already the winning hand",
+          "{name} announces every move like it's a big reveal",
+          "{name} plays with the energy of someone who just remembered they left the stove on",
+          "{name} shuffles chips like a nervous habit, not a flex",
+          "{name} takes so long to decide the ice in everyone's drink melts",
+          "{name} calls every raise on pure vibes and good intentions",
+          "{name} has a poker strategy built entirely on gut feelings and snack breaks",
+          "{name} reacts to every card flip like it's the season finale",
+          "{name} plays defense like the pot is a hot stove",
+          "{name} treats bluffing like a party trick they haven't quite mastered",
+          "{name} double-checks their cards more than a proofreader",
+          "{name} has the patience of a saint and the results of a rookie",
+          "{name} plays like every hand is their Super Bowl moment",
+          "{name} folds with the drama of a soap opera exit",
+          "{name} treats small talk at the table like a distraction tactic — mostly on themselves",
+          "{name} has never once bluffed convincingly, and everyone loves them for it",
+          "{name} plays like the deck is just suggesting ideas, not giving orders",
+          "{name} approaches every hand with the seriousness of a chess grandmaster and the results of tic-tac-toe",
         ],
         punchlines: [
           "— and somehow still asks for a rebuy.",
@@ -2493,6 +2518,31 @@
           "— the snacks table has seen more strategy.",
           "— and they'll tell the story like they won.",
           "— everyone's just here for the show at this point.",
+          "— the table's seen worse, but not by much.",
+          "— it's basically performance art at this point.",
+          "— and everyone's here for the reveal.",
+          "— a slow and steady approach to absolutely nothing.",
+          "— the deck just isn't cooperating tonight, apparently.",
+          "— precision isn't really the goal here.",
+          "— and somehow it's endearing every single time.",
+          "— the confidence-to-results ratio is truly something.",
+          "— big buildup, smaller payoff.",
+          "— everyone's just along for the ride at this point.",
+          "— a nervous habit that's become a whole bit.",
+          "— patience is a virtue, apparently a very slow one.",
+          "— vibes over strategy, every single time.",
+          "— snack breaks are doing more work than the strategy.",
+          "— the drama alone deserves a standing ovation.",
+          "— the pot's never really in danger.",
+          "— the trick's still a work in progress.",
+          "— the cards haven't changed, promise.",
+          "— saintly patience, rookie numbers.",
+          "— the stakes were never actually that high.",
+          "— an exit worthy of its own credits scene.",
+          "— mostly talking themselves out of good hands.",
+          "— unconvincing and lovable in equal measure.",
+          "— the deck's just making suggestions tonight.",
+          "— grandmaster energy, tic-tac-toe outcomes.",
         ],
       },
       savage: {
@@ -2522,6 +2572,31 @@
           "{name} has never met a bad beat story they didn't cause themselves",
           "{name} treats bankroll management like a suggestion, not a rule",
           "{name} plays with the discipline of a toddler in a candy aisle",
+          "{name} has turned bad reads into a full-time occupation",
+          "{name} plays like the odds personally wronged them and they're getting even",
+          "{name}'s stack has been on a one-way trip to the middle of the table all night",
+          "{name} calls raises like folding is a personal insult",
+          "{name} has the risk tolerance of someone with nothing left to lose, and it shows",
+          "{name} treats every session like a warm-up for an even bigger loss",
+          "{name}'s bluffs have a tell you can see from across the room",
+          "{name} plays every hand like the last one didn't teach them anything",
+          "{name} has the patience of a saint and the bankroll of a cautionary tale",
+          "{name} keeps chasing the one hand that's never actually going to hit",
+          "{name}'s betting size doesn't match their actual conviction, or their actual hand",
+          "{name} treats every fold like a personal failure instead of a smart choice",
+          "{name} has out-bluffed themselves more times tonight than anyone else at the table",
+          "{name} plays like the deck owes them an apology it's never going to give",
+          "{name}'s confidence and their win rate have officially stopped talking to each other",
+          "{name} keeps making the same read wrong, with impressive consistency",
+          "{name} has donated to this table so generously it deserves a plaque",
+          "{name} treats every pot like a hill worth dying on, repeatedly",
+          "{name}'s strategy tonight has been mostly hope with a side of denial",
+          "{name} plays like the river card is going to personally apologize for the last one",
+          "{name} has the table read of someone who just walked in",
+          "{name} keeps doubling down on decisions that already cost them once",
+          "{name}'s all-in decisions have the accuracy of a coin that's rigged against them",
+          "{name} treats the short stack life like a lifestyle choice, not a warning sign",
+          "{name} has made peace with losing faster than anyone should be comfortable with",
         ],
         punchlines: [
           "— and the table thanks them for their service.",
@@ -2549,6 +2624,31 @@
           "— the dealer's starting to feel guilty taking the chips.",
           "— someone check if they're okay, emotionally and financially.",
           "— a masterclass in how not to do this.",
+          "— a résumé nobody asked to see.",
+          "— the deck's just doing its job, though.",
+          "— one-way ticket, no refunds.",
+          "— folding's not the insult here.",
+          "— nothing left to lose tends to show.",
+          "— the real loss is still coming.",
+          "— subtlety left the building hours ago.",
+          "— some lessons just don't land.",
+          "— saintly patience, tragic numbers.",
+          "— that hand isn't coming, and everyone knows it but them.",
+          "— conviction and hand strength, both missing.",
+          "— a fold is a gift to your own chip stack.",
+          "— self-inflicted, and thoroughly documented.",
+          "— the deck owes nobody anything.",
+          "— a breakup nobody saw coming, except everybody.",
+          "— consistency is a virtue, technically.",
+          "— someone get the engraving started.",
+          "— the hill was never worth it, and neither was the last one.",
+          "— hope's doing a lot of unpaid overtime.",
+          "— the river doesn't apologize, it never has.",
+          "— first day at the table energy, every day.",
+          "— the definition of insanity, basically.",
+          "— heads they lose, tails they also lose.",
+          "— a lifestyle nobody should aspire to.",
+          "— acceptance this fast should probably concern someone.",
         ],
       },
       adult: {
@@ -2578,6 +2678,31 @@
           "{name} is about to learn the hard way what \"pot committed\" really means",
           "{name} keeps doubling down like the ATM in the other room isn't a warning sign",
           "{name} is playing so loose tonight even the ice in their drink looks concerned",
+          "{name}'s tab and their chip stack are in a race to zero, and the tab's winning",
+          "{name} keeps ordering \"one more\" like it applies to drinks and bad calls equally",
+          "{name} is playing this hand like the bar tab isn't going to be a group project tomorrow",
+          "{name}'s filter left sometime around the second round and never came back",
+          "{name} is one more shot away from explaining tonight's losses in great detail to a total stranger",
+          "{name} has officially entered the \"it's fine, everything's fine\" phase of the night",
+          "{name}'s betting decisions and their empty glass are directly correlated at this point",
+          "{name} is playing like the overdraft alert is just a suggestion",
+          "{name} keeps toasting to hands they haven't actually won yet",
+          "{name} is one bad beat away from a very public financial confession",
+          "{name}'s strategy tonight reads like a highlight reel of things not to do sober",
+          "{name} has convinced the whole table this next bet is \"basically a sure thing\"",
+          "{name} is treating the rebuy like a round of drinks, not a real decision",
+          "{name}'s judgment and their empty chip rack arrived at the same time",
+          "{name} keeps calling it \"one more hand\" with the same conviction as \"one more drink\"",
+          "{name} is playing like tomorrow's regrets are somebody else's problem entirely",
+          "{name}'s bankroll is having a rougher night than the whiskey glass",
+          "{name} is about to find out the hard way what \"sunk cost\" really means",
+          "{name} has the financial planning of someone three drinks past good decisions",
+          "{name} keeps going all-in like there's a rebuy fairy on standby",
+          "{name}'s night has officially become a lesson for everyone else at the table",
+          "{name} is playing this pot like the tab closes at sunrise, not before",
+          "{name} has the confidence of someone who hasn't done the math tonight, on purpose",
+          "{name} is one more round away from a very honest conversation with themselves tomorrow",
+          "{name}'s decision-making tonight is a group effort between them and the open bar",
         ],
         punchlines: [
           "— pour another round, this is entertainment now.",
@@ -2605,6 +2730,31 @@
           "— the open bar is undefeated tonight.",
           "— this is peak \"seemed like a good idea at the time\" energy.",
           "— someone's definitely telling this story at Thanksgiving.",
+          "— the tab's undefeated so far.",
+          "— \"one more\" is doing a lot of heavy lifting tonight.",
+          "— everyone's splitting that bill, apparently.",
+          "— the filter's not walking back through that door.",
+          "— a stranger's about to get an earful.",
+          "— everything is, in fact, not fine.",
+          "— direct correlation, zero coincidence.",
+          "— the bank's not going to see it that way.",
+          "— premature celebrations, a house specialty tonight.",
+          "— a confession nobody's ready for.",
+          "— not exactly a highlight reel anyone's proud of.",
+          "— the table's heard that one before.",
+          "— round's on them, apparently, forever.",
+          "— arrived together, leaving together.",
+          "— same conviction, same outcome, every time.",
+          "— tomorrow's going to have some questions.",
+          "— the whiskey's holding up better, honestly.",
+          "— sunk cost doesn't care about feelings.",
+          "— three drinks past good decisions and counting.",
+          "— there's no fairy, there's just an ATM.",
+          "— a cautionary tale in real time.",
+          "— the tab doesn't actually work that way.",
+          "— ignorance is doing a lot of the confidence here.",
+          "— tomorrow's going to be a long conversation.",
+          "— the open bar's calling the shots now.",
         ],
       },
     };
@@ -2617,10 +2767,31 @@
       return pickRandom(SLOT_SYMBOLS);
     }
  
+    // Remembers the last several setup+punchline combos (per intensity)
+    // that have already come up this session, so the machine avoids
+    // repeating one you just heard even when luck would otherwise
+    // pick it again soon.
+    const SLOT_RECENT_LIMIT = 15;
+    let slotRecentCombos = [];
+ 
     function generateInsult(playerName, intensity) {
       const tier = INSULT_COMPONENTS[intensity] || INSULT_COMPONENTS.playful;
-      const setup = pickRandom(tier.setups).replace(/\{name\}/g, playerName);
-      const punchline = pickRandom(tier.punchlines).replace(/\{name\}/g, playerName);
+      let rawSetup, rawPunchline, comboKey;
+      let attempts = 0;
+      do {
+        rawSetup = pickRandom(tier.setups);
+        rawPunchline = pickRandom(tier.punchlines);
+        comboKey = `${intensity}::${rawSetup}::${rawPunchline}`;
+        attempts++;
+      } while (slotRecentCombos.includes(comboKey) && attempts < 20);
+ 
+      slotRecentCombos.push(comboKey);
+      if (slotRecentCombos.length > SLOT_RECENT_LIMIT) {
+        slotRecentCombos.shift();
+      }
+ 
+      const setup = rawSetup.replace(/\{name\}/g, playerName);
+      const punchline = rawPunchline.replace(/\{name\}/g, playerName);
       return `${setup} ${punchline}`;
     }
  

@@ -2027,11 +2027,31 @@
       chaChingAudio.play().catch(() => {});
     }
  
+    // The High Hands tab plays real recorded card sounds (card fan +
+    // pack-open, layered) instead of the synthesized card-snap — same
+    // cache-after-first-play pattern as the Pot tab's cha-ching sound.
+    let cardFanAudio = null;
+    let cardsPackOpenAudio = null;
+    function playHighHandReveal() {
+      if (!cardFanAudio) {
+        cardFanAudio = new Audio("sounds/card-fan.mp3");
+        cardFanAudio.volume = 0.8;
+      }
+      if (!cardsPackOpenAudio) {
+        cardsPackOpenAudio = new Audio("sounds/cards-pack-open.mp3");
+        cardsPackOpenAudio.volume = 0.8;
+      }
+      cardFanAudio.currentTime = 0;
+      cardFanAudio.play().catch(() => {});
+      cardsPackOpenAudio.currentTime = 0;
+      cardsPackOpenAudio.play().catch(() => {});
+    }
+ 
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const tab = btn.dataset.tab;
         if (tab === "pot") playCoinCascade();
-        else if (tab === "highhands") playCardSnap();
+        else if (tab === "highhands") playHighHandReveal();
         else playChipClick();
         switchPublicTab(tab);
       });
@@ -2804,6 +2824,37 @@
       return data.filter((p) => p.is_active && p.name && p.name.trim());
     }
  
+    // Picks the next player like dealing through a shuffled deck: everyone
+    // in the eligible list gets picked once before anyone repeats, then
+    // the "deck" reshuffles. This is what keeps the same one or two
+    // people from getting roasted over and over by pure bad luck.
+    let slotPlayerBag = [];
+    let slotLastPickedId = null;
+ 
+    function pickSlotPlayer(players) {
+      const eligibleIds = new Set(players.map((p) => p.id));
+      slotPlayerBag = slotPlayerBag.filter((id) => eligibleIds.has(id));
+ 
+      if (slotPlayerBag.length === 0) {
+        slotPlayerBag = players.map((p) => p.id);
+        for (let i = slotPlayerBag.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [slotPlayerBag[i], slotPlayerBag[j]] = [slotPlayerBag[j], slotPlayerBag[i]];
+        }
+        // A fresh shuffle can coincidentally start with whoever was just
+        // picked from the old one — swap them out so a reshuffle never
+        // causes a back-to-back repeat either.
+        if (slotPlayerBag.length > 1 && slotPlayerBag[0] === slotLastPickedId) {
+          const swapWith = 1 + Math.floor(Math.random() * (slotPlayerBag.length - 1));
+          [slotPlayerBag[0], slotPlayerBag[swapWith]] = [slotPlayerBag[swapWith], slotPlayerBag[0]];
+        }
+      }
+ 
+      const nextId = slotPlayerBag.shift();
+      slotLastPickedId = nextId;
+      return players.find((p) => p.id === nextId) || pickRandom(players);
+    }
+ 
     function playReelTick() {
       const ctx = getAudioCtx();
       if (!ctx) return;
@@ -2841,6 +2892,19 @@
       });
     }
  
+    // A real recorded chip-clatter sound, played right as the reels lock
+    // in — same cache-after-first-play pattern as the other real (not
+    // synthesized) sounds elsewhere in the app.
+    let chipsCollideAudio = null;
+    function playRoastLanding() {
+      if (!chipsCollideAudio) {
+        chipsCollideAudio = new Audio("sounds/chips-collide.mp3");
+        chipsCollideAudio.volume = 0.8;
+      }
+      chipsCollideAudio.currentTime = 0;
+      chipsCollideAudio.play().catch(() => {});
+    }
+ 
     let slotSpinning = false;
  
     async function spinSlotMachine() {
@@ -2860,7 +2924,7 @@
       slotResultInsult.textContent = "";
       if (slotReplayBtn) slotReplayBtn.hidden = true;
  
-      const chosenPlayer = pickRandom(players);
+      const chosenPlayer = pickSlotPlayer(players);
       const finalSymbols = [randomSlotSymbol(), randomSlotSymbol(), randomSlotSymbol()];
       const isJackpot = finalSymbols[0] === finalSymbols[1] && finalSymbols[1] === finalSymbols[2];
       const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2893,6 +2957,8 @@
           )
         );
       }
+ 
+      playRoastLanding();
  
       const intensityInput = document.querySelector('input[name="slot-intensity"]:checked');
       const intensity = intensityInput ? intensityInput.value : "playful";

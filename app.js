@@ -1331,11 +1331,11 @@
         return;
       }
  
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { count: weekCount, error: weekErr } = await supabaseClient
         .from("page_views")
         .select("*", { count: "exact", head: true })
-        .gte("viewed_at", sevenDaysAgo);
+        .gte("viewed_at", oneDayAgo);
  
       statTotalViews.textContent = totalCount ?? 0;
       statWeekViews.textContent = weekErr ? "—" : weekCount ?? 0;

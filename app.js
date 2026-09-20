@@ -2892,6 +2892,19 @@
       });
     }
  
+    // Jackpot wins play this real recorded sound instead of the
+    // synthesized fanfare above — same cache-after-first-play pattern
+    // as the other real sounds in the app.
+    let jackpotWinAudio = null;
+    function playJackpotWinSound() {
+      if (!jackpotWinAudio) {
+        jackpotWinAudio = new Audio("sounds/jackpot-win.mp3");
+        jackpotWinAudio.volume = 0.85;
+      }
+      jackpotWinAudio.currentTime = 0;
+      jackpotWinAudio.play().catch(() => {});
+    }
+ 
     // A real recorded chip-clatter sound, played right as the reels lock
     // in — same cache-after-first-play pattern as the other real (not
     // synthesized) sounds elsewhere in the app.
@@ -2969,7 +2982,7 @@
       if (isJackpot) {
         slotJackpotBanner.hidden = false;
         insult = `🎰 ROAST JACKPOT! ${insult}`;
-        playJackpotFanfare();
+        playJackpotWinSound();
       }
  
       slotResultInsult.textContent = insult;

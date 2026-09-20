@@ -749,3 +749,12 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   .slot-reel { width: 52px; height: 52px; font-size: 1.6rem; }
 }
  
+#slot-fireworks-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 500;
+}
+ 

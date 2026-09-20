@@ -2423,6 +2423,7 @@
     ];
     const slotSpinBtn = document.getElementById("slot-spin-btn");
     const slotJackpotBanner = document.getElementById("slot-jackpot-banner");
+    const slotFireworksCanvas = document.getElementById("slot-fireworks-canvas");
     const slotResultPlayer = document.getElementById("slot-result-player");
     const slotResultInsult = document.getElementById("slot-result-insult");
     const slotReplayBtn = document.getElementById("slot-replay-btn");
@@ -2905,6 +2906,85 @@
       jackpotWinAudio.play().catch(() => {});
     }
  
+    // Jackpot fireworks — a small dependency-free particle burst drawn on
+    // a full-screen canvas overlay. Purely decorative: it sits above
+    // everything with pointer-events disabled so it never blocks taps,
+    // clears itself after a couple seconds, and is skipped entirely for
+    // anyone who prefers reduced motion.
+    const slotFireworksCtx = slotFireworksCanvas ? slotFireworksCanvas.getContext("2d") : null;
+    let slotFireworksParticles = [];
+    let slotFireworksAnimId = null;
+    const SLOT_FIREWORK_COLORS = ["#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93", "#d4af37"];
+ 
+    function spawnFireworkBurst(x, y) {
+      const particleCount = 36;
+      const color = SLOT_FIREWORK_COLORS[Math.floor(Math.random() * SLOT_FIREWORK_COLORS.length)];
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.2;
+        const speed = 2 + Math.random() * 3;
+        slotFireworksParticles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1,
+          color,
+        });
+      }
+    }
+ 
+    function playJackpotFireworks() {
+      if (!slotFireworksCanvas || !slotFireworksCtx) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+ 
+      slotFireworksCanvas.width = window.innerWidth;
+      slotFireworksCanvas.height = window.innerHeight;
+      slotFireworksCanvas.hidden = false;
+      slotFireworksParticles = [];
+ 
+      const w = slotFireworksCanvas.width;
+      const h = slotFireworksCanvas.height;
+      const burstPoints = [
+        [w * 0.25, h * 0.3],
+        [w * 0.5, h * 0.22],
+        [w * 0.75, h * 0.32],
+      ];
+      const burstTimeouts = burstPoints.map(([x, y], i) =>
+        setTimeout(() => spawnFireworkBurst(x, y), i * 220)
+      );
+ 
+      const startTime = performance.now();
+      const duration = 2600;
+ 
+      function tick(now) {
+        slotFireworksCtx.clearRect(0, 0, w, h);
+        slotFireworksParticles.forEach((p) => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.05;
+          p.life -= 0.015;
+          slotFireworksCtx.globalAlpha = Math.max(p.life, 0);
+          slotFireworksCtx.fillStyle = p.color;
+          slotFireworksCtx.beginPath();
+          slotFireworksCtx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+          slotFireworksCtx.fill();
+        });
+        slotFireworksCtx.globalAlpha = 1;
+        slotFireworksParticles = slotFireworksParticles.filter((p) => p.life > 0);
+ 
+        if (now - startTime < duration) {
+          slotFireworksAnimId = requestAnimationFrame(tick);
+        } else {
+          slotFireworksCtx.clearRect(0, 0, w, h);
+          slotFireworksCanvas.hidden = true;
+          burstTimeouts.forEach(clearTimeout);
+        }
+      }
+ 
+      if (slotFireworksAnimId) cancelAnimationFrame(slotFireworksAnimId);
+      slotFireworksAnimId = requestAnimationFrame(tick);
+    }
+ 
     // A real recorded chip-clatter sound, played right as the reels lock
     // in — same cache-after-first-play pattern as the other real (not
     // synthesized) sounds elsewhere in the app.
@@ -2983,6 +3063,7 @@
         slotJackpotBanner.hidden = false;
         insult = `🎰 ROAST JACKPOT! ${insult}`;
         playJackpotWinSound();
+        playJackpotFireworks();
       }
  
       slotResultInsult.textContent = insult;

@@ -1820,7 +1820,7 @@
  
       feedbackForm.reset();
       feedbackFormMsg.classList.add("ok");
-      feedbackFormMsg.textContent = type === "problem" ? "Thanks — the host will see this." : "Thanks for the comment!";
+      feedbackFormMsg.textContent = type === "problem" ? "Thanks — Spoon will see this." : "Thanks for the comment!";
       setTimeout(() => {
         feedbackFormMsg.textContent = "";
         feedbackFormMsg.classList.remove("ok");

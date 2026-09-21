@@ -2053,6 +2053,7 @@
         if (tab === "pot") playCoinCascade();
         else if (tab === "highhands") playHighHandReveal();
         else if (tab === "blackjack") playCardSnap();
+        else if (tab === "holdem") playCardSnap();
         else playChipClick();
         switchPublicTab(tab);
       });
@@ -3434,6 +3435,685 @@
         bjDealBtn.disabled = true;
         bjErrorEl.textContent = "Out of chips — hit Reset Chips to start over.";
       }
+    }
+ 
+    // ------------------------------------------------------------------
+    // Texas Hold'em — single-player against 3 computer opponents, played
+    // with pretend chips that reset whenever this tab is reloaded (no
+    // localStorage here, unlike Blackjack — a full table's worth of state
+    // isn't worth persisting for a just-for-fun feature). Reuses the same
+    // realistic card renderer, hand evaluator, and sound effects as the
+    // rest of the app.
+    // ------------------------------------------------------------------
+    const heIntroScreen = document.getElementById("he-intro-screen");
+    const heStartBtn = document.getElementById("he-start-btn");
+    const heTableEl = document.getElementById("he-table");
+    const heOpponentsEl = document.getElementById("he-opponents");
+    const hePotDisplayEl = document.getElementById("he-pot-display");
+    const heCommunityCardsEl = document.getElementById("he-community-cards");
+    const heStreetLabelEl = document.getElementById("he-street-label");
+    const heYouSeatEl = document.getElementById("he-you-seat");
+    const heYouStackEl = document.getElementById("he-you-stack");
+    const heYouCardsEl = document.getElementById("he-you-cards");
+    const heYouBetEl = document.getElementById("he-you-bet");
+    const heActionsEl = document.getElementById("he-actions");
+    const heFoldBtn = document.getElementById("he-fold-btn");
+    const heCheckCallBtn = document.getElementById("he-check-call-btn");
+    const heRaiseInput = document.getElementById("he-raise-input");
+    const heRaiseBtn = document.getElementById("he-raise-btn");
+    const heLogEl = document.getElementById("he-log");
+    const heShowdownEl = document.getElementById("he-showdown");
+    const heShowdownSummaryEl = document.getElementById("he-showdown-summary");
+    const heNextHandBtn = document.getElementById("he-next-hand-btn");
+    const heGameOverEl = document.getElementById("he-game-over");
+    const heGameOverMessageEl = document.getElementById("he-game-over-message");
+    const heRestartBtn = document.getElementById("he-restart-btn");
+    const heErrorEl = document.getElementById("he-error");
+ 
+    const HOLDEM_STARTING_STACK = 1000;
+    const HOLDEM_SMALL_BLIND = 10;
+    const HOLDEM_BIG_BLIND = 20;
+    const HOLDEM_AI_PROFILES = [
+      { id: "ai1", name: "Duke", personality: "aggressive" },
+      { id: "ai2", name: "Belle", personality: "loose" },
+      { id: "ai3", name: "Ace", personality: "tight" },
+    ];
+ 
+    // ---- Best-of-7 hand evaluation (built on the existing evaluatePokerHand) ----
+    function compareEvaluatedHands(a, b) {
+      if (a.category !== b.category) return a.category - b.category; // lower category number = better
+      const len = Math.max(a.tiebreak.length, b.tiebreak.length);
+      for (let i = 0; i < len; i++) {
+        const va = a.tiebreak[i] ?? 0;
+        const vb = b.tiebreak[i] ?? 0;
+        if (va !== vb) return vb - va;
+      }
+      return 0;
+    }
+ 
+    function chooseK(arr, k) {
+      const results = [];
+      function combo(start, chosen) {
+        if (chosen.length === k) {
+          results.push(chosen.slice());
+          return;
+        }
+        for (let i = start; i < arr.length; i++) {
+          chosen.push(arr[i]);
+          combo(i + 1, chosen);
+          chosen.pop();
+        }
+      }
+      combo(0, []);
+      return results;
+    }
+ 
+    function evaluateBestHand(cards) {
+      if (cards.length === 5) return evaluatePokerHand(cards);
+      const combos = chooseK(cards, 5);
+      let best = null;
+      for (const combo of combos) {
+        const evaluated = evaluatePokerHand(combo);
+        if (!best || compareEvaluatedHands(evaluated, best) < 0) best = evaluated;
+      }
+      return best;
+    }
+ 
+    // ---- Side-pot math (handles uneven all-ins) ----
+    function computeSidePots(players) {
+      const withMoney = players.filter((p) => p.contributed > 0);
+      const sorted = [...withMoney].sort((a, b) => a.contributed - b.contributed);
+      const pots = [];
+      let prevLevel = 0;
+      for (let i = 0; i < sorted.length; i++) {
+        const level = sorted[i].contributed;
+        if (level > prevLevel) {
+          const numContributors = sorted.length - i;
+          const amount = (level - prevLevel) * numContributors;
+          const eligible = sorted.slice(i).filter((p) => !p.folded).map((p) => p.id);
+          if (amount > 0) pots.push({ amount, eligible });
+          prevLevel = level;
+        }
+      }
+      return pots;
+    }
+ 
+    // ---- Betting-round turn order / reopening logic ----
+    function rotateAfter(seatOrder, afterId) {
+      const idx = seatOrder.indexOf(afterId);
+      return [...seatOrder.slice(idx + 1), ...seatOrder.slice(0, idx + 1)];
+    }
+ 
+    function nextActionOrder(seatOrder, fromId, players) {
+      return rotateAfter(seatOrder, fromId).filter((id) => id !== fromId && !players[id].folded && !players[id].allIn);
+    }
+ 
+    // seatOrder is [dealer, sb, bb, ...]. Heads-up is special: preflop the
+    // dealer (who also posts the small blind) acts first; postflop the
+    // other player (big blind) acts first.
+    function buildStreetOrder(seatOrder, activeIds, isPreflop) {
+      const active = seatOrder.filter((id) => activeIds.includes(id));
+      if (active.length === 2) {
+        // Whichever of the two remaining active players sits closest to the
+        // button (first in seat order) is treated as "the dealer" for
+        // heads-up action purposes. Usually that's the literal hand dealer,
+        // but if the actual dealer already folded this hand while two OTHER
+        // players remain, seatOrder[0] itself would be inactive - active[0]
+        // correctly falls back to whichever of the two live players is next
+        // closest to the button instead.
+        const dealer = active[0];
+        const other = active[1];
+        return isPreflop ? [dealer, other] : [other, dealer];
+      }
+      const anchor = isPreflop ? seatOrder[2] : seatOrder[0];
+      return rotateAfter(seatOrder, anchor).filter((id) => activeIds.includes(id));
+    }
+ 
+    // ---- Simple AI opponents ----
+    const AI_PERSONALITIES = {
+      tight: { aggression: 0.12, looseness: 0.05, bluffRate: 0.03 },
+      loose: { aggression: 0.03, looseness: 0.16, bluffRate: 0.09 },
+      aggressive: { aggression: 0.22, looseness: 0.08, bluffRate: 0.14 },
+    };
+ 
+    function estimatePreflopStrength(hole) {
+      const r1 = RANK_NUMERIC[hole[0].slice(0, -1)];
+      const r2 = RANK_NUMERIC[hole[1].slice(0, -1)];
+      const suited = hole[0].slice(-1) === hole[1].slice(-1);
+      const pair = r1 === r2;
+      const hi = Math.max(r1, r2);
+      const lo = Math.min(r1, r2);
+      let score = (hi / 14) * 0.55 + (lo / 14) * 0.25;
+      if (pair) score += 0.25 + (hi / 14) * 0.15;
+      if (suited) score += 0.08;
+      if (!pair) score += Math.max(0, 5 - (hi - lo)) * 0.015;
+      return Math.max(0, Math.min(1, score));
+    }
+ 
+    // Category number alone is a poor proxy for real equity (trips/two pair
+    // are much stronger than a linear 1-10 scale implies), so use a rough
+    // calibrated table of "typical equity vs a random continuing hand"
+    // instead, nudged slightly by strength within the category.
+    const CATEGORY_BASE_STRENGTH = { 1: 0.99, 2: 0.97, 3: 0.95, 4: 0.9, 5: 0.82, 6: 0.75, 7: 0.68, 8: 0.58, 9: 0.42, 10: 0.2 };
+    function estimatePostflopStrength(hole, community) {
+      const best = evaluateBestHand([...hole, ...community]);
+      const base = CATEGORY_BASE_STRENGTH[best.category];
+      const topTiebreak = best.tiebreak[0] || 2;
+      const kickerBonus = ((topTiebreak - 2) / 12) * 0.08 - 0.04;
+      return Math.max(0.05, Math.min(0.99, base + kickerBonus));
+    }
+ 
+    function computeAiBetAmount(potSize, strength, stack) {
+      const raw = Math.round(potSize * (0.4 + strength * 0.35));
+      return Math.max(1, Math.min(raw, stack));
+    }
+ 
+    function computeAiRaiseAmount(potSize, betToCall, minRaise, strength, stack) {
+      const raw = betToCall + Math.round(potSize * (0.5 + strength * 0.4));
+      const withFloor = Math.max(betToCall + minRaise, raw);
+      return Math.min(withFloor, stack);
+    }
+ 
+    function aiDecideAction({ hole, community, street, betToCall, potSize, stack, minRaise, personality }) {
+      const p = AI_PERSONALITIES[personality] || AI_PERSONALITIES.tight;
+      let strength = street === "preflop" ? estimatePreflopStrength(hole) : estimatePostflopStrength(hole, community);
+      strength = Math.max(0, Math.min(1, strength + (Math.random() - 0.5) * p.looseness));
+ 
+      if (betToCall >= stack) {
+        const requiredEquity = potSize > 0 ? stack / (potSize + stack) : 1;
+        if (strength + 0.1 >= requiredEquity) return { action: "allin", amount: stack };
+        return { action: "fold" };
+      }
+ 
+      if (Math.random() < p.bluffRate) {
+        if (betToCall === 0) return { action: "bet", amount: computeAiBetAmount(potSize, 0.9, stack) };
+        return { action: "raise", amount: computeAiRaiseAmount(potSize, betToCall, minRaise, 0.9, stack) };
+      }
+ 
+      if (betToCall === 0) {
+        if (strength > 0.6 + p.aggression) return { action: "bet", amount: computeAiBetAmount(potSize, strength, stack) };
+        return { action: "check" };
+      }
+ 
+      const requiredEquity = betToCall / (potSize + betToCall);
+      if (strength < requiredEquity - 0.05) return { action: "fold" };
+      if (strength > requiredEquity + 0.25 + p.aggression) {
+        return { action: "raise", amount: computeAiRaiseAmount(potSize, betToCall, minRaise, strength, stack) };
+      }
+      return { action: "call" };
+    }
+ 
+    // ---- Table state ----
+    let hePlayers = [];
+    let heDealerIndex = 0;
+    let heDeck = [];
+    let heCommunity = [];
+    let heStreet = "preflop";
+    let heSeatOrder = [];
+    let heToActQueue = [];
+    let heCurrentBet = 0;
+    let heMinRaise = HOLDEM_BIG_BLIND;
+    let heHandNumber = 0;
+    let heActionTimer = null;
+ 
+    function heById(id) {
+      return hePlayers.find((p) => p.id === id);
+    }
+ 
+    function heByIdMap() {
+      return Object.fromEntries(hePlayers.map((p) => [p.id, p]));
+    }
+ 
+    function currentHePotTotal() {
+      return hePlayers.reduce((sum, p) => sum + p.totalContributed, 0);
+    }
+ 
+    function heCanActCount() {
+      return hePlayers.filter((p) => !p.folded && !p.allIn && p.stack > 0).length;
+    }
+ 
+    function buildHeInitialPlayers() {
+      return [
+        { id: "human", name: "You", isHuman: true, personality: null, stack: HOLDEM_STARTING_STACK, holeCards: [], folded: false, allIn: false, betThisStreet: 0, totalContributed: 0 },
+        ...HOLDEM_AI_PROFILES.map((p) => ({
+          id: p.id, name: p.name, isHuman: false, personality: p.personality,
+          stack: HOLDEM_STARTING_STACK, holeCards: [], folded: false, allIn: false, betThisStreet: 0, totalContributed: 0,
+        })),
+      ];
+    }
+ 
+    function heDrawCard() {
+      if (heDeck.length === 0) heDeck = buildShuffledBjDeck();
+      return heDeck.pop();
+    }
+ 
+    function dealHeCommunity(n) {
+      for (let i = 0; i < n; i++) heCommunity.push(heDrawCard());
+    }
+ 
+    function moveChipsIn(player, amt) {
+      const actual = Math.max(0, Math.min(amt, player.stack));
+      player.stack -= actual;
+      player.betThisStreet += actual;
+      player.totalContributed += actual;
+      if (player.stack === 0) player.allIn = true;
+      return actual;
+    }
+ 
+    function postHeBlind(playerId, amount) {
+      moveChipsIn(heById(playerId), amount);
+    }
+ 
+    function logHeAction(msg) {
+      if (!heLogEl) return;
+      const div = document.createElement("div");
+      div.textContent = msg;
+      heLogEl.appendChild(div);
+      while (heLogEl.children.length > 8) heLogEl.removeChild(heLogEl.firstChild);
+      heLogEl.scrollTop = heLogEl.scrollHeight;
+    }
+ 
+    function heOpponentSeatHtml(player, isActiveTurn) {
+      const showCards = heStreet === "showdown" && !player.folded;
+      const cardsHtml = player.folded
+        ? ""
+        : showCards
+          ? renderRealHandCards(player.holeCards)
+          : player.holeCards.map(() => renderBjFaceDownCard()).join("");
+      const statusLabel = player.folded ? "Folded" : player.allIn ? "All-In" : "";
+      return `
+        <div class="he-seat${isActiveTurn ? " he-active-seat" : ""}${player.folded ? " he-folded-seat" : ""}">
+          <div class="he-seat-name">${escapeHtml(player.name)} <span class="he-seat-stack">${player.stack}</span></div>
+          <div class="he-hand he-hand-small">${cardsHtml}</div>
+          ${player.betThisStreet > 0 ? `<div class="he-seat-bet">Bet: ${player.betThisStreet}</div>` : ""}
+          ${statusLabel ? `<div class="he-seat-status">${statusLabel}</div>` : ""}
+        </div>
+      `;
+    }
+ 
+    function renderHeYouSeat() {
+      const human = heById("human");
+      if (!human) return;
+      heYouStackEl.textContent = human.stack;
+      heYouCardsEl.innerHTML = human.folded ? "" : renderRealHandCards(human.holeCards);
+      heYouBetEl.textContent = human.betThisStreet > 0 ? `Bet: ${human.betThisStreet}` : "";
+      heYouSeatEl.classList.toggle("he-folded-seat", human.folded);
+      heYouSeatEl.classList.toggle("he-active-seat", heToActQueue[0] === "human");
+    }
+ 
+    function renderHeState() {
+      hePotDisplayEl.textContent = `Pot: ${currentHePotTotal()}`;
+      heCommunityCardsEl.innerHTML = renderRealHandCards(heCommunity);
+      heStreetLabelEl.textContent = heStreet === "showdown" ? "Showdown" : heStreet.charAt(0).toUpperCase() + heStreet.slice(1);
+ 
+      const activeTurnId = heToActQueue[0];
+      heOpponentsEl.innerHTML = hePlayers
+        .filter((p) => !p.isHuman)
+        .map((p) => heOpponentSeatHtml(p, p.id === activeTurnId))
+        .join("");
+      renderHeYouSeat();
+ 
+      const human = heById("human");
+      if (!human) return;
+      const toCall = Math.max(0, heCurrentBet - human.betThisStreet);
+      heCheckCallBtn.textContent = toCall > 0 ? `Call ${Math.min(toCall, human.stack)}` : "Check";
+      const minTotal = heCurrentBet === 0 ? HOLDEM_BIG_BLIND : heCurrentBet + heMinRaise;
+      const maxTotal = human.betThisStreet + human.stack;
+      const floorTotal = Math.min(minTotal, maxTotal);
+      heRaiseInput.min = floorTotal;
+      heRaiseInput.max = maxTotal;
+      if (!heRaiseInput.value || parseInt(heRaiseInput.value, 10) < floorTotal) {
+        heRaiseInput.value = floorTotal;
+      }
+      heRaiseBtn.textContent = heCurrentBet === 0 ? "Bet" : "Raise";
+    }
+ 
+    function setHeActionsEnabled(enabled) {
+      heActionsEl.hidden = !enabled;
+      if (!enabled) return;
+      const human = heById("human");
+      const toCall = Math.max(0, heCurrentBet - human.betThisStreet);
+      const canRaise = human.stack > toCall;
+      heRaiseBtn.disabled = !canRaise;
+      heRaiseInput.disabled = !canRaise;
+      document.querySelectorAll("#he-actions [data-he-quick]").forEach((b) => {
+        b.disabled = !canRaise;
+      });
+    }
+ 
+    function renderHeShowdown(results, winningsById, wonByFold) {
+      heShowdownEl.hidden = false;
+      const lines = [];
+      if (wonByFold) {
+        const [winnerId, amt] = Object.entries(winningsById)[0];
+        lines.push(
+          `<div class="he-showdown-line"><strong>${escapeHtml(heById(winnerId).name)}</strong> wins ${amt} chips — everyone else folded.</div>`
+        );
+      } else {
+        results.forEach((r) => {
+          const won = winningsById[r.id];
+          const player = heById(r.id);
+          lines.push(
+            `<div class="he-showdown-line">${renderRealHandCards(player.holeCards)} <strong>${escapeHtml(player.name)}</strong>: ${escapeHtml(r.hand.description)}${won ? ` — wins ${won}` : ""}</div>`
+          );
+        });
+      }
+      heShowdownSummaryEl.innerHTML = lines.join("");
+      renderHeState();
+      heNextHandBtn.hidden = false;
+    }
+ 
+    function showHeGameOver(message) {
+      heGameOverEl.hidden = false;
+      heGameOverMessageEl.textContent = message;
+      heActionsEl.hidden = true;
+      heNextHandBtn.hidden = true;
+    }
+ 
+    function goToHeShowdown() {
+      heStreet = "showdown";
+      const contenders = hePlayers.filter((p) => !p.folded);
+      const results = contenders.map((p) => ({ id: p.id, hand: evaluateBestHand([...p.holeCards, ...heCommunity]) }));
+      const pots = computeSidePots(hePlayers.map((p) => ({ id: p.id, contributed: p.totalContributed, folded: p.folded })));
+ 
+      const winningsById = {};
+      pots.forEach((pot) => {
+        const eligibleResults = results.filter((r) => pot.eligible.includes(r.id));
+        if (eligibleResults.length === 0) return;
+        let best = eligibleResults[0].hand;
+        eligibleResults.forEach((r) => {
+          if (compareEvaluatedHands(r.hand, best) < 0) best = r.hand;
+        });
+        const winners = eligibleResults.filter((r) => compareEvaluatedHands(r.hand, best) === 0).map((r) => r.id);
+        const share = Math.floor(pot.amount / winners.length);
+        let remainder = pot.amount - share * winners.length;
+        winners.forEach((id) => {
+          winningsById[id] = (winningsById[id] || 0) + share + (remainder > 0 ? 1 : 0);
+          if (remainder > 0) remainder--;
+        });
+      });
+ 
+      Object.entries(winningsById).forEach(([id, amt]) => {
+        heById(id).stack += amt;
+      });
+      // The pot has now been fully paid out to stacks; zero out totalContributed
+      // so the pot display (and any later invariant checks) don't double-count
+      // chips that already moved back into a stack. It gets reset again anyway
+      // at the start of the next hand.
+      hePlayers.forEach((p) => {
+        p.totalContributed = 0;
+      });
+ 
+      playCoinCascade();
+      renderHeShowdown(results, winningsById, false);
+      finishHeHand();
+    }
+ 
+    function awardPotUncontested(winner) {
+      const totalPot = currentHePotTotal();
+      winner.stack += totalPot;
+      hePlayers.forEach((p) => {
+        p.totalContributed = 0;
+      });
+      heStreet = "showdown";
+      logHeAction(`${winner.name} wins ${totalPot} chips (everyone else folded).`);
+      playCoinCascade();
+      renderHeShowdown([], { [winner.id]: totalPot }, true);
+      finishHeHand();
+    }
+ 
+    function finishHeHand() {
+      setHeActionsEnabled(false);
+      heActionsEl.hidden = true;
+ 
+      const human = heById("human");
+      if (human.stack <= 0) {
+        showHeGameOver("You're out of chips — game over.");
+        return;
+      }
+ 
+      const bustedAi = hePlayers.filter((p) => !p.isHuman && p.stack <= 0);
+      bustedAi.forEach((p) => logHeAction(`${p.name} is out of chips and leaves the table.`));
+      hePlayers = hePlayers.filter((p) => p.isHuman || p.stack > 0);
+ 
+      if (hePlayers.length === 1) {
+        showHeGameOver("You busted every opponent — you win the table! 🏆");
+        return;
+      }
+ 
+      const priorDealerId = heSeatOrder[0];
+      const priorDealerIdx = hePlayers.findIndex((p) => p.id === priorDealerId);
+      heDealerIndex = priorDealerIdx === -1 ? 0 : (priorDealerIdx + 1) % hePlayers.length;
+      heHandNumber++;
+    }
+ 
+    function advanceHeStreet() {
+      hePlayers.forEach((p) => {
+        p.betThisStreet = 0;
+      });
+      heCurrentBet = 0;
+      heMinRaise = HOLDEM_BIG_BLIND;
+ 
+      if (heStreet === "preflop") {
+        dealHeCommunity(3);
+        heStreet = "flop";
+      } else if (heStreet === "flop") {
+        dealHeCommunity(1);
+        heStreet = "turn";
+      } else if (heStreet === "turn") {
+        dealHeCommunity(1);
+        heStreet = "river";
+      } else {
+        goToHeShowdown();
+        return;
+      }
+ 
+      logHeAction(`— ${heStreet.charAt(0).toUpperCase()}${heStreet.slice(1)} —`);
+      playCardSnap();
+ 
+      const activeIds = hePlayers.filter((p) => !p.folded).map((p) => p.id);
+      heToActQueue = heCanActCount() <= 1 ? [] : buildStreetOrder(heSeatOrder, activeIds, false).filter((id) => !heById(id).allIn);
+ 
+      renderHeState();
+      heActionTimer = setTimeout(advanceHeAction, 900);
+    }
+ 
+    function advanceHeAction() {
+      const stillIn = hePlayers.filter((p) => !p.folded);
+      if (stillIn.length === 1) {
+        awardPotUncontested(stillIn[0]);
+        return;
+      }
+ 
+      if (heToActQueue.length === 0) {
+        advanceHeStreet();
+        return;
+      }
+ 
+      const nextId = heToActQueue[0];
+      const nextPlayer = heById(nextId);
+      if (nextPlayer.folded || nextPlayer.allIn || nextPlayer.stack === 0) {
+        heToActQueue.shift();
+        advanceHeAction();
+        return;
+      }
+ 
+      renderHeState();
+ 
+      if (nextPlayer.isHuman) {
+        setHeActionsEnabled(true);
+      } else {
+        setHeActionsEnabled(false);
+        heActionTimer = setTimeout(() => performAiAction(nextPlayer), 900 + Math.random() * 500);
+      }
+    }
+ 
+    function performAiAction(player) {
+      const betToCall = Math.max(0, heCurrentBet - player.betThisStreet);
+      const decision = aiDecideAction({
+        hole: player.holeCards,
+        community: heCommunity,
+        street: heStreet,
+        betToCall: Math.min(betToCall, player.stack),
+        potSize: currentHePotTotal(),
+        stack: player.stack,
+        minRaise: heMinRaise,
+        personality: player.personality,
+      });
+      applyHeAction(player.id, decision.action, decision.amount);
+    }
+ 
+    function applyHeAction(playerId, action, amount) {
+      const player = heById(playerId);
+      if (!player || heToActQueue[0] !== playerId) return;
+      heToActQueue.shift();
+ 
+      if (action === "fold") {
+        player.folded = true;
+        logHeAction(`${player.name} folds.`);
+      } else if (action === "check") {
+        logHeAction(`${player.name} checks.`);
+      } else {
+        // call, bet, raise, and allin all funnel through the same "commit
+        // chips, then reopen action if that counts as a raise" path.
+        const chipsIn = action === "call" ? Math.max(0, heCurrentBet - player.betThisStreet) : amount;
+        const wasOpen = heCurrentBet === 0;
+        const committed = moveChipsIn(player, chipsIn);
+        const raised = player.betThisStreet > heCurrentBet;
+        if (raised) {
+          heMinRaise = Math.max(HOLDEM_BIG_BLIND, player.betThisStreet - heCurrentBet);
+          heCurrentBet = player.betThisStreet;
+          heToActQueue = nextActionOrder(heSeatOrder, playerId, heByIdMap());
+        }
+        let label;
+        if (player.allIn) label = `goes all-in for ${committed}!`;
+        else if (raised && wasOpen) label = `bets ${player.betThisStreet}.`;
+        else if (raised) label = `raises to ${player.betThisStreet}.`;
+        else label = `calls ${committed}.`;
+        logHeAction(`${player.name} ${label}`);
+        playChipClick();
+      }
+ 
+      renderHeState();
+      heActionTimer = setTimeout(advanceHeAction, 450);
+    }
+ 
+    function startHeHand() {
+      heErrorEl.textContent = "";
+      heShowdownEl.hidden = true;
+      heGameOverEl.hidden = true;
+      heNextHandBtn.hidden = true;
+      clearTimeout(heActionTimer);
+ 
+      hePlayers.forEach((p) => {
+        p.folded = false;
+        p.allIn = false;
+        p.betThisStreet = 0;
+        p.totalContributed = 0;
+        p.holeCards = [];
+      });
+      heCommunity = [];
+      heStreet = "preflop";
+      heDeck = buildShuffledBjDeck();
+ 
+      heSeatOrder = [...hePlayers.slice(heDealerIndex), ...hePlayers.slice(0, heDealerIndex)].map((p) => p.id);
+ 
+      for (let round = 0; round < 2; round++) {
+        heSeatOrder.forEach((id) => heById(id).holeCards.push(heDrawCard()));
+      }
+      playCardSnap();
+ 
+      if (heSeatOrder.length === 2) {
+        postHeBlind(heSeatOrder[0], HOLDEM_SMALL_BLIND);
+        postHeBlind(heSeatOrder[1], HOLDEM_BIG_BLIND);
+      } else {
+        postHeBlind(heSeatOrder[1], HOLDEM_SMALL_BLIND);
+        postHeBlind(heSeatOrder[2], HOLDEM_BIG_BLIND);
+      }
+ 
+      heCurrentBet = Math.max(...hePlayers.map((p) => p.betThisStreet));
+      heMinRaise = HOLDEM_BIG_BLIND;
+ 
+      const activeIds = hePlayers.map((p) => p.id);
+      heToActQueue = heCanActCount() <= 1 ? [] : buildStreetOrder(heSeatOrder, activeIds, true).filter((id) => !heById(id).allIn);
+ 
+      logHeAction(`— Hand ${heHandNumber + 1}: ${heById(heSeatOrder[0]).name} is the dealer —`);
+      renderHeState();
+      heActionTimer = setTimeout(advanceHeAction, 500);
+    }
+ 
+    if (heFoldBtn) {
+      heFoldBtn.addEventListener("click", () => applyHeAction("human", "fold"));
+    }
+ 
+    if (heCheckCallBtn) {
+      heCheckCallBtn.addEventListener("click", () => {
+        const human = heById("human");
+        const toCall = heCurrentBet - human.betThisStreet;
+        applyHeAction("human", toCall > 0 ? "call" : "check");
+      });
+    }
+ 
+    if (heRaiseBtn) {
+      heRaiseBtn.addEventListener("click", () => {
+        const human = heById("human");
+        heErrorEl.textContent = "";
+        const targetTotal = parseInt(heRaiseInput.value, 10);
+        const minTotal = heCurrentBet === 0 ? HOLDEM_BIG_BLIND : heCurrentBet + heMinRaise;
+        const maxTotal = human.betThisStreet + human.stack;
+        const floorTotal = Math.min(minTotal, maxTotal);
+        if (!Number.isFinite(targetTotal) || targetTotal < floorTotal) {
+          heErrorEl.textContent = `Minimum is ${floorTotal}.`;
+          return;
+        }
+        const clampedTotal = Math.min(targetTotal, maxTotal);
+        const incremental = clampedTotal - human.betThisStreet;
+        applyHeAction("human", heCurrentBet === 0 ? "bet" : "raise", incremental);
+      });
+    }
+ 
+    document.querySelectorAll("#he-actions [data-he-quick]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const human = heById("human");
+        const pot = currentHePotTotal();
+        const maxTotal = human.betThisStreet + human.stack;
+        let targetTotal;
+        if (btn.dataset.heQuick === "allin") {
+          targetTotal = maxTotal;
+        } else {
+          const toCall = Math.max(0, heCurrentBet - human.betThisStreet);
+          const potAfterCall = pot + toCall;
+          const raiseSize = btn.dataset.heQuick === "half" ? Math.round(potAfterCall / 2) : potAfterCall;
+          targetTotal = Math.min(maxTotal, heCurrentBet + Math.max(heMinRaise, raiseSize));
+        }
+        heRaiseInput.value = targetTotal;
+        playChipClick();
+      });
+    });
+ 
+    if (heNextHandBtn) {
+      heNextHandBtn.addEventListener("click", startHeHand);
+    }
+ 
+    if (heStartBtn) {
+      heStartBtn.addEventListener("click", () => {
+        hePlayers = buildHeInitialPlayers();
+        heDealerIndex = 0;
+        heHandNumber = 0;
+        heIntroScreen.hidden = true;
+        heTableEl.hidden = false;
+        startHeHand();
+      });
+    }
+ 
+    if (heRestartBtn) {
+      heRestartBtn.addEventListener("click", () => {
+        hePlayers = buildHeInitialPlayers();
+        heDealerIndex = 0;
+        heHandNumber = 0;
+        heGameOverEl.hidden = true;
+        startHeHand();
+      });
     }
  
     refreshPublicView();

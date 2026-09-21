@@ -806,6 +806,61 @@ ul#player-list, ul#season-list {
 .hof-trophy { flex: 0 0 auto; font-size: 1.3rem; }
  
 /* ------------------------------------------------------------------
+   Milestone callouts - live at the top of the Standings tab, only
+   when a round-number moment (games left in the season, or the pot
+   crossing $100 marks) is CURRENTLY true. See loadMilestones() in
+   app.js. Reuses the same gold shimmer as the header title (see
+   title-shimmer keyframes above) for a bit of occasion, nothing more.
+   ------------------------------------------------------------------ */
+.milestone-banner {
+  background: linear-gradient(135deg, rgba(var(--poker-gold-rgb), 0.16), rgba(var(--poker-gold-rgb), 0.02));
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.55);
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-align: center;
+  margin-bottom: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+ 
+.milestone-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--poker-gold);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+ 
+.milestone-headline {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--poker-gold);
+  background: linear-gradient(
+    100deg,
+    var(--poker-gold-dark) 0%,
+    var(--poker-gold-dark) 35%,
+    var(--poker-gold-highlight) 50%,
+    var(--poker-gold-dark) 65%,
+    var(--poker-gold-dark) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-shimmer 4.5s linear infinite;
+}
+ 
+.milestone-sub {
+  font-size: 0.8rem;
+  color: var(--poker-muted);
+  margin-top: 3px;
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .milestone-headline { animation: none; }
+}
+ 
+/* ------------------------------------------------------------------
    Recent Visits - a collapsed-by-default dropdown so the admin isn't
    forced to scroll past a long list of cities/IPs unless they want to.
    ------------------------------------------------------------------ */

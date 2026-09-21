@@ -1,4 +1,3 @@
-
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -55,6 +54,8 @@
     const awardsSection = document.getElementById("awards-section");
     const awardsGrid = document.getElementById("awards-grid");
     const publicPlayerList = document.getElementById("public-player-list");
+    const hofSection = document.getElementById("hof-section");
+    const hofList = document.getElementById("hof-list");
     const publicFridayList = document.getElementById("public-friday-list");
     const nextGameBanner = document.getElementById("next-game-banner");
     const nextGameText = document.getElementById("next-game-text");
@@ -1905,6 +1906,7 @@
       loadStandings();
       loadAwards();
       loadPublicPlayers();
+      loadHallOfFame();
       loadPublicFridays();
       loadHighHandsPublic();
       loadNextGameBanner();
@@ -2608,6 +2610,119 @@
       publicPlayerList.querySelectorAll("li[data-player-id]").forEach((li) => {
         li.addEventListener("click", () => showPlayerProfile(li.dataset.playerId));
       });
+    }
+ 
+    // ------------------------------------------------------------------
+    // Hall of Fame - one entry per past (non-active) season, showing
+    // whoever finished #1 in points that season. Sits at the bottom of
+    // the Players tab. Ties break the same way Standings does (most
+    // wins, then name) so there's always exactly one champion. A season
+    // with no results recorded is skipped; the whole section is hidden
+    // if there are no past seasons with a champion yet.
+    // ------------------------------------------------------------------
+    async function loadHallOfFame() {
+      if (!hofSection || !hofList) return;
+ 
+      const { data: pastSeasons, error: seasonsErr } = await supabaseClient
+        .from("seasons")
+        .select("id, name, start_date")
+        .eq("is_active", false)
+        .order("start_date", { ascending: false });
+ 
+      if (seasonsErr || !pastSeasons || !pastSeasons.length) {
+        hofSection.hidden = true;
+        hofList.innerHTML = "";
+        return;
+      }
+ 
+      const seasonIds = pastSeasons.map((s) => s.id);
+ 
+      const [fridaysRes, playersRes] = await Promise.all([
+        supabaseClient.from("fridays").select("id, season_id").eq("status", "completed").in("season_id", seasonIds),
+        supabaseClient.from("players").select("id, name, photo_url"),
+      ]);
+ 
+      if (fridaysRes.error || playersRes.error || !fridaysRes.data || !playersRes.data || !fridaysRes.data.length) {
+        hofSection.hidden = true;
+        hofList.innerHTML = "";
+        return;
+      }
+ 
+      const fridayIds = fridaysRes.data.map((f) => f.id);
+      const seasonIdByFriday = new Map(fridaysRes.data.map((f) => [f.id, f.season_id]));
+      const playerMap = new Map(playersRes.data.map((p) => [p.id, p]));
+ 
+      const { data: results, error: resultsErr } = await supabaseClient
+        .from("results")
+        .select("player_id, friday_id, placement, total_points")
+        .in("friday_id", fridayIds);
+ 
+      if (resultsErr || !results) {
+        hofSection.hidden = true;
+        hofList.innerHTML = "";
+        return;
+      }
+ 
+      // Aggregate points/wins per player, per season.
+      const aggBySeasonPlayer = new Map(); // seasonId -> Map(playerId -> {points, wins})
+      for (const r of results) {
+        const seasonId = seasonIdByFriday.get(r.friday_id);
+        if (!seasonId) continue;
+        if (!aggBySeasonPlayer.has(seasonId)) aggBySeasonPlayer.set(seasonId, new Map());
+        const seasonAgg = aggBySeasonPlayer.get(seasonId);
+        if (!seasonAgg.has(r.player_id)) seasonAgg.set(r.player_id, { points: 0, wins: 0 });
+        const a = seasonAgg.get(r.player_id);
+        a.points += r.total_points;
+        if (r.placement === 1) a.wins += 1;
+      }
+ 
+      const entries = [];
+      for (const season of pastSeasons) {
+        const seasonAgg = aggBySeasonPlayer.get(season.id);
+        if (!seasonAgg || !seasonAgg.size) continue;
+ 
+        const standings = [...seasonAgg.entries()].map(([playerId, stats]) => ({
+          playerId,
+          name: playerMap.get(playerId)?.name || "Unknown player",
+          ...stats,
+        }));
+        standings.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
+ 
+        const champion = standings[0];
+        entries.push({
+          seasonName: season.name,
+          player: playerMap.get(champion.playerId),
+          playerName: champion.name,
+          points: champion.points,
+        });
+      }
+ 
+      if (!entries.length) {
+        hofSection.hidden = true;
+        hofList.innerHTML = "";
+        return;
+      }
+ 
+      hofSection.hidden = false;
+      hofList.innerHTML = entries
+        .map((e) => {
+          const initial = e.playerName ? e.playerName.trim().charAt(0).toUpperCase() : "?";
+          const avatar = e.player?.photo_url
+            ? `<img src="${escapeHtml(e.player.photo_url)}" alt="" />`
+            : escapeHtml(initial);
+          return `
+        <div class="hof-entry">
+          <div class="hof-avatar">${avatar}</div>
+          <div class="hof-body">
+            <div class="hof-season">${escapeHtml(e.seasonName)}</div>
+            <div class="hof-name">${escapeHtml(e.playerName)}</div>
+            <div class="hof-stat">${e.points} point${e.points === 1 ? "" : "s"}</div>
+          </div>
+          <div class="hof-trophy">🏆</div>
+        </div>
+      `;
+        })
+        .join("");
     }
  
     async function loadPublicFridays() {

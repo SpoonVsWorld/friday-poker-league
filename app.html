@@ -329,6 +329,14 @@
         <button id="reset-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Counter</button>
         <p id="stats-error" class="error"></p>
  
+        <details id="visit-log-details" class="visit-log-details">
+          <summary>Recent Visits <span class="muted">— last 50</span></summary>
+          <div class="visit-log-body">
+            <p class="muted" style="margin:0 0 10px;">Location is approximate, based on the visitor's internet provider — not GPS.</p>
+            <div class="visit-log-wrap" id="visit-log-list"></div>
+          </div>
+        </details>
+ 
         <h2 style="margin-top:24px;">Seasons</h2>
         <form id="add-season-form">
           <label>Season name

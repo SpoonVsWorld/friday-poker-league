@@ -1,7 +1,7 @@
 // Bump this version string whenever the app's files change, so returning
 // visitors' phones clear out the old cached copy instead of getting stuck
 // on stale code.
-const CACHE_NAME = "poker-league-v3";
+const CACHE_NAME = "poker-league-v4";
  
 const APP_SHELL = [
   "/",

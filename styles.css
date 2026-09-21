@@ -567,6 +567,91 @@ ul#player-list, ul#season-list {
 .stat-box .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
  
 /* ------------------------------------------------------------------
+   Awards & Bragging Rights - live, season-long superlatives computed
+   from existing results/high_hands data. Sits at the bottom of the
+   Standings tab; hidden entirely when there's no active season or no
+   award yet qualifies (see loadAwards() in app.js).
+   ------------------------------------------------------------------ */
+.awards-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--poker-border);
+}
+ 
+.awards-heading h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--poker-gold);
+}
+ 
+.awards-subline {
+  margin: 4px 0 14px;
+  font-size: 0.8rem;
+}
+ 
+.awards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+ 
+.award-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--poker-panel-light) 0%, var(--poker-panel) 60%);
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.16);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 6px 14px rgba(0, 0, 0, 0.18);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+ 
+.award-card:hover {
+  border-color: rgba(var(--poker-gold-rgb), 0.45);
+  transform: translateY(-1px);
+}
+ 
+.award-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--poker-gold-rgb), 0.28), rgba(var(--poker-gold-rgb), 0.06));
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.4);
+}
+ 
+.award-body { min-width: 0; }
+ 
+.award-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--poker-gold);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+ 
+.award-player {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--poker-text);
+  line-height: 1.2;
+}
+ 
+.award-stat {
+  font-size: 0.78rem;
+  color: var(--poker-muted);
+  margin-top: 2px;
+}
+ 
+/* ------------------------------------------------------------------
    Recent Visits - a collapsed-by-default dropdown so the admin isn't
    forced to scroll past a long list of cities/IPs unless they want to.
    ------------------------------------------------------------------ */

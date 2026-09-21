@@ -2052,6 +2052,7 @@
         const tab = btn.dataset.tab;
         if (tab === "pot") playCoinCascade();
         else if (tab === "highhands") playHighHandReveal();
+        else if (tab === "blackjack") playCardSnap();
         else playChipClick();
         switchPublicTab(tab);
       });
@@ -3078,6 +3079,361 @@
  
     if (slotSpinBtn) {
       slotSpinBtn.addEventListener("click", spinSlotMachine);
+    }
+ 
+    // ------------------------------------------------------------------
+    // Blackjack — single-player against the dealer, played with pretend
+    // chips stored on this device only (localStorage, not Supabase — this
+    // is just for fun, nothing here touches real scoring or the pot).
+    // Reuses the realistic flipping-card renderer built for High Hands.
+    // ------------------------------------------------------------------
+    const bjBalanceEl = document.getElementById("bj-balance");
+    const bjCurrentBetEl = document.getElementById("bj-current-bet");
+    const bjBetInput = document.getElementById("bj-bet-input");
+    const bjBetMaxBtn = document.getElementById("bj-bet-max");
+    const bjBetChipBtns = document.querySelectorAll("#bj-bet-controls [data-chip]");
+    const bjDealBtn = document.getElementById("bj-deal-btn");
+    const bjTable = document.getElementById("bj-table");
+    const bjDealerCardsEl = document.getElementById("bj-dealer-cards");
+    const bjDealerTotalEl = document.getElementById("bj-dealer-total");
+    const bjPlayerCardsEl = document.getElementById("bj-player-cards");
+    const bjPlayerTotalEl = document.getElementById("bj-player-total");
+    const bjHitBtn = document.getElementById("bj-hit-btn");
+    const bjStandBtn = document.getElementById("bj-stand-btn");
+    const bjDoubleBtn = document.getElementById("bj-double-btn");
+    const bjResultEl = document.getElementById("bj-result");
+    const bjResetBtn = document.getElementById("bj-reset-btn");
+    const bjErrorEl = document.getElementById("bj-error");
+ 
+    const BJ_STORAGE_KEY = "pokerLeagueBlackjackChips";
+    const BJ_STARTING_BALANCE = 1000;
+    const BJ_MIN_BET = 5;
+    const BJ_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
+    const BJ_SUITS = ["S", "H", "D", "C"];
+ 
+    function loadBjBalance() {
+      try {
+        const saved = window.localStorage.getItem(BJ_STORAGE_KEY);
+        const parsed = saved === null ? NaN : parseInt(saved, 10);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : BJ_STARTING_BALANCE;
+      } catch (err) {
+        return BJ_STARTING_BALANCE;
+      }
+    }
+ 
+    function saveBjBalance(amount) {
+      try {
+        window.localStorage.setItem(BJ_STORAGE_KEY, String(amount));
+      } catch (err) {
+        // localStorage unavailable (private browsing, etc.) — the balance
+        // just won't persist across reloads. It's only pretend chips.
+      }
+    }
+ 
+    let bjBalance = loadBjBalance();
+    let bjDeck = [];
+    let bjPlayerHand = [];
+    let bjDealerHand = [];
+    let bjCurrentBet = 0;
+    let bjHandActive = false;
+ 
+    function buildShuffledBjDeck() {
+      const deck = [];
+      BJ_SUITS.forEach((suit) => {
+        BJ_RANKS.forEach((rank) => deck.push(rank + suit));
+      });
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+      return deck;
+    }
+ 
+    function bjDrawCard() {
+      if (bjDeck.length === 0) bjDeck = buildShuffledBjDeck();
+      return bjDeck.pop();
+    }
+ 
+    function bjCardValue(rank) {
+      if (rank === "A") return 11;
+      if (rank === "T" || rank === "J" || rank === "Q" || rank === "K") return 10;
+      return parseInt(rank, 10);
+    }
+ 
+    function bjHandTotal(cards) {
+      let total = 0;
+      let aces = 0;
+      cards.forEach((c) => {
+        const rank = c.slice(0, -1);
+        total += bjCardValue(rank);
+        if (rank === "A") aces++;
+      });
+      while (total > 21 && aces > 0) {
+        total -= 10;
+        aces--;
+      }
+      return total;
+    }
+ 
+    function bjIsBlackjack(cards) {
+      return cards.length === 2 && bjHandTotal(cards) === 21;
+    }
+ 
+    // A static face-down card, styled with the same card back used
+    // elsewhere — no reveal animation, since it's meant to stay hidden.
+    function renderBjFaceDownCard() {
+      return `<span class="real-card"><span class="real-card-flip" style="animation:none; transform:rotateY(360deg);"><span class="card-face card-front">${REAL_CARD_BACK_SVG}</span></span></span>`;
+    }
+ 
+    function renderBjHand(container, cards, hideSecondCard) {
+      container.innerHTML = cards
+        .map((c, i) => (hideSecondCard && i === 1 ? renderBjFaceDownCard() : renderRealCard(c, i)))
+        .join("");
+    }
+ 
+    function bjTotalLabel(cards, hideSecondCard) {
+      if (hideSecondCard) {
+        return `(${bjHandTotal([cards[0]])} + ?)`;
+      }
+      const total = bjHandTotal(cards);
+      return bjIsBlackjack(cards) ? `(${total} — Blackjack!)` : `(${total})`;
+    }
+ 
+    function updateBjBalanceDisplay() {
+      bjBalanceEl.textContent = bjBalance;
+    }
+ 
+    function setBjBetControlsEnabled(enabled) {
+      bjBetInput.disabled = !enabled;
+      bjBetMaxBtn.disabled = !enabled;
+      bjBetChipBtns.forEach((btn) => {
+        btn.disabled = !enabled;
+      });
+    }
+ 
+    function setBjActionsEnabled(enabled) {
+      bjHitBtn.disabled = !enabled;
+      bjStandBtn.disabled = !enabled;
+      bjDoubleBtn.disabled = !enabled || bjBalance < bjCurrentBet;
+    }
+ 
+    bjBetChipBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const add = parseInt(btn.dataset.chip, 10) || 0;
+        const current = parseInt(bjBetInput.value, 10) || 0;
+        bjBetInput.value = Math.min(current + add, Math.max(bjBalance, BJ_MIN_BET));
+        playChipClick();
+      });
+    });
+ 
+    if (bjBetMaxBtn) {
+      bjBetMaxBtn.addEventListener("click", () => {
+        bjBetInput.value = Math.max(bjBalance, BJ_MIN_BET);
+        playChipClick();
+      });
+    }
+ 
+    function determineBjOutcome(dealerTotal, playerTotal) {
+      if (dealerTotal > 21) return "win";
+      if (playerTotal > dealerTotal) return "win";
+      if (playerTotal < dealerTotal) return "lose";
+      return "push";
+    }
+ 
+    function settleBjHand(outcome) {
+      bjHandActive = false;
+      let message = "";
+ 
+      if (outcome === "blackjack") {
+        const winnings = Math.floor(bjCurrentBet * 1.5);
+        bjBalance += bjCurrentBet + winnings;
+        message = `🂡 Blackjack! You win ${winnings} chips.`;
+        bjResultEl.className = "bj-result bj-win";
+        playCoinCascade();
+      } else if (outcome === "win") {
+        bjBalance += bjCurrentBet * 2;
+        message = `You win ${bjCurrentBet} chips!`;
+        bjResultEl.className = "bj-result bj-win";
+        playCoinCascade();
+      } else if (outcome === "push") {
+        bjBalance += bjCurrentBet;
+        message = "Push — bet returned.";
+        bjResultEl.className = "bj-result bj-push";
+      } else {
+        message = `You lose ${bjCurrentBet} chips.`;
+        bjResultEl.className = "bj-result bj-lose";
+      }
+ 
+      saveBjBalance(bjBalance);
+      updateBjBalanceDisplay();
+      bjCurrentBetEl.textContent = "—";
+      bjResultEl.textContent = message;
+      bjResultEl.hidden = false;
+ 
+      setBjBetControlsEnabled(true);
+      bjBetInput.max = bjBalance;
+      if (parseInt(bjBetInput.value, 10) > bjBalance) {
+        bjBetInput.value = Math.max(Math.min(BJ_MIN_BET, bjBalance), 0);
+      }
+ 
+      if (bjBalance < BJ_MIN_BET) {
+        bjDealBtn.disabled = true;
+        bjErrorEl.textContent = "Out of chips — hit Reset Chips to start over.";
+      } else {
+        bjDealBtn.disabled = false;
+      }
+    }
+ 
+    function finishBjHand() {
+      setBjActionsEnabled(false);
+      const playerTotal = bjHandTotal(bjPlayerHand);
+ 
+      renderBjHand(bjDealerCardsEl, bjDealerHand, false);
+      bjDealerTotalEl.textContent = bjTotalLabel(bjDealerHand, false);
+ 
+      if (playerTotal > 21) {
+        setTimeout(() => settleBjHand("lose"), 400);
+        return;
+      }
+ 
+      function dealerStep() {
+        const dealerTotal = bjHandTotal(bjDealerHand);
+        if (dealerTotal < 17) {
+          bjDealerHand.push(bjDrawCard());
+          playCardSnap();
+          renderBjHand(bjDealerCardsEl, bjDealerHand, false);
+          bjDealerTotalEl.textContent = bjTotalLabel(bjDealerHand, false);
+          setTimeout(dealerStep, 700);
+          return;
+        }
+        settleBjHand(determineBjOutcome(dealerTotal, playerTotal));
+      }
+ 
+      setTimeout(dealerStep, 500);
+    }
+ 
+    function bjHit() {
+      if (!bjHandActive) return;
+      bjPlayerHand.push(bjDrawCard());
+      playCardSnap();
+      renderBjHand(bjPlayerCardsEl, bjPlayerHand, false);
+      const total = bjHandTotal(bjPlayerHand);
+      bjPlayerTotalEl.textContent = bjTotalLabel(bjPlayerHand, false);
+      bjDoubleBtn.disabled = true;
+ 
+      if (total > 21) {
+        finishBjHand();
+      } else if (total === 21) {
+        bjStand();
+      }
+    }
+ 
+    function bjStand() {
+      if (!bjHandActive) return;
+      setBjActionsEnabled(false);
+      finishBjHand();
+    }
+ 
+    function bjDoubleDown() {
+      if (!bjHandActive || bjPlayerHand.length !== 2) return;
+      if (bjBalance < bjCurrentBet) {
+        bjErrorEl.textContent = "Not enough chips to double down.";
+        return;
+      }
+      bjBalance -= bjCurrentBet;
+      bjCurrentBet *= 2;
+      saveBjBalance(bjBalance);
+      updateBjBalanceDisplay();
+      bjCurrentBetEl.textContent = bjCurrentBet;
+ 
+      bjPlayerHand.push(bjDrawCard());
+      playCardSnap();
+      renderBjHand(bjPlayerCardsEl, bjPlayerHand, false);
+      bjPlayerTotalEl.textContent = bjTotalLabel(bjPlayerHand, false);
+ 
+      setBjActionsEnabled(false);
+      finishBjHand();
+    }
+ 
+    function startBjHand() {
+      bjErrorEl.textContent = "";
+      if (bjHandActive) return;
+ 
+      const bet = parseInt(bjBetInput.value, 10);
+      if (!Number.isFinite(bet) || bet < BJ_MIN_BET) {
+        bjErrorEl.textContent = `Minimum bet is ${BJ_MIN_BET} chips.`;
+        return;
+      }
+      if (bet > bjBalance) {
+        bjErrorEl.textContent = "You don't have enough chips for that bet.";
+        return;
+      }
+ 
+      bjCurrentBet = bet;
+      bjBalance -= bet;
+      saveBjBalance(bjBalance);
+      updateBjBalanceDisplay();
+      bjCurrentBetEl.textContent = bjCurrentBet;
+      setBjBetControlsEnabled(false);
+      bjDealBtn.disabled = true;
+ 
+      bjDeck = buildShuffledBjDeck();
+      bjPlayerHand = [bjDrawCard(), bjDrawCard()];
+      bjDealerHand = [bjDrawCard(), bjDrawCard()];
+      bjHandActive = true;
+ 
+      bjTable.hidden = false;
+      bjResultEl.hidden = true;
+      bjResultEl.className = "bj-result";
+ 
+      playCardSnap();
+      renderBjHand(bjPlayerCardsEl, bjPlayerHand, false);
+      renderBjHand(bjDealerCardsEl, bjDealerHand, true);
+      bjPlayerTotalEl.textContent = bjTotalLabel(bjPlayerHand, false);
+      bjDealerTotalEl.textContent = bjTotalLabel(bjDealerHand, true);
+ 
+      if (bjIsBlackjack(bjPlayerHand)) {
+        setBjActionsEnabled(false);
+        setTimeout(() => {
+          renderBjHand(bjDealerCardsEl, bjDealerHand, false);
+          bjDealerTotalEl.textContent = bjTotalLabel(bjDealerHand, false);
+          settleBjHand(bjIsBlackjack(bjDealerHand) ? "push" : "blackjack");
+        }, 500);
+        return;
+      }
+ 
+      setBjActionsEnabled(true);
+    }
+ 
+    if (bjDealBtn) bjDealBtn.addEventListener("click", startBjHand);
+    if (bjHitBtn) bjHitBtn.addEventListener("click", bjHit);
+    if (bjStandBtn) bjStandBtn.addEventListener("click", bjStand);
+    if (bjDoubleBtn) bjDoubleBtn.addEventListener("click", bjDoubleDown);
+ 
+    if (bjResetBtn) {
+      bjResetBtn.addEventListener("click", () => {
+        if (bjHandActive) return;
+        if (!window.confirm("Reset your Blackjack chips back to 1000?")) return;
+        bjBalance = BJ_STARTING_BALANCE;
+        saveBjBalance(bjBalance);
+        updateBjBalanceDisplay();
+        bjBetInput.max = bjBalance;
+        bjBetInput.value = Math.min(25, bjBalance);
+        setBjBetControlsEnabled(true);
+        bjDealBtn.disabled = false;
+        bjErrorEl.textContent = "";
+        bjResultEl.hidden = true;
+        bjTable.hidden = true;
+      });
+    }
+ 
+    if (bjBalanceEl) {
+      updateBjBalanceDisplay();
+      bjBetInput.max = bjBalance;
+      if (bjBalance < BJ_MIN_BET) {
+        bjDealBtn.disabled = true;
+        bjErrorEl.textContent = "Out of chips — hit Reset Chips to start over.";
+      }
     }
  
     refreshPublicView();

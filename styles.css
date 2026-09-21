@@ -22,6 +22,24 @@ body {
   flex-direction: column;
 }
  
+/* Full-bleed table-felt photo behind the app on anything wider than a
+   phone (desktop browsers, the Windows app), so maximizing the window
+   doesn't leave a flat empty gutter on either side of the centered
+   content column. Same breakpoint as the tab grid below, so phones never
+   even request this image - .container/.card (the actual app content)
+   are untouched either way, since they already paint their own solid
+   background on top of this. */
+@media (min-width: 421px) {
+  body {
+    background-color: var(--bg);
+    background-image: url("images/table-bg.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+}
+ 
 .app-header {
   padding: max(20px, env(safe-area-inset-top)) 16px 12px;
   display: flex;

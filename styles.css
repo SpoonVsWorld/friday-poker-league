@@ -652,6 +652,76 @@ ul#player-list, ul#season-list {
 }
  
 /* ------------------------------------------------------------------
+   Head-to-Head - lives on each player's profile page. Compares two
+   players' all-time stats side by side, plus their record on nights
+   they've both actually played (see loadAwards() neighbor,
+   computeRivalry(), in app.js).
+   ------------------------------------------------------------------ */
+.rivalry-vs-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+ 
+.rivalry-vs-row .vs-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+ 
+.rivalry-vs-row select {
+  flex: 1 1 auto;
+  margin: 0;
+}
+ 
+.rivalry-tape {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+}
+ 
+.rivalry-tape th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 6px 4px;
+  text-align: center;
+}
+.rivalry-tape th:first-child { text-align: left; }
+ 
+.rivalry-tape td {
+  padding: 8px 4px;
+  text-align: center;
+  border-top: 1px solid var(--poker-border);
+}
+.rivalry-tape td:first-child {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.rivalry-tape td.lead {
+  color: var(--poker-gold);
+  font-weight: 700;
+}
+ 
+.rivalry-record {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.rivalry-record .r-name { font-size: 0.95rem; font-weight: 600; color: var(--poker-text); }
+.rivalry-record .r-score { color: var(--poker-gold); }
+.rivalry-record .r-dash { color: var(--muted); font-size: 1.1rem; font-weight: 400; }
+ 
+/* ------------------------------------------------------------------
    Recent Visits - a collapsed-by-default dropdown so the admin isn't
    forced to scroll past a long list of cities/IPs unless they want to.
    ------------------------------------------------------------------ */

@@ -566,6 +566,87 @@ ul#player-list, ul#season-list {
 .stat-box .value { font-size: 1.3rem; font-weight: 700; }
 .stat-box .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
  
+/* ------------------------------------------------------------------
+   Recent Visits - a collapsed-by-default dropdown so the admin isn't
+   forced to scroll past a long list of cities/IPs unless they want to.
+   ------------------------------------------------------------------ */
+.visit-log-details {
+  margin-top: 12px;
+}
+ 
+.visit-log-details summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  transition: border-color 0.15s ease;
+}
+ 
+.visit-log-details summary::-webkit-details-marker { display: none; }
+ 
+.visit-log-details summary::after {
+  content: "▾";
+  color: var(--poker-gold);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+ 
+.visit-log-details[open] summary::after { transform: rotate(-180deg); }
+ 
+.visit-log-details summary:hover { border-color: rgba(var(--poker-gold-rgb), 0.5); }
+ 
+.visit-log-details[open] summary {
+  border-radius: 10px 10px 0 0;
+  border-bottom-color: transparent;
+}
+ 
+.visit-log-body {
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  padding: 12px;
+}
+ 
+.visit-log-wrap {
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+ 
+.visit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+ 
+.visit-row:last-child { margin-bottom: 0; }
+ 
+.visit-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.visit-location { font-size: 0.9rem; font-weight: 600; }
+.visit-ip {
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+}
+ 
+.visit-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.visit-time { font-size: 0.78rem; color: var(--text); font-weight: 600; white-space: nowrap; }
+.visit-device { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+ 
 .card-input-row {
   display: flex;
   align-items: center;

@@ -1,3 +1,4 @@
+
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -66,6 +67,16 @@
     const profileNickname = document.getElementById("profile-nickname");
     const profileStats = document.getElementById("profile-stats");
     const profileHistoryBody = document.getElementById("profile-history-body");
+    const rivalrySection = document.getElementById("rivalry-section");
+    const rivalrySelect = document.getElementById("rivalry-select");
+    const rivalryResult = document.getElementById("rivalry-result");
+ 
+    // Head-to-Head state: the currently-open profile's own id/name/history,
+    // so switching the "Compare with" dropdown doesn't need to re-fetch it.
+    let currentProfilePlayerId = null;
+    let currentProfilePlayerName = "";
+    let currentProfileAgg = null;
+    let currentProfileHistory = [];
  
     const publicFridayDetail = document.getElementById("public-friday-detail");
     const fridayDetailDate = document.getElementById("friday-detail-date");
@@ -2649,12 +2660,14 @@
  
       const { data: history, error: historyErr } = await supabaseClient
         .from("results")
-        .select("placement, bounty_winner, total_points, fridays(game_date, status, seasons(name))")
+        .select("friday_id, placement, bounty_winner, total_points, fridays(game_date, status, seasons(name))")
         .eq("player_id", playerId)
         .order("game_date", { foreignTable: "fridays", ascending: false });
  
       if (historyErr) {
         profileHistoryBody.innerHTML = `<tr><td colspan="5" class="muted">Could not load history: ${escapeHtml(historyErr.message)}</td></tr>`;
+        currentProfileHistory = [];
+        currentProfileAgg = null;
       } else {
         const totalPoints = (history || []).reduce((sum, r) => sum + r.total_points, 0);
         const played = (history || []).length;
@@ -2684,11 +2697,155 @@
               )
               .join("")
           : '<tr><td colspan="5" class="muted">No Fridays played yet.</td></tr>';
+ 
+        currentProfileHistory = history || [];
+        currentProfileAgg = { totalPoints, played, wins, bounties };
       }
+ 
+      currentProfilePlayerId = playerId;
+      currentProfilePlayerName = player.name;
+      await populateRivalrySelect(playerId);
  
       publicListView.hidden = true;
       publicFridayDetail.hidden = true;
       publicPlayerProfile.hidden = false;
+    }
+ 
+    // ------------------------------------------------------------------
+    // Head-to-Head - a fun "tale of the tape" comparing the open profile
+    // against another player of your choice: full all-time stats side by
+    // side, plus who's had the better finish on nights they've both
+    // actually played. Nothing here is written anywhere; it only reads
+    // data already shown elsewhere on the site.
+    // ------------------------------------------------------------------
+    async function populateRivalrySelect(currentPlayerId) {
+      if (!rivalrySection || !rivalrySelect || !rivalryResult) return;
+ 
+      rivalryResult.innerHTML = "";
+      rivalrySelect.value = "";
+ 
+      const { data: players, error } = await supabaseClient
+        .from("players")
+        .select("id, name")
+        .order("name", { ascending: true });
+ 
+      const others = !error && players ? players.filter((p) => p.id !== currentPlayerId) : [];
+ 
+      if (!others.length) {
+        rivalrySection.hidden = true;
+        return;
+      }
+ 
+      rivalrySelect.innerHTML =
+        '<option value="">Choose a player…</option>' +
+        others.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+      rivalrySection.hidden = false;
+    }
+ 
+    async function computeRivalry(opponentId) {
+      if (!opponentId || !currentProfilePlayerId || !currentProfileAgg) {
+        rivalryResult.innerHTML = "";
+        return;
+      }
+ 
+      rivalryResult.innerHTML = '<p class="muted">Loading…</p>';
+ 
+      const { data: opponent, error: opponentErr } = await supabaseClient
+        .from("players")
+        .select("id, name")
+        .eq("id", opponentId)
+        .single();
+ 
+      const { data: oppHistory, error: historyErr } = await supabaseClient
+        .from("results")
+        .select("friday_id, placement, bounty_winner, total_points")
+        .eq("player_id", opponentId);
+ 
+      if (opponentErr || historyErr || !opponent) {
+        rivalryResult.innerHTML = '<p class="muted">Could not load that comparison.</p>';
+        return;
+      }
+ 
+      const oppList = oppHistory || [];
+      const oppAgg = {
+        totalPoints: oppList.reduce((sum, r) => sum + r.total_points, 0),
+        played: oppList.length,
+        wins: oppList.filter((r) => r.placement === 1).length,
+        bounties: oppList.filter((r) => r.bounty_winner).length,
+      };
+ 
+      const aName = currentProfilePlayerName;
+      const bName = opponent.name;
+      const aAgg = currentProfileAgg;
+      const aAvg = aAgg.played ? aAgg.totalPoints / aAgg.played : 0;
+      const bAvg = oppAgg.played ? oppAgg.totalPoints / oppAgg.played : 0;
+ 
+      const lead = (a, b) => (a > b ? "lead" : "");
+ 
+      let tape = `
+        <table class="rivalry-tape">
+          <thead><tr><th></th><th>${escapeHtml(aName)}</th><th>${escapeHtml(bName)}</th></tr></thead>
+          <tbody>
+            <tr><td>Total Points</td><td class="${lead(aAgg.totalPoints, oppAgg.totalPoints)}">${aAgg.totalPoints}</td><td class="${lead(oppAgg.totalPoints, aAgg.totalPoints)}">${oppAgg.totalPoints}</td></tr>
+            <tr><td>Fridays Played</td><td class="${lead(aAgg.played, oppAgg.played)}">${aAgg.played}</td><td class="${lead(oppAgg.played, aAgg.played)}">${oppAgg.played}</td></tr>
+            <tr><td>Avg Pts / Game</td><td class="${lead(aAvg, bAvg)}">${aAgg.played ? aAvg.toFixed(1) : "—"}</td><td class="${lead(bAvg, aAvg)}">${oppAgg.played ? bAvg.toFixed(1) : "—"}</td></tr>
+            <tr><td>Wins</td><td class="${lead(aAgg.wins, oppAgg.wins)}">${aAgg.wins}</td><td class="${lead(oppAgg.wins, aAgg.wins)}">${oppAgg.wins}</td></tr>
+            <tr><td>Bounties</td><td class="${lead(aAgg.bounties, oppAgg.bounties)}">${aAgg.bounties}</td><td class="${lead(oppAgg.bounties, aAgg.bounties)}">${oppAgg.bounties}</td></tr>
+          </tbody>
+        </table>
+      `;
+ 
+      // Shared nights: Fridays where both players have a recorded result.
+      const oppByFriday = new Map(oppList.map((r) => [r.friday_id, r]));
+      const shared = currentProfileHistory.filter((r) => oppByFriday.has(r.friday_id));
+ 
+      if (!shared.length) {
+        rivalryResult.innerHTML = tape + `<p class="muted">${escapeHtml(aName)} and ${escapeHtml(bName)} haven't played a Friday together yet.</p>`;
+        return;
+      }
+ 
+      let aBetter = 0;
+      let bBetter = 0;
+      let aBounties = 0;
+      let bBounties = 0;
+      for (const r of shared) {
+        const opp = oppByFriday.get(r.friday_id);
+        if (r.placement != null && opp.placement != null && r.placement !== opp.placement) {
+          if (r.placement < opp.placement) aBetter++;
+          else bBetter++;
+        }
+        if (r.bounty_winner) aBounties++;
+        if (opp.bounty_winner) bBounties++;
+      }
+ 
+      let leaderLine;
+      if (aBetter === bBetter) {
+        leaderLine = `Dead even — ${aBetter} of ${shared.length} nights decided each way`;
+      } else {
+        const [leadName, leadCount] = aBetter > bBetter ? [aName, aBetter] : [bName, bBetter];
+        leaderLine = `${escapeHtml(leadName)} has the better finish in ${leadCount} of ${shared.length} night${shared.length === 1 ? "" : "s"} played together`;
+      }
+ 
+      rivalryResult.innerHTML =
+        tape +
+        `
+        <div class="high-hand-callout">
+          <div class="hh-callout-label">${escapeHtml(aName)} vs. ${escapeHtml(bName)} — Head to Head</div>
+          <div class="rivalry-record">
+            <span class="r-name">${escapeHtml(aName)}</span>
+            <span class="r-score">${aBetter}</span>
+            <span class="r-dash">&ndash;</span>
+            <span class="r-score">${bBetter}</span>
+            <span class="r-name">${escapeHtml(bName)}</span>
+          </div>
+          <div class="hh-callout-desc" style="font-size:0.9rem; font-weight:600;">${leaderLine}</div>
+          <div class="hh-callout-meta">Bounties on shared nights: ${escapeHtml(aName)} ${aBounties} &middot; ${escapeHtml(bName)} ${bBounties}</div>
+        </div>
+      `;
+    }
+ 
+    if (rivalrySelect) {
+      rivalrySelect.addEventListener("change", () => computeRivalry(rivalrySelect.value));
     }
  
     async function showFridayDetail(fridayId) {
@@ -4641,4 +4798,3 @@
       return div.innerHTML;
     }
  
-

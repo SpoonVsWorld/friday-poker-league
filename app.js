@@ -94,6 +94,7 @@
     const statWeekViews = document.getElementById("stat-week-views");
     const resetViewsBtn = document.getElementById("reset-views-btn");
     const statsError = document.getElementById("stats-error");
+    const visitLogList = document.getElementById("visit-log-list");
  
     const adminProblemList = document.getElementById("admin-problem-list");
     const adminCommentList = document.getElementById("admin-comment-list");
@@ -186,7 +187,7 @@
       if (data.session) {
         showLoggedIn(data.session);
       } else {
-        supabaseClient.from("page_views").insert({}).then(() => {});
+        fetch("/api/log-view", { method: "POST" }).catch(() => {});
       }
     });
  
@@ -1441,6 +1442,87 @@
  
       statTotalViews.textContent = totalCount ?? 0;
       statWeekViews.textContent = weekErr ? "—" : weekCount ?? 0;
+ 
+      const { data: recentVisits, error: recentErr } = await supabaseClient
+        .from("page_views")
+        .select("viewed_at, ip_address, city, region, country, user_agent")
+        .order("viewed_at", { ascending: false })
+        .limit(50);
+ 
+      if (recentErr) {
+        visitLogList.innerHTML = `<p class="error">Could not load recent visits: ${escapeHtml(recentErr.message)}</p>`;
+        return;
+      }
+      renderRecentVisits(recentVisits || []);
+    }
+ 
+    // Approximate city/state from Vercel's geo headers - "Unknown" only
+    // when we truly have nothing (e.g. rows logged before this feature,
+    // or a visit where Vercel couldn't determine a location).
+    function formatVisitLocation(row) {
+      if (row.city && row.region) return `${row.city}, ${row.region}`;
+      if (row.city) return row.city;
+      if (row.region) return row.region;
+      if (row.country) return row.country;
+      return "Unknown location";
+    }
+ 
+    function formatVisitTime(iso) {
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      if (d.toDateString() === now.toDateString()) return `Today, ${time}`;
+      if (d.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
+      return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+    }
+ 
+    // Rough, best-effort device/browser label parsed from the user-agent
+    // string - just enough to help tell visits apart, not a precise
+    // device-detection library.
+    function summarizeUserAgent(ua) {
+      if (!ua) return "Unknown device";
+      let device = "Desktop";
+      if (/iPhone/i.test(ua)) device = "iPhone";
+      else if (/iPad/i.test(ua)) device = "iPad";
+      else if (/Android/i.test(ua)) device = "Android";
+      else if (/Macintosh/i.test(ua)) device = "Mac";
+      else if (/Windows/i.test(ua)) device = "Windows";
+      else if (/Linux/i.test(ua)) device = "Linux";
+ 
+      let browser = "";
+      if (/Edg\//i.test(ua)) browser = "Edge";
+      else if (/OPR\//i.test(ua) || /Opera/i.test(ua)) browser = "Opera";
+      else if (/CriOS/i.test(ua) || /Chrome\//i.test(ua)) browser = "Chrome";
+      else if (/FxiOS/i.test(ua) || /Firefox\//i.test(ua)) browser = "Firefox";
+      else if (/Safari\//i.test(ua)) browser = "Safari";
+ 
+      return browser ? `${device} · ${browser}` : device;
+    }
+ 
+    function renderRecentVisits(rows) {
+      if (!rows.length) {
+        visitLogList.innerHTML = '<p class="muted">No visits recorded yet.</p>';
+        return;
+      }
+      visitLogList.innerHTML = rows
+        .map(
+          (r) => `
+        <div class="visit-row">
+          <div class="visit-info">
+            <span class="visit-location">${escapeHtml(formatVisitLocation(r))}</span>
+            <span class="visit-ip">${escapeHtml(r.ip_address || "Unknown IP")}</span>
+          </div>
+          <div class="visit-meta">
+            <span class="visit-time">${escapeHtml(formatVisitTime(r.viewed_at))}</span>
+            <span class="visit-device">${escapeHtml(summarizeUserAgent(r.user_agent))}</span>
+          </div>
+        </div>
+      `
+        )
+        .join("");
     }
  
     resetViewsBtn.addEventListener("click", async () => {

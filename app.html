@@ -61,6 +61,7 @@
           <button class="tab-btn" data-tab="feedback" type="button">Talk Shit</button>
           <button class="tab-btn" data-tab="slots" type="button">🎰 Slots</button>
           <button class="tab-btn" data-tab="blackjack" type="button">🃏 Blackjack</button>
+          <button class="tab-btn" data-tab="holdem" type="button">♠️ Hold'em</button>
         </nav>
  
         <div id="public-tab-standings" class="public-tab">
@@ -200,6 +201,61 @@
  
             <button id="bj-reset-btn" class="btn btn-small btn-danger bj-reset-btn" type="button">Reset Chips</button>
             <p id="bj-error" class="error"></p>
+          </div>
+        </div>
+ 
+        <div id="public-tab-holdem" class="public-tab" hidden>
+          <div class="he-cabinet">
+            <div class="he-marquee">♠️ TEXAS HOLD'EM ♠️</div>
+            <p class="muted slot-intro">Play a full table against 3 computer opponents. Just for fun — pretend chips only, and the table resets whenever you leave this tab.</p>
+ 
+            <div id="he-intro-screen">
+              <button id="he-start-btn" class="btn he-start-btn" type="button">Sit Down &amp; Deal</button>
+            </div>
+ 
+            <div id="he-table" class="he-table" hidden>
+              <div id="he-opponents" class="he-opponents"></div>
+ 
+              <div class="he-board-area">
+                <div id="he-pot-display" class="he-pot-display">Pot: 0</div>
+                <div id="he-community-cards" class="he-hand he-community-cards"></div>
+                <div id="he-street-label" class="he-street-label"></div>
+              </div>
+ 
+              <div id="he-you-seat" class="he-seat he-you-seat">
+                <div class="he-seat-name">You <span id="he-you-stack" class="he-seat-stack"></span></div>
+                <div id="he-you-cards" class="he-hand"></div>
+                <div id="he-you-bet" class="he-seat-bet"></div>
+              </div>
+ 
+              <div id="he-actions" class="he-actions" hidden>
+                <button id="he-fold-btn" class="btn btn-small btn-secondary" type="button">Fold</button>
+                <button id="he-check-call-btn" class="btn btn-small" type="button">Check</button>
+                <div class="he-raise-controls">
+                  <input type="number" id="he-raise-input" min="0" step="10">
+                  <button id="he-raise-btn" class="btn btn-small btn-secondary" type="button">Bet</button>
+                </div>
+                <div class="he-quick-bets">
+                  <button class="btn btn-small btn-secondary" type="button" data-he-quick="half">½ Pot</button>
+                  <button class="btn btn-small btn-secondary" type="button" data-he-quick="pot">Pot</button>
+                  <button class="btn btn-small btn-secondary" type="button" data-he-quick="allin">All In</button>
+                </div>
+              </div>
+ 
+              <div id="he-log" class="he-log" aria-live="polite"></div>
+ 
+              <div id="he-showdown" class="he-showdown" hidden>
+                <div id="he-showdown-summary"></div>
+                <button id="he-next-hand-btn" class="btn he-next-hand-btn" type="button" hidden>Next Hand</button>
+              </div>
+ 
+              <div id="he-game-over" class="he-game-over" hidden>
+                <div id="he-game-over-message"></div>
+                <button id="he-restart-btn" class="btn btn-small btn-danger" type="button">Start New Table</button>
+              </div>
+            </div>
+ 
+            <p id="he-error" class="error"></p>
           </div>
         </div>
       </div>

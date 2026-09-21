@@ -1,3 +1,4 @@
+
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -1110,12 +1111,50 @@
       ],
     };
  
+    // A simple stylized court-card portrait for J/Q/K - a face with
+    // rank-specific headwear so they read as an actual face rather than a
+    // big suit symbol, mirrored top/bottom the way a real deck's face
+    // cards are drawn as two half-length figures back to back.
+    function courtPortraitGroup(rank, symbol, color) {
+      const headwear =
+        rank === "K"
+          ? // three-point crown with jewel tips, plus a base band
+            `<path d="M36 29 L40 16 L45 25 L50 13 L55 25 L60 16 L64 29 Z" fill="${color}" stroke="none"/>
+             <rect x="36" y="29" width="28" height="4" fill="${color}" stroke="none"/>
+             <circle cx="40" cy="16" r="1.6" fill="${color}" stroke="none"/>
+             <circle cx="50" cy="13" r="1.8" fill="${color}" stroke="none"/>
+             <circle cx="60" cy="16" r="1.6" fill="${color}" stroke="none"/>`
+          : rank === "Q"
+            ? // tall, narrow pointed tiara with a single jewel at the peak
+              `<path d="M37 29 Q50 11 63 29 Z" fill="${color}" stroke="none"/>
+               <circle cx="50" cy="14" r="2.2" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>`
+            : // Jack: a flatter, wider soft cap with a small side plume - no jewels or points
+              `<path d="M36 30 Q50 18 64 30 Z" fill="${color}" stroke="none"/>
+               <path d="M60 22 L68 13" stroke="${color}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`;
+ 
+      return `
+        <path d="M35 68 Q34 50 50 48 Q66 50 65 68 Z" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
+        <text x="50" y="63" font-size="9" text-anchor="middle" fill="${color}">${symbol}</text>
+        ${headwear}
+        <ellipse cx="50" cy="39" rx="9.5" ry="11.5" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
+        <circle cx="45.5" cy="37" r="1.1" fill="${color}"/>
+        <circle cx="54.5" cy="37" r="1.1" fill="${color}"/>
+        <path d="M46 44 Q50 46.5 54 44" fill="none" stroke="${color}" stroke-width="1.1" stroke-linecap="round"/>
+      `;
+    }
+ 
+    function courtCardSvg(rank, symbol, color) {
+      const portrait = courtPortraitGroup(rank, symbol, color);
+      return `<g>${portrait}</g><g transform="rotate(180 50 70)">${portrait}</g>`;
+    }
+ 
     function realCardFrontSvg(rank, suit) {
       const rankLabel = rank === "T" ? "10" : rank;
       const symbol = SUIT_SYMBOL[suit] || suit;
       const color = SUIT_COLOR[suit] === "red" ? "#c0392b" : "#1a1a1a";
       const rankFontSize = rankLabel.length > 1 ? 16 : 21;
       const pips = PIP_LAYOUTS[RANK_NUMERIC[rank]];
+      const isCourtCard = rank === "J" || rank === "Q" || rank === "K";
       const faceMarkup = pips
         ? pips
             .map(
@@ -1123,7 +1162,9 @@
                 `<text x="${p.x}" y="${p.y}" font-size="16" text-anchor="middle" fill="${color}"${p.flip ? ` transform="rotate(180 ${p.x} ${p.y})"` : ""}>${symbol}</text>`
             )
             .join("")
-        : `<text x="50" y="94" font-size="56" text-anchor="middle" fill="${color}">${symbol}</text>`;
+        : isCourtCard
+          ? courtCardSvg(rank, symbol, color)
+          : `<text x="50" y="94" font-size="56" text-anchor="middle" fill="${color}">${symbol}</text>`;
       return `
         <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
           <rect x="2" y="2" width="96" height="136" rx="10" fill="#fdfdfd" stroke="#1a1a1a" stroke-width="3"/>
@@ -4272,4 +4313,3 @@
       div.textContent = str;
       return div.innerHTML;
     }
- 

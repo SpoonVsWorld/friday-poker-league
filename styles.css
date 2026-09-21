@@ -352,6 +352,23 @@ ul#player-list, ul#season-list {
   }
 }
  
+/* Above the phone breakpoint (tablets, desktop browsers, the Windows app),
+   the page's content column is still capped at 480px (see .container), so
+   with this many tabs a single unwrapped row runs off the edge instead of
+   shrinking. Wrap them into a tidy grid instead of letting them overflow.
+   Scoped to min-width so phones ≤420px are completely untouched by this. */
+@media (min-width: 421px) {
+  .public-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+  .tab-btn {
+    white-space: normal;
+    text-align: center;
+  }
+}
+ 
 .table-wrap { overflow-x: auto; }
  
 .standings-table {

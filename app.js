@@ -51,6 +51,8 @@
     const publicListView = document.getElementById("public-list-view");
     const seasonProgressLine = document.getElementById("season-progress-line");
     const standingsBody = document.getElementById("standings-body");
+    const awardsSection = document.getElementById("awards-section");
+    const awardsGrid = document.getElementById("awards-grid");
     const publicPlayerList = document.getElementById("public-player-list");
     const publicFridayList = document.getElementById("public-friday-list");
     const nextGameBanner = document.getElementById("next-game-banner");
@@ -1890,6 +1892,7 @@
  
     function refreshPublicView() {
       loadStandings();
+      loadAwards();
       loadPublicPlayers();
       loadPublicFridays();
       loadHighHandsPublic();
@@ -2346,6 +2349,226 @@
       standingsBody.querySelectorAll("tr[data-player-id]").forEach((tr) => {
         tr.addEventListener("click", () => showPlayerProfile(tr.dataset.playerId));
       });
+    }
+ 
+    // ------------------------------------------------------------------
+    // Awards & Bragging Rights - fun, live-updating superlatives computed
+    // entirely from this season's existing results/high_hands data (no
+    // new tables, nothing to fill in). Sits at the bottom of the
+    // Standings tab. Any award with no qualifying player yet is simply
+    // left out, rather than shown empty. Ties are broken by whoever
+    // reached that count/streak first (earliest date), per Matt's call.
+    // ------------------------------------------------------------------
+    function formatAwardDate(iso) {
+      if (!iso) return "";
+      return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    }
+ 
+    async function loadAwards() {
+      if (!awardsSection || !awardsGrid) return;
+ 
+      const { data: seasons, error: seasonErr } = await supabaseClient
+        .from("seasons")
+        .select("*")
+        .eq("is_active", true)
+        .limit(1);
+ 
+      const season = !seasonErr && seasons ? seasons[0] : null;
+      if (!season) {
+        awardsSection.hidden = true;
+        awardsGrid.innerHTML = "";
+        return;
+      }
+ 
+      const { data: fridays, error: fridaysErr } = await supabaseClient
+        .from("fridays")
+        .select("id, game_date")
+        .eq("season_id", season.id)
+        .eq("status", "completed")
+        .order("game_date", { ascending: true });
+ 
+      if (fridaysErr || !fridays || !fridays.length) {
+        awardsSection.hidden = true;
+        awardsGrid.innerHTML = "";
+        return;
+      }
+ 
+      const fridayIds = fridays.map((f) => f.id);
+      const fridayDateById = new Map(fridays.map((f) => [f.id, f.game_date]));
+ 
+      const [resultsRes, playersRes, handsRes] = await Promise.all([
+        supabaseClient.from("results").select("player_id, friday_id, placement, bounty_winner").in("friday_id", fridayIds),
+        supabaseClient.from("players").select("id, name"),
+        supabaseClient.from("high_hands").select("player_id, friday_id, hand_category, tiebreak_ranks, description").in("friday_id", fridayIds),
+      ]);
+ 
+      if (resultsRes.error || playersRes.error || handsRes.error || !resultsRes.data || !playersRes.data) {
+        awardsSection.hidden = true;
+        awardsGrid.innerHTML = "";
+        return;
+      }
+ 
+      const playerMap = new Map(playersRes.data.map((p) => [p.id, p]));
+ 
+      // Each player's results, oldest to newest, so streaks and "who hit
+      // this count first" tie-breaks can be read off in order.
+      const byPlayer = new Map();
+      for (const r of resultsRes.data) {
+        if (!byPlayer.has(r.player_id)) byPlayer.set(r.player_id, []);
+        byPlayer.get(r.player_id).push(r);
+      }
+      for (const list of byPlayer.values()) {
+        list.sort((a, b) => (fridayDateById.get(a.friday_id) || "").localeCompare(fridayDateById.get(b.friday_id) || ""));
+      }
+ 
+      // Picks the leader for a "most X" style award. `countFor` returns
+      // the qualifying events for a player, oldest-first; the award goes
+      // to whoever has the most, and ties go to whoever reached that
+      // count earliest (the date of their Nth qualifying event).
+      function pickMostAward(countFor) {
+        let best = null;
+        for (const [playerId, list] of byPlayer) {
+          const qualifying = countFor(list);
+          const count = qualifying.length;
+          if (count === 0) continue;
+          const hitDate = fridayDateById.get(qualifying[count - 1].friday_id) || "";
+          if (!best || count > best.count || (count === best.count && hitDate < best.hitDate)) {
+            best = { playerId, count, hitDate };
+          }
+        }
+        return best;
+      }
+ 
+      const cards = [];
+ 
+      // ---- Iron Man: most Fridays played this season ----
+      {
+        const best = pickMostAward((list) => list);
+        if (best) {
+          cards.push({
+            icon: "🎯",
+            title: "Iron Man",
+            player: playerMap.get(best.playerId)?.name || "Unknown",
+            stat: `${best.count} of ${fridayIds.length} Friday${fridayIds.length === 1 ? "" : "s"} played`,
+          });
+        }
+      }
+ 
+      // ---- Bounty King: most bounty wins this season ----
+      {
+        const best = pickMostAward((list) => list.filter((r) => r.bounty_winner));
+        if (best) {
+          cards.push({
+            icon: "💰",
+            title: "Bounty King",
+            player: playerMap.get(best.playerId)?.name || "Unknown",
+            stat: `${best.count} bount${best.count === 1 ? "y" : "ies"} won`,
+          });
+        }
+      }
+ 
+      // ---- Hot Streak / Cold Streak: current trailing streak, walking
+      // backward from each player's most recent game this season ----
+      {
+        let bestHot = null;
+        let bestCold = null;
+        for (const [playerId, list] of byPlayer) {
+          let hotCount = 0;
+          let hotStartDate = "";
+          for (let i = list.length - 1; i >= 0; i--) {
+            if (list[i].placement != null && list[i].placement <= 3) {
+              hotCount++;
+              hotStartDate = fridayDateById.get(list[i].friday_id) || "";
+            } else break;
+          }
+          let coldCount = 0;
+          let coldStartDate = "";
+          for (let i = list.length - 1; i >= 0; i--) {
+            if (list[i].placement == null || list[i].placement > 3) {
+              coldCount++;
+              coldStartDate = fridayDateById.get(list[i].friday_id) || "";
+            } else break;
+          }
+          if (hotCount >= 2 && (!bestHot || hotCount > bestHot.count || (hotCount === bestHot.count && hotStartDate < bestHot.hitDate))) {
+            bestHot = { playerId, count: hotCount, hitDate: hotStartDate };
+          }
+          if (coldCount >= 2 && (!bestCold || coldCount > bestCold.count || (coldCount === bestCold.count && coldStartDate < bestCold.hitDate))) {
+            bestCold = { playerId, count: coldCount, hitDate: coldStartDate };
+          }
+        }
+        if (bestHot) {
+          cards.push({
+            icon: "🔥",
+            title: "Hot Streak",
+            player: playerMap.get(bestHot.playerId)?.name || "Unknown",
+            stat: `${bestHot.count} straight top-3 finishes`,
+          });
+        }
+        if (bestCold) {
+          cards.push({
+            icon: "🧊",
+            title: "Cold Streak",
+            player: playerMap.get(bestCold.playerId)?.name || "Unknown",
+            stat: `${bestCold.count} games since a top-3`,
+          });
+        }
+      }
+ 
+      // ---- Best Hand of the Season (reuses the same hand-strength
+      // comparison as the High Hands tab's "Season Best" callout) ----
+      if (handsRes.data && handsRes.data.length) {
+        let best = null;
+        for (const hh of handsRes.data) {
+          if (!best || compareHandStrength(hh, best) < 0) best = hh;
+        }
+        if (best) {
+          const dateLabel = formatAwardDate(fridayDateById.get(best.friday_id));
+          cards.push({
+            icon: "🃏",
+            title: "Best Hand of the Season",
+            player: playerMap.get(best.player_id)?.name || "Unknown",
+            stat: `${best.description}${dateLabel ? " — " + dateLabel : ""}`,
+          });
+        }
+      }
+ 
+      // ---- The Bridesmaid: most 2nd-place finishes, with zero wins ----
+      {
+        const best = pickMostAward((list) => {
+          const hasWin = list.some((r) => r.placement === 1);
+          return hasWin ? [] : list.filter((r) => r.placement === 2);
+        });
+        if (best) {
+          cards.push({
+            icon: "🥈",
+            title: "The Bridesmaid",
+            player: playerMap.get(best.playerId)?.name || "Unknown",
+            stat: `${best.count} second-place finish${best.count === 1 ? "" : "es"}, still no win`,
+          });
+        }
+      }
+ 
+      if (!cards.length) {
+        awardsSection.hidden = true;
+        awardsGrid.innerHTML = "";
+        return;
+      }
+ 
+      awardsSection.hidden = false;
+      awardsGrid.innerHTML = cards
+        .map(
+          (c) => `
+        <div class="award-card">
+          <div class="award-icon">${c.icon}</div>
+          <div class="award-body">
+            <div class="award-title">${escapeHtml(c.title)}</div>
+            <div class="award-player">${escapeHtml(c.player)}</div>
+            <div class="award-stat">${escapeHtml(c.stat)}</div>
+          </div>
+        </div>
+      `
+        )
+        .join("");
     }
  
     async function loadPublicPlayers() {
@@ -4418,3 +4641,4 @@
       return div.innerHTML;
     }
  
+

@@ -1,4 +1,3 @@
-
 // ------------------------------------------------------------------
     // Shared configuration
     // The URL and "anon" key below are safe to be public: they only ever
@@ -3566,6 +3565,7 @@
     const heRaiseBtn = document.getElementById("he-raise-btn");
     const heLogEl = document.getElementById("he-log");
     const heShowdownEl = document.getElementById("he-showdown");
+    const heOutcomeBannerEl = document.getElementById("he-outcome-banner");
     const heShowdownSummaryEl = document.getElementById("he-showdown-summary");
     const heNextHandBtn = document.getElementById("he-next-hand-btn");
     const heGameOverEl = document.getElementById("he-game-over");
@@ -3957,8 +3957,30 @@
       });
     }
  
+    // Figures out how the hand went for the human specifically, so the UI
+    // can say it plainly instead of making them read a table of everyone's
+    // hands to work it out themselves.
+    function heComputeHumanOutcome(winningsById) {
+      const human = heById("human");
+      const won = winningsById.human || 0;
+      if (won > 0) return { outcome: "win", amount: won };
+      if (human && human.folded) return { outcome: "fold", amount: 0 };
+      return { outcome: "lose", amount: 0 };
+    }
+ 
     function renderHeShowdown(results, winningsById, wonByFold) {
       heShowdownEl.hidden = false;
+ 
+      const { outcome, amount } = heComputeHumanOutcome(winningsById);
+      heOutcomeBannerEl.hidden = false;
+      heOutcomeBannerEl.className = `he-outcome he-${outcome}`;
+      heOutcomeBannerEl.textContent =
+        outcome === "win"
+          ? `🎉 You win ${amount} chip${amount === 1 ? "" : "s"}!`
+          : outcome === "fold"
+            ? "You folded this hand."
+            : "You lose this hand.";
+ 
       const lines = [];
       if (wonByFold) {
         const [winnerId, amt] = Object.entries(winningsById)[0];
@@ -4020,7 +4042,7 @@
         p.totalContributed = 0;
       });
  
-      playCoinCascade();
+      if (winningsById.human) playCoinCascade();
       renderHeShowdown(results, winningsById, false);
       finishHeHand();
     }
@@ -4033,7 +4055,7 @@
       });
       heStreet = "showdown";
       logHeAction(`${winner.name} wins ${totalPot} chips (everyone else folded).`);
-      playCoinCascade();
+      if (winner.id === "human") playCoinCascade();
       renderHeShowdown([], { [winner.id]: totalPot }, true);
       finishHeHand();
     }
@@ -4313,3 +4335,4 @@
       div.textContent = str;
       return div.innerHTML;
     }
+ 

@@ -1057,17 +1057,79 @@
       </svg>
     `;
  
+    // Classic playing-card pip layouts for number cards (2-10): one suit
+    // symbol per pip, arranged the way a real deck lays them out, so a 3 of
+    // hearts actually shows 3 hearts instead of one big one you have to read
+    // the corner number to tell apart from every other heart card. Face
+    // cards (J/Q/K) and the Ace keep a single large centered symbol, same as
+    // a real deck.
+    const PIP_LAYOUTS = {
+      2: [{ x: 50, y: 40 }, { x: 50, y: 100, flip: true }],
+      3: [{ x: 50, y: 34 }, { x: 50, y: 70 }, { x: 50, y: 106, flip: true }],
+      4: [
+        { x: 32, y: 40 }, { x: 68, y: 40 },
+        { x: 32, y: 100, flip: true }, { x: 68, y: 100, flip: true },
+      ],
+      5: [
+        { x: 32, y: 40 }, { x: 68, y: 40 },
+        { x: 50, y: 70 },
+        { x: 32, y: 100, flip: true }, { x: 68, y: 100, flip: true },
+      ],
+      6: [
+        { x: 32, y: 36 }, { x: 68, y: 36 },
+        { x: 32, y: 70 }, { x: 68, y: 70 },
+        { x: 32, y: 104, flip: true }, { x: 68, y: 104, flip: true },
+      ],
+      7: [
+        { x: 32, y: 34 }, { x: 68, y: 34 },
+        { x: 50, y: 50 },
+        { x: 32, y: 70 }, { x: 68, y: 70 },
+        { x: 32, y: 106, flip: true }, { x: 68, y: 106, flip: true },
+      ],
+      8: [
+        { x: 32, y: 32 }, { x: 68, y: 32 },
+        { x: 50, y: 48 },
+        { x: 32, y: 70 }, { x: 68, y: 70 },
+        { x: 50, y: 92, flip: true },
+        { x: 32, y: 108, flip: true }, { x: 68, y: 108, flip: true },
+      ],
+      9: [
+        { x: 32, y: 30 }, { x: 68, y: 30 },
+        { x: 32, y: 56 }, { x: 68, y: 56 },
+        { x: 50, y: 70 },
+        { x: 32, y: 84, flip: true }, { x: 68, y: 84, flip: true },
+        { x: 32, y: 110, flip: true }, { x: 68, y: 110, flip: true },
+      ],
+      10: [
+        { x: 32, y: 28 }, { x: 68, y: 28 },
+        { x: 50, y: 40 },
+        { x: 32, y: 54 }, { x: 68, y: 54 },
+        { x: 32, y: 86, flip: true }, { x: 68, y: 86, flip: true },
+        { x: 50, y: 100, flip: true },
+        { x: 32, y: 112, flip: true }, { x: 68, y: 112, flip: true },
+      ],
+    };
+ 
     function realCardFrontSvg(rank, suit) {
       const rankLabel = rank === "T" ? "10" : rank;
       const symbol = SUIT_SYMBOL[suit] || suit;
       const color = SUIT_COLOR[suit] === "red" ? "#c0392b" : "#1a1a1a";
       const rankFontSize = rankLabel.length > 1 ? 16 : 21;
+      const pips = PIP_LAYOUTS[RANK_NUMERIC[rank]];
+      const faceMarkup = pips
+        ? pips
+            .map(
+              (p) =>
+                `<text x="${p.x}" y="${p.y}" font-size="16" text-anchor="middle" fill="${color}"${p.flip ? ` transform="rotate(180 ${p.x} ${p.y})"` : ""}>${symbol}</text>`
+            )
+            .join("")
+        : `<text x="50" y="94" font-size="56" text-anchor="middle" fill="${color}">${symbol}</text>`;
       return `
         <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
           <rect x="2" y="2" width="96" height="136" rx="10" fill="#fdfdfd" stroke="#1a1a1a" stroke-width="3"/>
           <text x="11" y="27" font-family="Georgia, 'Times New Roman', serif" font-size="${rankFontSize}" font-weight="700" fill="${color}">${escapeHtml(rankLabel)}</text>
           <text x="10.5" y="44" font-size="16" fill="${color}">${symbol}</text>
-          <text x="50" y="94" font-size="56" text-anchor="middle" fill="${color}">${symbol}</text>
+          ${faceMarkup}
         </svg>
       `;
     }
@@ -3473,11 +3535,33 @@
     const HOLDEM_STARTING_STACK = 1000;
     const HOLDEM_SMALL_BLIND = 10;
     const HOLDEM_BIG_BLIND = 20;
+    // Fallback names/personalities for the 3 computer seats - used if the real
+    // player roster can't be loaded. Personality stays tied to the seat id.
     const HOLDEM_AI_PROFILES = [
       { id: "ai1", name: "Duke", personality: "aggressive" },
       { id: "ai2", name: "Belle", personality: "loose" },
       { id: "ai3", name: "Ace", personality: "tight" },
     ];
+ 
+    // Picks 3 real (active) league players' names to sit in the computer
+    // seats, so the table feels like it's actually the tournament regulars
+    // rather than made-up characters. Falls back to the generic names above
+    // for any seat it can't fill (fetch failure, or fewer than 3 active
+    // players on file).
+    async function pickHoldemOpponentNames() {
+      try {
+        const { data, error } = await supabaseClient.from("players").select("name").eq("is_active", true);
+        if (error || !data || !data.length) return HOLDEM_AI_PROFILES.map((p) => p.name);
+        const pool = data.map((p) => p.name).filter(Boolean);
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        return HOLDEM_AI_PROFILES.map((profile, i) => pool[i] || profile.name);
+      } catch (err) {
+        return HOLDEM_AI_PROFILES.map((p) => p.name);
+      }
+    }
  
     // ---- Best-of-7 hand evaluation (built on the existing evaluatePokerHand) ----
     function compareEvaluatedHands(a, b) {
@@ -3672,11 +3756,11 @@
       return hePlayers.filter((p) => !p.folded && !p.allIn && p.stack > 0).length;
     }
  
-    function buildHeInitialPlayers() {
+    function buildHeInitialPlayers(aiNames) {
       return [
         { id: "human", name: "You", isHuman: true, personality: null, stack: HOLDEM_STARTING_STACK, holeCards: [], folded: false, allIn: false, betThisStreet: 0, totalContributed: 0 },
-        ...HOLDEM_AI_PROFILES.map((p) => ({
-          id: p.id, name: p.name, isHuman: false, personality: p.personality,
+        ...HOLDEM_AI_PROFILES.map((p, i) => ({
+          id: p.id, name: (aiNames && aiNames[i]) || p.name, isHuman: false, personality: p.personality,
           stack: HOLDEM_STARTING_STACK, holeCards: [], folded: false, allIn: false, betThisStreet: 0, totalContributed: 0,
         })),
       ];
@@ -3713,29 +3797,83 @@
       heLogEl.scrollTop = heLogEl.scrollHeight;
     }
  
-    function heOpponentSeatHtml(player, isActiveTurn) {
-      const showCards = heStreet === "showdown" && !player.folded;
-      const cardsHtml = player.folded
-        ? ""
-        : showCards
-          ? renderRealHandCards(player.holeCards)
-          : player.holeCards.map(() => renderBjFaceDownCard()).join("");
-      const statusLabel = player.folded ? "Folded" : player.allIn ? "All-In" : "";
-      return `
-        <div class="he-seat${isActiveTurn ? " he-active-seat" : ""}${player.folded ? " he-folded-seat" : ""}">
-          <div class="he-seat-name">${escapeHtml(player.name)} <span class="he-seat-stack">${player.stack}</span></div>
-          <div class="he-hand he-hand-small">${cardsHtml}</div>
-          ${player.betThisStreet > 0 ? `<div class="he-seat-bet">Bet: ${player.betThisStreet}</div>` : ""}
-          ${statusLabel ? `<div class="he-seat-status">${statusLabel}</div>` : ""}
+    // Cards only get (re-)rendered when what they show actually changes,
+    // keyed by element id. Without this, every render (which happens after
+    // every action, many times per street) would tear down and rebuild the
+    // card markup wholesale - replaying the flip-in animation each time and
+    // making already-dealt cards look like they're re-shuffling in place.
+    let heRenderedSignatures = {};
+    function renderCardsIfChanged(el, signature, htmlFn) {
+      if (!el || heRenderedSignatures[el.id] === signature) return;
+      heRenderedSignatures[el.id] = signature;
+      el.innerHTML = htmlFn();
+    }
+ 
+    // Community cards grow one street at a time (3, then +1, then +1) rather
+    // than all at once, so a signature over the whole list would still force
+    // a full rebuild - and a re-flip - of the flop cards the moment the turn
+    // card lands. Append only the new card(s) instead; already-shown cards
+    // are never touched again this hand.
+    let heCommunityRenderedCount = 0;
+    function renderHeCommunityCards() {
+      while (heCommunityRenderedCount < heCommunity.length) {
+        const idx = heCommunityRenderedCount;
+        heCommunityCardsEl.insertAdjacentHTML("beforeend", renderRealCard(heCommunity[idx], idx));
+        heCommunityRenderedCount++;
+      }
+    }
+ 
+    // Built once per table (seat ids/order never change within a table, even
+    // as players bust out), then only updated in place - never torn down and
+    // rebuilt - so a seat's cards don't replay their reveal animation just
+    // because someone else's stack number changed.
+    function buildHeOpponentSeatsDom() {
+      heOpponentsEl.innerHTML = hePlayers
+        .filter((p) => !p.isHuman)
+        .map(
+          (p) => `
+        <div class="he-seat" id="he-seat-${p.id}">
+          <div class="he-seat-name">${escapeHtml(p.name)} <span class="he-seat-stack" id="he-seat-stack-${p.id}"></span></div>
+          <div class="he-hand he-hand-small" id="he-seat-cards-${p.id}"></div>
+          <div class="he-seat-bet" id="he-seat-bet-${p.id}"></div>
+          <div class="he-seat-status" id="he-seat-status-${p.id}"></div>
         </div>
-      `;
+      `
+        )
+        .join("");
+    }
+ 
+    function renderHeOpponentSeats(activeTurnId) {
+      HOLDEM_AI_PROFILES.forEach((profile) => {
+        const seatEl = document.getElementById(`he-seat-${profile.id}`);
+        if (!seatEl) return;
+        const player = heById(profile.id);
+        if (!player) {
+          seatEl.hidden = true;
+          return;
+        }
+        seatEl.hidden = false;
+        seatEl.classList.toggle("he-active-seat", player.id === activeTurnId);
+        seatEl.classList.toggle("he-folded-seat", player.folded);
+        document.getElementById(`he-seat-stack-${profile.id}`).textContent = player.stack;
+        document.getElementById(`he-seat-bet-${profile.id}`).textContent = player.betThisStreet > 0 ? `Bet: ${player.betThisStreet}` : "";
+        document.getElementById(`he-seat-status-${profile.id}`).textContent = player.folded ? "Folded" : player.allIn ? "All-In" : "";
+ 
+        const cardsEl = document.getElementById(`he-seat-cards-${profile.id}`);
+        const showCards = heStreet === "showdown" && !player.folded;
+        const sig = player.folded ? "folded" : showCards ? `shown:${player.holeCards.join(",")}` : `hidden:${player.holeCards.length}`;
+        renderCardsIfChanged(cardsEl, sig, () =>
+          player.folded ? "" : showCards ? renderRealHandCards(player.holeCards) : player.holeCards.map(() => renderBjFaceDownCard()).join("")
+        );
+      });
     }
  
     function renderHeYouSeat() {
       const human = heById("human");
       if (!human) return;
       heYouStackEl.textContent = human.stack;
-      heYouCardsEl.innerHTML = human.folded ? "" : renderRealHandCards(human.holeCards);
+      const sig = human.folded ? "folded" : human.holeCards.join(",");
+      renderCardsIfChanged(heYouCardsEl, sig, () => (human.folded ? "" : renderRealHandCards(human.holeCards)));
       heYouBetEl.textContent = human.betThisStreet > 0 ? `Bet: ${human.betThisStreet}` : "";
       heYouSeatEl.classList.toggle("he-folded-seat", human.folded);
       heYouSeatEl.classList.toggle("he-active-seat", heToActQueue[0] === "human");
@@ -3743,14 +3881,11 @@
  
     function renderHeState() {
       hePotDisplayEl.textContent = `Pot: ${currentHePotTotal()}`;
-      heCommunityCardsEl.innerHTML = renderRealHandCards(heCommunity);
+      renderHeCommunityCards();
       heStreetLabelEl.textContent = heStreet === "showdown" ? "Showdown" : heStreet.charAt(0).toUpperCase() + heStreet.slice(1);
  
       const activeTurnId = heToActQueue[0];
-      heOpponentsEl.innerHTML = hePlayers
-        .filter((p) => !p.isHuman)
-        .map((p) => heOpponentSeatHtml(p, p.id === activeTurnId))
-        .join("");
+      renderHeOpponentSeats(activeTurnId);
       renderHeYouSeat();
  
       const human = heById("human");
@@ -4004,6 +4139,9 @@
       heGameOverEl.hidden = true;
       heNextHandBtn.hidden = true;
       clearTimeout(heActionTimer);
+      heRenderedSignatures = {}; // fresh hand - let every card animate in again
+      heCommunityRenderedCount = 0;
+      heCommunityCardsEl.innerHTML = "";
  
       hePlayers.forEach((p) => {
         p.folded = false;
@@ -4096,23 +4234,31 @@
     }
  
     if (heStartBtn) {
-      heStartBtn.addEventListener("click", () => {
-        hePlayers = buildHeInitialPlayers();
+      heStartBtn.addEventListener("click", async () => {
+        heStartBtn.disabled = true;
+        const aiNames = await pickHoldemOpponentNames();
+        hePlayers = buildHeInitialPlayers(aiNames);
         heDealerIndex = 0;
         heHandNumber = 0;
         heIntroScreen.hidden = true;
         heTableEl.hidden = false;
+        buildHeOpponentSeatsDom();
         startHeHand();
+        heStartBtn.disabled = false;
       });
     }
  
     if (heRestartBtn) {
-      heRestartBtn.addEventListener("click", () => {
-        hePlayers = buildHeInitialPlayers();
+      heRestartBtn.addEventListener("click", async () => {
+        heRestartBtn.disabled = true;
+        const aiNames = await pickHoldemOpponentNames();
+        hePlayers = buildHeInitialPlayers(aiNames);
         heDealerIndex = 0;
         heHandNumber = 0;
         heGameOverEl.hidden = true;
+        buildHeOpponentSeatsDom();
         startHeHand();
+        heRestartBtn.disabled = false;
       });
     }
  

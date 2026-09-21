@@ -49,6 +49,7 @@
     const fridayList = document.getElementById("friday-list");
  
     const publicListView = document.getElementById("public-list-view");
+    const milestoneList = document.getElementById("milestone-list");
     const seasonProgressLine = document.getElementById("season-progress-line");
     const standingsBody = document.getElementById("standings-body");
     const awardsSection = document.getElementById("awards-section");
@@ -378,7 +379,7 @@
         li.innerHTML = `
           <div class="season-info">
             <span class="name">${escapeHtml(s.name)} ${s.is_active ? '<span class="badge">ACTIVE</span>' : ""}</span>
-            <span class="dates">${s.start_date}${s.end_date ? " – " + s.end_date : ""}</span>
+            <span class="dates">${s.start_date}${s.end_date ? " – " + s.end_date : ""}${s.planned_games ? ` &middot; ${s.planned_games} games planned` : ""}</span>
           </div>
           <div class="row-actions">
             ${s.is_active ? "" : '<button class="btn btn-small btn-secondary" data-action="activate">Make Active</button>'}
@@ -412,9 +413,25 @@
         return;
       }
  
+      const newPlannedGames = window.prompt(
+        "Planned games for the season (optional — leave blank for none, powers the \"games left\" milestone):",
+        season.planned_games != null ? String(season.planned_games) : ""
+      );
+      if (newPlannedGames === null) return;
+      const trimmedPlannedGames = newPlannedGames.trim();
+      let planned_games = null;
+      if (trimmedPlannedGames) {
+        const parsed = parseInt(trimmedPlannedGames, 10);
+        if (!Number.isInteger(parsed) || parsed < 1) {
+          seasonError.textContent = "Planned games must be a whole number of 1 or more, or left blank.";
+          return;
+        }
+        planned_games = parsed;
+      }
+ 
       const { error } = await supabaseClient
         .from("seasons")
-        .update({ name: trimmedName, start_date: trimmedDate })
+        .update({ name: trimmedName, start_date: trimmedDate, planned_games })
         .eq("id", season.id);
  
       if (error) {
@@ -450,9 +467,12 @@
       const start_date = document.getElementById("new-season-start").value;
       if (!name || !start_date) return;
  
+      const plannedGamesRaw = document.getElementById("new-season-planned-games").value.trim();
+      const planned_games = plannedGamesRaw ? parseInt(plannedGamesRaw, 10) : null;
+ 
       const { error } = await supabaseClient
         .from("seasons")
-        .insert({ name, start_date });
+        .insert({ name, start_date, planned_games });
  
       if (error) {
         seasonError.textContent = "Could not create season: " + error.message;
@@ -1905,6 +1925,7 @@
     function refreshPublicView() {
       loadStandings();
       loadAwards();
+      loadMilestones();
       loadPublicPlayers();
       loadHallOfFame();
       loadPublicFridays();
@@ -2578,6 +2599,88 @@
             <div class="award-player">${escapeHtml(c.player)}</div>
             <div class="award-stat">${escapeHtml(c.stat)}</div>
           </div>
+        </div>
+      `
+        )
+        .join("");
+    }
+ 
+    // ------------------------------------------------------------------
+    // Milestone callouts - shows at the top of the Standings tab, but
+    // only in the exact moment a round-number milestone is true: games
+    // left in the season (only if you set a planned game count for it),
+    // or the pot crossing a $100 mark. Once the next game/buy-in moves
+    // past that number, the banner for it quietly goes away again -
+    // this is meant to be a "just hit it" callout, not a running stat.
+    // ------------------------------------------------------------------
+    async function loadMilestones() {
+      if (!milestoneList) return;
+ 
+      const { data: seasons, error: seasonErr } = await supabaseClient
+        .from("seasons")
+        .select("*")
+        .eq("is_active", true)
+        .limit(1);
+ 
+      const season = !seasonErr && seasons ? seasons[0] : null;
+      if (!season) {
+        milestoneList.innerHTML = "";
+        return;
+      }
+ 
+      const { data: fridays, error: fridaysErr } = await supabaseClient
+        .from("fridays")
+        .select("id, pot_players")
+        .eq("season_id", season.id)
+        .eq("status", "completed");
+ 
+      if (fridaysErr || !fridays) {
+        milestoneList.innerHTML = "";
+        return;
+      }
+ 
+      const gamesPlayed = fridays.length;
+      const totalBuyins = fridays.reduce((sum, f) => sum + (f.pot_players || 0), 0);
+      const potDollars = totalBuyins * 5;
+ 
+      const banners = [];
+ 
+      // ---- Games left in the season (only if a planned count is set) ----
+      if (season.planned_games) {
+        const gamesLeft = season.planned_games - gamesPlayed;
+        const isMilestone = gamesLeft >= 0 && (gamesLeft === 0 || gamesLeft === 1 || gamesLeft % 5 === 0);
+        if (isMilestone) {
+          const headline =
+            gamesLeft === 0
+              ? "Final game of the season is in the books!"
+              : `${gamesLeft} game${gamesLeft === 1 ? "" : "s"} left in the season!`;
+          banners.push({
+            headline,
+            sub: `${gamesPlayed} of ${season.planned_games} games played`,
+          });
+        }
+      }
+ 
+      // ---- Pot crossing a $100 mark ----
+      if (potDollars > 0 && potDollars % 100 === 0) {
+        banners.push({
+          headline: `Championship Pot just crossed $${potDollars.toLocaleString()}!`,
+          sub: `${totalBuyins} player buy-in${totalBuyins === 1 ? "" : "s"} this season — $5 each`,
+        });
+      }
+ 
+      if (!banners.length) {
+        milestoneList.innerHTML = "";
+        return;
+      }
+ 
+      milestoneList.innerHTML = banners
+        .map(
+          (b) => `
+        <div class="milestone-banner">
+          <div class="milestone-label">🎉 Milestone</div>
+          <div class="milestone-headline">${escapeHtml(b.headline)}</div>
+          <div class="milestone-sub">${escapeHtml(b.sub)}</div>
         </div>
       `
         )

@@ -722,6 +722,90 @@ ul#player-list, ul#season-list {
 .rivalry-record .r-dash { color: var(--muted); font-size: 1.1rem; font-weight: 400; }
  
 /* ------------------------------------------------------------------
+   Hall of Fame - past season champions, sits at the bottom of the
+   Players tab. Hidden entirely when there's no past (non-active)
+   season with results yet (see loadHallOfFame() in app.js).
+   ------------------------------------------------------------------ */
+.hof-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--poker-border);
+}
+ 
+.hof-section h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--poker-gold);
+}
+ 
+.hof-subline {
+  margin: 4px 0 14px;
+  font-size: 0.8rem;
+}
+ 
+.hof-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+ 
+.hof-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--poker-panel-light) 0%, var(--poker-panel) 60%);
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.16);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+ 
+.hof-avatar {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--poker-gold);
+  background: radial-gradient(circle at 35% 30%, rgba(var(--poker-gold-rgb), 0.28), rgba(var(--poker-gold-rgb), 0.06));
+  border: 2px solid rgba(var(--poker-gold-rgb), 0.5);
+  overflow: hidden;
+}
+.hof-avatar img { width: 100%; height: 100%; object-fit: cover; }
+ 
+.hof-body { min-width: 0; flex: 1 1 auto; }
+ 
+.hof-season {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--poker-gold);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+ 
+.hof-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--poker-text);
+  line-height: 1.2;
+}
+ 
+.hof-stat {
+  font-size: 0.78rem;
+  color: var(--poker-muted);
+  margin-top: 2px;
+}
+ 
+.hof-trophy { flex: 0 0 auto; font-size: 1.3rem; }
+ 
+/* ------------------------------------------------------------------
    Recent Visits - a collapsed-by-default dropdown so the admin isn't
    forced to scroll past a long list of cities/IPs unless they want to.
    ------------------------------------------------------------------ */

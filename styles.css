@@ -889,3 +889,220 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   margin-top: 16px;
 }
  
+/* ------------------------------------------------------------------
+   Texas Hold'em
+   ------------------------------------------------------------------ */
+.he-cabinet {
+  background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
+  border: 2px solid #d4af37;
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  text-align: center;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12);
+}
+ 
+.he-marquee {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #d4af37;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+ 
+.he-start-btn {
+  background: linear-gradient(180deg, #d4af37, #b8860b);
+  color: #2a1e00;
+  width: 100%;
+  max-width: 220px;
+  font-size: 1.05rem;
+  margin-top: 14px;
+}
+ 
+.he-table {
+  margin-top: 16px;
+  text-align: left;
+}
+ 
+.he-opponents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+ 
+.he-seat {
+  background: rgba(16, 26, 36, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  flex: 1 1 100px;
+  min-width: 90px;
+  text-align: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+ 
+.he-active-seat {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.25);
+}
+ 
+.he-folded-seat {
+  opacity: 0.5;
+}
+ 
+.he-seat-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+ 
+.he-seat-stack {
+  font-weight: 400;
+  color: var(--muted);
+}
+ 
+.he-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  min-height: 40px;
+}
+ 
+.he-hand-small .real-card {
+  width: 30px;
+  height: 42px;
+}
+ 
+.he-seat-bet, .he-seat-status {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+ 
+.he-seat-status {
+  color: var(--accent-2);
+  font-weight: 700;
+}
+ 
+.he-board-area {
+  text-align: center;
+  padding: 10px 0;
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 14px;
+}
+ 
+.he-pot-display {
+  font-weight: 700;
+  color: #d4af37;
+  margin-bottom: 8px;
+}
+ 
+.he-community-cards {
+  min-height: 59px;
+  margin-bottom: 6px;
+}
+ 
+.he-street-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+ 
+.he-you-seat {
+  background: rgba(16, 26, 36, 0.85);
+  margin-bottom: 12px;
+}
+ 
+.he-you-seat .he-hand .real-card {
+  width: 48px;
+  height: 67px;
+}
+ 
+.he-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 14px;
+}
+ 
+.he-raise-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+ 
+.he-raise-controls input {
+  width: 80px;
+  text-align: center;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+ 
+.he-quick-bets {
+  display: flex;
+  gap: 6px;
+  flex-basis: 100%;
+  justify-content: center;
+}
+ 
+.he-log {
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: left;
+  margin-bottom: 12px;
+}
+ 
+.he-showdown {
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid #d4af37;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+ 
+.he-showdown-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+ 
+.he-showdown-line .real-card {
+  width: 30px;
+  height: 42px;
+}
+ 
+.he-next-hand-btn {
+  margin-top: 6px;
+}
+ 
+.he-game-over {
+  text-align: center;
+  padding: 14px 10px;
+}
+ 
+.he-game-over-message {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 10px;
+}
+ 

@@ -72,6 +72,7 @@
         </nav>
  
         <div id="public-tab-standings" class="public-tab">
+          <div id="milestone-list"></div>
           <p id="season-progress-line" class="muted"></p>
           <div class="table-wrap">
             <table class="standings-table">
@@ -370,6 +371,9 @@
           </label>
           <label>Start date
             <input type="date" id="new-season-start" required>
+          </label>
+          <label>Planned games <span class="muted">(optional — powers the "games left" milestone)</span>
+            <input type="number" id="new-season-planned-games" min="1" step="1" placeholder="e.g. 16">
           </label>
           <button type="submit">Create Season</button>
         </form>

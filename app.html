@@ -60,6 +60,7 @@
           <button class="tab-btn" data-tab="pot" type="button">Pot</button>
           <button class="tab-btn" data-tab="feedback" type="button">Talk Shit</button>
           <button class="tab-btn" data-tab="slots" type="button">🎰 Slots</button>
+          <button class="tab-btn" data-tab="blackjack" type="button">🃏 Blackjack</button>
         </nav>
  
         <div id="public-tab-standings" class="public-tab">
@@ -151,6 +152,54 @@
             </div>
  
             <p id="slot-error" class="error"></p>
+          </div>
+        </div>
+ 
+        <div id="public-tab-blackjack" class="public-tab" hidden>
+          <div class="bj-cabinet">
+            <div class="bj-marquee">🃏 BLACKJACK 🃏</div>
+            <p class="muted slot-intro">Play against the dealer with pretend chips. Just for fun — nobody's real money or points are touched.</p>
+ 
+            <div class="stat-grid">
+              <div class="stat-box"><div class="value" id="bj-balance">—</div><div class="label">Chips</div></div>
+              <div class="stat-box"><div class="value" id="bj-current-bet">—</div><div class="label">Current Bet</div></div>
+            </div>
+ 
+            <div id="bj-bet-controls" class="bj-bet-controls">
+              <label class="bj-bet-label">Bet
+                <input type="number" id="bj-bet-input" min="5" step="5" value="25">
+              </label>
+              <div class="bj-chip-row">
+                <button class="btn btn-small btn-secondary" type="button" data-chip="25">+25</button>
+                <button class="btn btn-small btn-secondary" type="button" data-chip="50">+50</button>
+                <button class="btn btn-small btn-secondary" type="button" data-chip="100">+100</button>
+                <button class="btn btn-small btn-secondary" type="button" id="bj-bet-max">Max</button>
+              </div>
+              <button id="bj-deal-btn" class="btn bj-deal-btn" type="button">Deal</button>
+            </div>
+ 
+            <div class="bj-table" id="bj-table" hidden>
+              <div class="bj-hand-block">
+                <div class="bj-hand-label">Dealer <span id="bj-dealer-total" class="bj-hand-total"></span></div>
+                <div id="bj-dealer-cards" class="bj-hand"></div>
+              </div>
+ 
+              <div class="bj-hand-block">
+                <div class="bj-hand-label">You <span id="bj-player-total" class="bj-hand-total"></span></div>
+                <div id="bj-player-cards" class="bj-hand"></div>
+              </div>
+ 
+              <div class="bj-actions" id="bj-actions">
+                <button id="bj-hit-btn" class="btn btn-small" type="button">Hit</button>
+                <button id="bj-stand-btn" class="btn btn-small btn-secondary" type="button">Stand</button>
+                <button id="bj-double-btn" class="btn btn-small btn-secondary" type="button">Double Down</button>
+              </div>
+ 
+              <div id="bj-result" class="bj-result" hidden></div>
+            </div>
+ 
+            <button id="bj-reset-btn" class="btn btn-small btn-danger bj-reset-btn" type="button">Reset Chips</button>
+            <p id="bj-error" class="error"></p>
           </div>
         </div>
       </div>

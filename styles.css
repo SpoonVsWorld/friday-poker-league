@@ -1,11 +1,42 @@
 :root {
-  --bg: #0f1720;
-  --card-bg: #182430;
+  /* ------------------------------------------------------------------
+     Premium poker-club design tokens. Change a value here and it flows
+     through the whole app - the legacy variable names below (--bg,
+     --card-bg, --accent, etc.) are kept as aliases so every existing
+     rule that already references them picks up the refined palette
+     automatically, without needing to touch each rule individually.
+     ------------------------------------------------------------------ */
+  --poker-bg: #0c131b;
+  --poker-panel: #151f29;
+  --poker-panel-light: #1f2c3a;
+  --poker-green: #2e9c63;
+  --poker-green-dark: #1d5f3f;
+  --poker-gold: #d4af37;
+  --poker-gold-dark: #b8860b;
+  --poker-gold-highlight: #fff3c4;
+  --poker-text: #f0f3f7;
+  --poker-muted: #98a7b6;
+  --poker-border: #263542;
+ 
+  /* Readable "ink" text colors for solid accent-colored fills (buttons,
+     badges, the active tab) */
+  --poker-green-ink: #06210f;
+  --poker-red-ink: #2a0a0a;
+  --poker-gold-ink: #2a1e00;
+ 
+  /* RGB triplets for rgba() composition (translucent fills/borders below) */
+  --poker-green-rgb: 46, 156, 99;
+  --poker-gold-rgb: 212, 175, 55;
+  --poker-red-rgb: 214, 69, 69;
+ 
+  /* Legacy aliases - unchanged names, refined values */
+  --bg: var(--poker-bg);
+  --card-bg: var(--poker-panel);
   --field-bg: #101a24;
-  --border: #263340;
-  --text: #eef2f6;
-  --muted: #9aa9b8;
-  --accent: #2fae60;
+  --border: var(--poker-border);
+  --text: var(--poker-text);
+  --muted: var(--poker-muted);
+  --accent: var(--poker-green);
   --accent-2: #d64545;
   --radius: 14px;
 }
@@ -20,7 +51,9 @@
    their own solid background on top of this. */
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   background-color: var(--bg);
   background-image: url("images/table-bg.jpg");
   background-size: cover;
@@ -97,19 +130,22 @@ body {
  
 .app-header h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #d4af37;
+  color: var(--poker-gold);
   background: linear-gradient(
     100deg,
-    #b8860b 0%,
-    #b8860b 35%,
-    #fff3c4 50%,
-    #b8860b 65%,
-    #b8860b 100%
+    var(--poker-gold-dark) 0%,
+    var(--poker-gold-dark) 35%,
+    var(--poker-gold-highlight) 50%,
+    var(--poker-gold-dark) 65%,
+    var(--poker-gold-dark) 100%
   );
   background-size: 300% 100%;
   -webkit-background-clip: text;
@@ -134,8 +170,15 @@ body {
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 0.85rem;
+  font-family: inherit;
   cursor: pointer;
   flex-shrink: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+ 
+.link-btn:hover {
+  border-color: rgba(var(--poker-gold-rgb), 0.55);
+  color: var(--poker-gold);
 }
  
 @media (max-width: 400px) {
@@ -154,16 +197,22 @@ body {
 }
  
 .card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--poker-panel-light) 0%, var(--poker-panel) 18%, var(--poker-panel) 100%);
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.14);
+  border-radius: 16px;
   padding: 20px;
   margin-bottom: 16px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 14px 32px rgba(0, 0, 0, 0.35);
 }
  
 .card h2 {
   margin-top: 0;
   font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
  
 .muted { color: var(--muted); font-size: 0.9rem; }
@@ -193,17 +242,27 @@ textarea { resize: vertical; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); }
  
 button[type="submit"], .btn {
-  background: var(--accent);
-  color: #06210f;
+  background: linear-gradient(180deg, var(--poker-green) 0%, var(--poker-green-dark) 100%);
+  color: var(--poker-green-ink);
   border: none;
   padding: 11px 16px;
   border-radius: 10px;
   font-size: 1rem;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: filter 0.15s ease, transform 0.15s ease;
 }
  
-button[type="submit"]:active, .btn:active { opacity: 0.85; }
+button[type="submit"]:hover, .btn:hover { filter: brightness(1.08); }
+button[type="submit"]:active, .btn:active { filter: brightness(0.92); transform: translateY(1px); }
+ 
+button[type="submit"]:disabled, .btn:disabled {
+  filter: grayscale(0.4) brightness(0.75);
+  cursor: default;
+  transform: none;
+}
  
 .btn-small {
   padding: 6px 10px;
@@ -211,8 +270,14 @@ button[type="submit"]:active, .btn:active { opacity: 0.85; }
   border-radius: 8px;
 }
  
-.btn-danger { background: var(--accent-2); color: #2a0a0a; }
-.btn-secondary { background: var(--field-bg); color: var(--text); border: 1px solid var(--border); }
+.btn-danger { background: var(--accent-2); color: var(--poker-red-ink); }
+.btn-secondary {
+  background: var(--field-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+.btn-secondary:hover { border-color: rgba(var(--poker-gold-rgb), 0.5); }
  
 .error { color: var(--accent-2); font-size: 0.85rem; min-height: 1.1em; margin: 0; }
 .ok { color: var(--accent); }
@@ -261,10 +326,10 @@ ul#player-list, ul#season-list {
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--accent);
-  color: #06210f;
+  color: var(--poker-green-ink);
 }
  
-.badge-cancelled { background: var(--accent-2); color: #2a0a0a; }
+.badge-cancelled { background: var(--accent-2); color: var(--poker-red-ink); }
 .badge-muted { background: var(--border); color: var(--text); }
  
 .result-row {
@@ -338,18 +403,34 @@ ul#player-list, ul#season-list {
   background: var(--field-bg);
   border: 1px solid var(--border);
   color: var(--muted);
-  padding: 8px;
+  padding: 9px 8px;
   border-radius: 10px;
   font-size: 0.85rem;
+  font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+ 
+.tab-btn:hover {
+  border-color: rgba(var(--poker-green-rgb), 0.6);
+  color: var(--text);
+}
+ 
+.tab-btn:active {
+  transform: translateY(1px);
 }
  
 .tab-btn.active {
-  background: var(--accent);
-  color: #06210f;
-  border-color: var(--accent);
+  background: linear-gradient(180deg, var(--poker-green) 0%, var(--poker-green-dark) 100%);
+  color: var(--poker-green-ink);
+  border-color: var(--poker-green-dark);
   font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+ 
+.tab-btn.active:hover {
+  color: var(--poker-green-ink);
 }
  
 /* On narrow phones, 4 tabs squeezed into one row get too tight (labels like
@@ -386,11 +467,12 @@ ul#player-list, ul#season-list {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
  
 .standings-table th, .standings-table td {
   text-align: left;
-  padding: 8px 6px;
+  padding: 10px 6px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -398,11 +480,48 @@ ul#player-list, ul#season-list {
 .standings-table th {
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
+  padding-bottom: 10px;
+}
+ 
+.standings-table thead tr {
+  border-bottom: 1px solid rgba(var(--poker-gold-rgb), 0.3);
+}
+ 
+.standings-table th:first-child,
+.standings-table td:first-child {
+  color: var(--muted);
+  width: 1%;
+}
+ 
+.standings-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+ 
+.standings-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+ 
+/* Leader row: a subtle gold wash and rail, so the crown reads as a league
+   achievement indicator rather than a lone emoji. Degrades gracefully
+   (no highlight, crown still shows) if :has() isn't supported. */
+.standings-table tbody tr:has(.crown) {
+  background: linear-gradient(90deg, rgba(var(--poker-gold-rgb), 0.14), rgba(var(--poker-gold-rgb), 0.02));
+}
+ 
+.standings-table tbody tr:has(.crown) td:first-child {
+  box-shadow: inset 3px 0 0 var(--poker-gold);
+}
+ 
+.crown {
+  display: inline-block;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
 }
  
 .clickable-row { cursor: pointer; }
+.clickable-row:hover { background: rgba(var(--poker-gold-rgb), 0.07); }
 .clickable-row:active { opacity: 0.7; }
  
 .clickable-list {
@@ -490,18 +609,19 @@ ul#player-list, ul#season-list {
 .card-chip.card-black { color: var(--text); }
  
 .high-hand-callout {
-  background: linear-gradient(135deg, rgba(47,174,96,0.16), rgba(47,174,96,0.02));
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(var(--poker-green-rgb), 0.16), rgba(var(--poker-green-rgb), 0.02));
+  border: 1px solid rgba(var(--poker-green-rgb), 0.55);
+  border-radius: 14px;
   padding: 16px;
   text-align: center;
   margin-bottom: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
  
 .hh-callout-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   color: var(--accent);
   font-weight: 700;
   margin-bottom: 8px;
@@ -564,18 +684,19 @@ ul#highhand-list, ul#public-highhand-list {
 .hh-item-meta { font-size: 0.78rem; }
  
 .next-game-banner {
-  background: linear-gradient(135deg, rgba(47,174,96,0.16), rgba(47,174,96,0.02));
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(var(--poker-green-rgb), 0.16), rgba(var(--poker-green-rgb), 0.02));
+  border: 1px solid rgba(var(--poker-green-rgb), 0.55);
+  border-radius: 14px;
+  padding: 14px 16px;
   text-align: center;
   margin-bottom: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
  
 .next-game-label {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.12em;
   color: var(--accent);
   font-weight: 700;
   margin-bottom: 4px;
@@ -657,17 +778,17 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
    ------------------------------------------------------------------ */
 .slot-cabinet {
   background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
-  border: 2px solid #d4af37;
+  border: 2px solid var(--poker-gold);
   border-radius: var(--radius);
   padding: 18px 16px;
   text-align: center;
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12);
+  box-shadow: 0 0 0 4px rgba(var(--poker-gold-rgb), 0.12);
 }
  
 .slot-marquee {
   font-size: 1rem;
   font-weight: 700;
-  color: #d4af37;
+  color: var(--poker-gold);
   letter-spacing: 0.03em;
   margin-bottom: 4px;
 }
@@ -692,7 +813,7 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   justify-content: center;
   font-size: 2rem;
   background: var(--field-bg);
-  border: 1px solid #d4af37;
+  border: 1px solid var(--poker-gold);
   border-radius: 10px;
   box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
 }
@@ -721,8 +842,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
  
 .slot-spin-btn {
-  background: linear-gradient(180deg, #d4af37, #b8860b);
-  color: #2a1e00;
+  background: linear-gradient(180deg, var(--poker-gold), var(--poker-gold-dark));
+  color: var(--poker-gold-ink);
   width: 100%;
   max-width: 220px;
   font-size: 1.05rem;
@@ -737,7 +858,7 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   margin-top: 14px;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #d4af37;
+  color: var(--poker-gold);
 }
  
 .slot-result {
@@ -791,17 +912,17 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
    ------------------------------------------------------------------ */
 .bj-cabinet {
   background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
-  border: 2px solid #d4af37;
+  border: 2px solid var(--poker-gold);
   border-radius: var(--radius);
   padding: 18px 16px;
   text-align: center;
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12);
+  box-shadow: 0 0 0 4px rgba(var(--poker-gold-rgb), 0.12);
 }
  
 .bj-marquee {
   font-size: 1rem;
   font-weight: 700;
-  color: #d4af37;
+  color: var(--poker-gold);
   letter-spacing: 0.03em;
   margin-bottom: 4px;
 }
@@ -835,8 +956,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
  
 .bj-deal-btn {
-  background: linear-gradient(180deg, #d4af37, #b8860b);
-  color: #2a1e00;
+  background: linear-gradient(180deg, var(--poker-gold), var(--poker-gold-dark));
+  color: var(--poker-gold-ink);
   width: 100%;
   max-width: 220px;
   font-size: 1.05rem;
@@ -899,12 +1020,12 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
  
 .bj-result.bj-win {
-  background: rgba(47, 174, 96, 0.18);
+  background: rgba(var(--poker-green-rgb), 0.18);
   color: var(--accent);
 }
  
 .bj-result.bj-lose {
-  background: rgba(214, 69, 69, 0.18);
+  background: rgba(var(--poker-red-rgb), 0.18);
   color: var(--accent-2);
 }
  
@@ -922,24 +1043,24 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
    ------------------------------------------------------------------ */
 .he-cabinet {
   background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
-  border: 2px solid #d4af37;
+  border: 2px solid var(--poker-gold);
   border-radius: var(--radius);
   padding: 18px 16px;
   text-align: center;
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12);
+  box-shadow: 0 0 0 4px rgba(var(--poker-gold-rgb), 0.12);
 }
  
 .he-marquee {
   font-size: 1rem;
   font-weight: 700;
-  color: #d4af37;
+  color: var(--poker-gold);
   letter-spacing: 0.03em;
   margin-bottom: 4px;
 }
  
 .he-start-btn {
-  background: linear-gradient(180deg, #d4af37, #b8860b);
-  color: #2a1e00;
+  background: linear-gradient(180deg, var(--poker-gold), var(--poker-gold-dark));
+  color: var(--poker-gold-ink);
   width: 100%;
   max-width: 220px;
   font-size: 1.05rem;
@@ -971,8 +1092,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
  
 .he-active-seat {
-  border-color: #d4af37;
-  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.25);
+  border-color: var(--poker-gold);
+  box-shadow: 0 0 0 2px rgba(var(--poker-gold-rgb), 0.25);
 }
  
 .he-folded-seat {
@@ -1024,7 +1145,7 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
  
 .he-pot-display {
   font-weight: 700;
-  color: #d4af37;
+  color: var(--poker-gold);
   margin-bottom: 8px;
 }
  
@@ -1096,8 +1217,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
  
 .he-showdown {
-  background: rgba(212, 175, 55, 0.1);
-  border: 1px solid #d4af37;
+  background: rgba(var(--poker-gold-rgb), 0.1);
+  border: 1px solid var(--poker-gold);
   border-radius: 10px;
   padding: 10px;
   margin-bottom: 12px;
@@ -1129,12 +1250,12 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
  
 .he-outcome.he-win {
-  background: rgba(47, 174, 96, 0.18);
+  background: rgba(var(--poker-green-rgb), 0.18);
   color: var(--accent);
 }
  
 .he-outcome.he-lose {
-  background: rgba(214, 69, 69, 0.18);
+  background: rgba(var(--poker-red-rgb), 0.18);
   color: var(--accent-2);
 }
  

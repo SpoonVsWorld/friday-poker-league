@@ -1091,6 +1091,30 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   height: 42px;
 }
  
+.he-outcome {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+ 
+.he-outcome.he-win {
+  background: rgba(47, 174, 96, 0.18);
+  color: var(--accent);
+}
+ 
+.he-outcome.he-lose {
+  background: rgba(214, 69, 69, 0.18);
+  color: var(--accent-2);
+}
+ 
+.he-outcome.he-fold {
+  background: rgba(154, 169, 184, 0.18);
+  color: var(--muted);
+}
+ 
 .he-next-hand-btn {
   margin-top: 6px;
 }

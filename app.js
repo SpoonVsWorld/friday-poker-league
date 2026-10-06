@@ -6,9 +6,9 @@
     // ------------------------------------------------------------------
     const SUPABASE_URL = "https://kvdsmrlzsjzovbegdalq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2ZHNtcmx6c2p6b3ZiZWdkYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTQ4MzAsImV4cCI6MjEwMzc3MDgzMH0.gGIFNPXR7b4Iq_eRiFIEr4-TF6UE53HKvwXnKX8caxM";
- 
+
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
- 
+
     // ------------------------------------------------------------------
     // Elements
     // ------------------------------------------------------------------
@@ -21,15 +21,15 @@
     const loginError = document.getElementById("login-error");
     const adminEmailEl = document.getElementById("admin-email");
     const logoutBtn = document.getElementById("logout-btn");
- 
+
     const addPlayerForm = document.getElementById("add-player-form");
     const playerError = document.getElementById("player-error");
     const playerList = document.getElementById("player-list");
- 
+
     const addSeasonForm = document.getElementById("add-season-form");
     const seasonError = document.getElementById("season-error");
     const seasonList = document.getElementById("season-list");
- 
+
     const resultsNoSeason = document.getElementById("results-no-season");
     const resultsEditor = document.getElementById("results-editor");
     const fridayDateInput = document.getElementById("friday-date-input");
@@ -47,7 +47,7 @@
     const saveResultsBtn = document.getElementById("save-results-btn");
     const cancelFridayBtn = document.getElementById("cancel-friday-btn");
     const fridayList = document.getElementById("friday-list");
- 
+
     const publicListView = document.getElementById("public-list-view");
     const milestoneList = document.getElementById("milestone-list");
     const seasonProgressLine = document.getElementById("season-progress-line");
@@ -63,7 +63,7 @@
     const publicPotDollars = document.getElementById("public-pot-dollars");
     const publicPotMeta = document.getElementById("public-pot-meta");
     const footerLastUpdated = document.getElementById("footer-last-updated");
- 
+
     const publicPlayerProfile = document.getElementById("public-player-profile");
     const profileName = document.getElementById("profile-name");
     const profileNickname = document.getElementById("profile-nickname");
@@ -72,22 +72,22 @@
     const rivalrySection = document.getElementById("rivalry-section");
     const rivalrySelect = document.getElementById("rivalry-select");
     const rivalryResult = document.getElementById("rivalry-result");
- 
+
     // Head-to-Head state: the currently-open profile's own id/name/history,
     // so switching the "Compare with" dropdown doesn't need to re-fetch it.
     let currentProfilePlayerId = null;
     let currentProfilePlayerName = "";
     let currentProfileAgg = null;
     let currentProfileHistory = [];
- 
+
     const publicFridayDetail = document.getElementById("public-friday-detail");
     const fridayDetailDate = document.getElementById("friday-detail-date");
     const fridayDetailMeta = document.getElementById("friday-detail-meta");
     const fridayDetailBody = document.getElementById("friday-detail-body");
- 
+
     const seasonHighHandBox = document.getElementById("season-high-hand-box");
     const publicHighHandList = document.getElementById("public-highhand-list");
- 
+
     const hhDateInput = document.getElementById("hh-date-input");
     const hhPlayerSelect = document.getElementById("hh-player-select");
     const hhPreview = document.getElementById("hh-preview");
@@ -96,7 +96,7 @@
     const hhCancelEditBtn = document.getElementById("hh-cancel-edit-btn");
     const highHandList = document.getElementById("highhand-list");
     const hhCardRows = [...document.querySelectorAll(".card-input-row")];
- 
+
     const exportSeasonSelect = document.getElementById("export-season-select");
     const exportStandingsBtn = document.getElementById("export-standings-btn");
     const exportResultsBtn = document.getElementById("export-results-btn");
@@ -104,26 +104,26 @@
     const exportPlayersBtn = document.getElementById("export-players-btn");
     const exportBackupBtn = document.getElementById("export-backup-btn");
     const exportError = document.getElementById("export-error");
- 
+
     const statTotalViews = document.getElementById("stat-total-views");
     const statWeekViews = document.getElementById("stat-week-views");
     const resetViewsBtn = document.getElementById("reset-views-btn");
     const statsError = document.getElementById("stats-error");
     const visitLogList = document.getElementById("visit-log-list");
- 
+
     const adminProblemList = document.getElementById("admin-problem-list");
     const adminCommentList = document.getElementById("admin-comment-list");
     const feedbackAdminError = document.getElementById("feedback-admin-error");
- 
+
     const feedbackForm = document.getElementById("feedback-form");
     const feedbackNameInput = document.getElementById("feedback-name-input");
     const feedbackMessageInput = document.getElementById("feedback-message-input");
     const feedbackFormMsg = document.getElementById("feedback-form-msg");
     const publicCommentList = document.getElementById("public-comment-list");
- 
+
     const PLACEMENT_POINTS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
     const ORDINALS = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
- 
+
     // Card ranks/suits used for High Hand entry. Cards are stored as short
     // codes like "AS" (Ace of Spades) or "TD" (Ten of Diamonds).
     const RANK_OPTIONS = [
@@ -158,12 +158,12 @@
     ];
     const SUIT_SYMBOL = { S: "♠", H: "♥", D: "♦", C: "♣" };
     const SUIT_COLOR = { S: "black", H: "red", D: "red", C: "black" };
- 
+
     let adminViewOpen = false;
     let activeSeason = null;
     let currentFridayId = null;
     let editingHighHandId = null;
- 
+
     // ------------------------------------------------------------------
     // Navigation: toggle between the public view and the admin panel
     // ------------------------------------------------------------------
@@ -173,7 +173,7 @@
       adminView.hidden = !adminViewOpen;
       adminToggle.textContent = adminViewOpen ? "Close" : "Admin";
     });
- 
+
     // ------------------------------------------------------------------
     // Auth
     // ------------------------------------------------------------------
@@ -183,18 +183,18 @@
       adminEmailEl.textContent = session.user.email;
       await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin()]);
     }
- 
+
     function showLoggedOut() {
       adminLogin.hidden = false;
       adminDashboard.hidden = true;
       loginForm.reset();
     }
- 
+
     supabaseClient.auth.onAuthStateChange((_event, session) => {
       if (session) showLoggedIn(session);
       else showLoggedOut();
     });
- 
+
     // Check for an already-active session on page load. Only log a "view"
     // when nobody is logged in as admin, so the counter reflects visitors
     // checking the app rather than the admin's own repeated visits.
@@ -205,13 +205,13 @@
         fetch("/api/log-view", { method: "POST" }).catch(() => {});
       }
     });
- 
+
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       loginError.textContent = "";
       const email = document.getElementById("login-email").value.trim();
       const password = document.getElementById("login-password").value;
- 
+
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) {
         loginError.textContent = error.message;
@@ -219,12 +219,12 @@
       }
       await showLoggedIn(data.session);
     });
- 
+
     logoutBtn.addEventListener("click", async () => {
       await supabaseClient.auth.signOut();
       showLoggedOut();
     });
- 
+
     // ------------------------------------------------------------------
     // Players
     // ------------------------------------------------------------------
@@ -234,14 +234,14 @@
         .from("players")
         .select("*")
         .order("name", { ascending: true });
- 
+
       if (error) {
         playerError.textContent = "Could not load players: " + error.message;
         return;
       }
       renderPlayers(data);
     }
- 
+
     function renderPlayers(players) {
       playerList.innerHTML = "";
       if (!players.length) {
@@ -268,19 +268,19 @@
         playerList.appendChild(li);
       }
     }
- 
+
     addPlayerForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       playerError.textContent = "";
       const name = document.getElementById("new-player-name").value.trim();
       const nickname = document.getElementById("new-player-nickname").value.trim();
- 
+
       if (!name) return;
- 
+
       const { error } = await supabaseClient
         .from("players")
         .insert({ name, nickname: nickname || null });
- 
+
       if (error) {
         playerError.textContent = "Could not add player: " + error.message;
         return;
@@ -291,18 +291,18 @@
       loadPlayersForHighHand();
       refreshPublicView();
     });
- 
+
     async function renamePlayer(player) {
       const newName = window.prompt("Player name:", player.name);
       if (newName === null) return;
       const newNickname = window.prompt("Nickname (leave blank for none):", player.nickname || "");
       if (newNickname === null) return;
- 
+
       const { error } = await supabaseClient
         .from("players")
         .update({ name: newName.trim(), nickname: newNickname.trim() || null })
         .eq("id", player.id);
- 
+
       if (error) {
         playerError.textContent = "Could not update player: " + error.message;
         return;
@@ -312,16 +312,16 @@
       loadPlayersForHighHand();
       refreshPublicView();
     }
- 
+
     async function togglePlayerActive(player) {
       const verb = player.is_active ? "deactivate" : "reactivate";
       if (!window.confirm(`Are you sure you want to ${verb} ${player.name}?`)) return;
- 
+
       const { error } = await supabaseClient
         .from("players")
         .update({ is_active: !player.is_active })
         .eq("id", player.id);
- 
+
       if (error) {
         playerError.textContent = "Could not update player: " + error.message;
         return;
@@ -331,7 +331,7 @@
       loadPlayersForHighHand();
       refreshPublicView();
     }
- 
+
     // ------------------------------------------------------------------
     // Seasons
     // ------------------------------------------------------------------
@@ -341,7 +341,7 @@
         .from("seasons")
         .select("*")
         .order("start_date", { ascending: false });
- 
+
       if (error) {
         seasonError.textContent = "Could not load seasons: " + error.message;
         return;
@@ -353,7 +353,7 @@
       populateExportSeasonSelect(data);
       loadPotTotal();
     }
- 
+
     function populateExportSeasonSelect(seasons) {
       if (!exportSeasonSelect) return;
       const previousValue = exportSeasonSelect.value;
@@ -366,7 +366,7 @@
         exportSeasonSelect.value = activeSeason.id;
       }
     }
- 
+
     function renderSeasons(seasons) {
       seasonList.innerHTML = "";
       if (!seasons.length) {
@@ -394,7 +394,7 @@
         seasonList.appendChild(li);
       }
     }
- 
+
     async function editSeason(season) {
       seasonError.textContent = "";
       const newName = window.prompt("Season name:", season.name);
@@ -404,7 +404,7 @@
         seasonError.textContent = "Season name can't be blank.";
         return;
       }
- 
+
       const newStartDate = window.prompt("Start date (YYYY-MM-DD):", season.start_date);
       if (newStartDate === null) return;
       const trimmedDate = newStartDate.trim();
@@ -412,7 +412,7 @@
         seasonError.textContent = "Start date must be in YYYY-MM-DD format, like 2026-07-03.";
         return;
       }
- 
+
       const newPlannedGames = window.prompt(
         "Planned games for the season (optional — leave blank for none, powers the \"games left\" milestone):",
         season.planned_games != null ? String(season.planned_games) : ""
@@ -428,19 +428,19 @@
         }
         planned_games = parsed;
       }
- 
+
       const { error } = await supabaseClient
         .from("seasons")
         .update({ name: trimmedName, start_date: trimmedDate, planned_games })
         .eq("id", season.id);
- 
+
       if (error) {
         seasonError.textContent = "Could not update season: " + error.message;
         return;
       }
       loadSeasons();
     }
- 
+
     async function deleteSeason(season) {
       seasonError.textContent = "";
       const typed = window.prompt(
@@ -451,7 +451,7 @@
         seasonError.textContent = "That didn't match the season name exactly, so nothing was deleted.";
         return;
       }
- 
+
       const { error } = await supabaseClient.from("seasons").delete().eq("id", season.id);
       if (error) {
         seasonError.textContent = "Could not delete season: " + error.message;
@@ -459,21 +459,21 @@
       }
       loadSeasons();
     }
- 
+
     addSeasonForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       seasonError.textContent = "";
       const name = document.getElementById("new-season-name").value.trim();
       const start_date = document.getElementById("new-season-start").value;
       if (!name || !start_date) return;
- 
+
       const plannedGamesRaw = document.getElementById("new-season-planned-games").value.trim();
       const planned_games = plannedGamesRaw ? parseInt(plannedGamesRaw, 10) : null;
- 
+
       const { error } = await supabaseClient
         .from("seasons")
         .insert({ name, start_date, planned_games });
- 
+
       if (error) {
         seasonError.textContent = "Could not create season: " + error.message;
         return;
@@ -481,44 +481,44 @@
       addSeasonForm.reset();
       loadSeasons();
     });
- 
+
     async function makeSeasonActive(season) {
       if (!window.confirm(`Make "${season.name}" the active season? Any currently active season will be closed.`)) return;
- 
+
       // Step 1: deactivate whichever season is currently active
       const { error: clearError } = await supabaseClient
         .from("seasons")
         .update({ is_active: false })
         .eq("is_active", true);
- 
+
       if (clearError) {
         seasonError.textContent = "Could not update seasons: " + clearError.message;
         return;
       }
- 
+
       // Step 2: activate the chosen season
       const { error: setError } = await supabaseClient
         .from("seasons")
         .update({ is_active: true })
         .eq("id", season.id);
- 
+
       if (setError) {
         seasonError.textContent = "Could not activate season: " + setError.message;
         return;
       }
       loadSeasons();
     }
- 
+
     // ------------------------------------------------------------------
     // Friday Results
     // ------------------------------------------------------------------
- 
+
     function todayIso() {
       const d = new Date();
       const pad = (n) => String(n).padStart(2, "0");
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
- 
+
     async function refreshResultsAvailability() {
       if (!activeSeason) {
         resultsNoSeason.hidden = false;
@@ -527,28 +527,28 @@
       }
       resultsNoSeason.hidden = true;
       resultsEditor.hidden = false;
- 
+
       if (!fridayDateInput.value) fridayDateInput.value = todayIso();
- 
+
       await loadActivePlayersForResults();
       await loadResultsForSelectedDate();
       await loadFridayList();
     }
- 
+
     async function loadActivePlayersForResults() {
       const { data, error } = await supabaseClient
         .from("players")
         .select("*")
         .eq("is_active", true)
         .order("name", { ascending: true });
- 
+
       if (error) {
         resultsError.textContent = "Could not load players: " + error.message;
         return;
       }
       renderResultPlayerRows(data);
     }
- 
+
     function renderResultPlayerRows(players) {
       resultsPlayerRows.innerHTML = "";
       if (!players.length) {
@@ -577,12 +577,12 @@
           </label>
           <span class="points-preview">0 pts</span>
         `;
- 
+
         const playedCheckbox = row.querySelector(".played-checkbox");
         const placementSelect = row.querySelector(".placement-select");
         const bountyRadio = row.querySelector(".bounty-radio");
         const pointsPreview = row.querySelector(".points-preview");
- 
+
         function updateRowState() {
           const enabled = playedCheckbox.checked;
           placementSelect.disabled = !enabled;
@@ -596,18 +596,18 @@
           const bountyPts = bountyRadio.checked ? 1 : 0;
           pointsPreview.textContent = `${placementPts + bountyPts} pts`;
         }
- 
+
         playedCheckbox.addEventListener("change", updateRowState);
         placementSelect.addEventListener("change", updateRowState);
         bountyRadio.addEventListener("change", updateRowState);
         updateRowState();
- 
+
         resultsPlayerRows.appendChild(row);
       }
     }
- 
+
     fridayDateInput.addEventListener("change", loadResultsForSelectedDate);
- 
+
     saveLocationBtn.addEventListener("click", async () => {
       locationError.textContent = "";
       const date = fridayDateInput.value;
@@ -619,9 +619,9 @@
         locationError.textContent = "Create and activate a season first.";
         return;
       }
- 
+
       const location = fridayLocationInput.value.trim() || null;
- 
+
       if (!currentFridayId) {
         const { data: inserted, error: insertErr } = await supabaseClient
           .from("fridays")
@@ -643,11 +643,11 @@
           return;
         }
       }
- 
+
       await loadResultsForSelectedDate();
       await loadFridayList();
       refreshPublicView();
- 
+
       locationError.classList.add("ok");
       locationError.textContent = "Location saved.";
       setTimeout(() => {
@@ -655,7 +655,7 @@
         locationError.classList.remove("ok");
       }, 2500);
     });
- 
+
     savePotBtn.addEventListener("click", async () => {
       potError.textContent = "";
       potError.classList.remove("ok");
@@ -668,7 +668,7 @@
         potError.textContent = "Create and activate a season first.";
         return;
       }
- 
+
       const raw = fridayPotPlayersInput.value.trim();
       if (raw === "") {
         potError.textContent = "Enter how many players played.";
@@ -679,7 +679,7 @@
         potError.textContent = "Enter a whole number, 0 or higher.";
         return;
       }
- 
+
       if (!currentFridayId) {
         const { data: inserted, error: insertErr } = await supabaseClient
           .from("fridays")
@@ -701,11 +701,11 @@
           return;
         }
       }
- 
+
       await loadResultsForSelectedDate();
       await loadFridayList();
       loadPotTotal();
- 
+
       potError.classList.add("ok");
       potError.textContent = "Player count saved.";
       setTimeout(() => {
@@ -713,37 +713,37 @@
         potError.classList.remove("ok");
       }, 2500);
     });
- 
+
     async function loadPotTotal() {
       if (!activeSeason) {
         potTotalBuyins.textContent = "—";
         potTotalDollars.textContent = "—";
         return;
       }
- 
+
       const { data, error } = await supabaseClient
         .from("fridays")
         .select("pot_players")
         .eq("season_id", activeSeason.id);
- 
+
       if (error) {
         potTotalBuyins.textContent = "—";
         potTotalDollars.textContent = "—";
         return;
       }
- 
+
       const totalBuyins = (data || []).reduce((sum, f) => sum + (f.pot_players || 0), 0);
       potTotalBuyins.textContent = totalBuyins;
       potTotalDollars.textContent = "$" + (totalBuyins * 5).toLocaleString();
     }
- 
+
     async function loadResultsForSelectedDate() {
       resultsError.textContent = "";
       locationError.textContent = "";
       potError.textContent = "";
       const date = fridayDateInput.value;
       if (!date || !activeSeason) return;
- 
+
       // reset all rows to blank before loading
       for (const row of resultsPlayerRows.querySelectorAll(".result-row")) {
         row.querySelector(".played-checkbox").checked = false;
@@ -751,19 +751,19 @@
         row.querySelector(".bounty-radio").checked = false;
         row.querySelector(".placement-select").dispatchEvent(new Event("change"));
       }
- 
+
       const { data: friday, error: fridayError } = await supabaseClient
         .from("fridays")
         .select("*")
         .eq("season_id", activeSeason.id)
         .eq("game_date", date)
         .maybeSingle();
- 
+
       if (fridayError) {
         resultsError.textContent = "Could not check this date: " + fridayError.message;
         return;
       }
- 
+
       if (!friday) {
         currentFridayId = null;
         fridayLocationInput.value = "";
@@ -771,7 +771,7 @@
         fridayStatusLine.textContent = "Not yet recorded — fill in results below and click Save.";
         return;
       }
- 
+
       currentFridayId = friday.id;
       fridayLocationInput.value = friday.location || "";
       fridayPotPlayersInput.value = friday.pot_players ?? "";
@@ -779,17 +779,17 @@
         friday.status === "cancelled"
           ? "This Friday is marked cancelled. Entering results below and saving will reactivate it."
           : `Status: ${friday.status}`;
- 
+
       const { data: results, error: resultsErr } = await supabaseClient
         .from("results")
         .select("*")
         .eq("friday_id", friday.id);
- 
+
       if (resultsErr) {
         resultsError.textContent = "Could not load results: " + resultsErr.message;
         return;
       }
- 
+
       for (const r of results) {
         const row = resultsPlayerRows.querySelector(`.result-row[data-player-id="${r.player_id}"]`);
         if (!row) continue; // player may have since been deactivated
@@ -799,7 +799,7 @@
         row.querySelector(".played-checkbox").dispatchEvent(new Event("change"));
       }
     }
- 
+
     saveResultsBtn.addEventListener("click", async () => {
       resultsError.textContent = "";
       const date = fridayDateInput.value;
@@ -807,7 +807,7 @@
         resultsError.textContent = "Pick a date first.";
         return;
       }
- 
+
       const rows = [...resultsPlayerRows.querySelectorAll(".result-row")];
       const placementsUsed = new Set();
       for (const row of rows) {
@@ -821,7 +821,7 @@
           placementsUsed.add(placement);
         }
       }
- 
+
       const playedRows = rows
         .filter((row) => row.querySelector(".played-checkbox").checked)
         .map((row) => ({
@@ -831,11 +831,11 @@
             : null,
           bounty_winner: row.querySelector(".bounty-radio").checked,
         }));
- 
+
       if (!playedRows.length && !window.confirm("No players are marked as played. Save anyway?")) {
         return;
       }
- 
+
       // Step 1: make sure a fridays row exists for this date, and it's marked completed
       const location = fridayLocationInput.value.trim() || null;
       const potPlayersRaw = fridayPotPlayersInput.value.trim();
@@ -862,14 +862,14 @@
           return;
         }
       }
- 
+
       // Step 2: replace any existing results for this Friday with the new set
       const { error: deleteErr } = await supabaseClient.from("results").delete().eq("friday_id", fridayId);
       if (deleteErr) {
         resultsError.textContent = "Could not clear old results: " + deleteErr.message;
         return;
       }
- 
+
       if (playedRows.length) {
         const { error: insertResultsErr } = await supabaseClient
           .from("results")
@@ -879,14 +879,14 @@
           return;
         }
       }
- 
+
       currentFridayId = fridayId;
       await loadResultsForSelectedDate();
       await loadFridayList();
       refreshPublicView();
       loadPotTotal();
     });
- 
+
     cancelFridayBtn.addEventListener("click", async () => {
       resultsError.textContent = "";
       const date = fridayDateInput.value;
@@ -901,7 +901,7 @@
       ) {
         return;
       }
- 
+
       const location = fridayLocationInput.value.trim() || null;
       let fridayId = currentFridayId;
       if (!fridayId) {
@@ -930,14 +930,14 @@
           return;
         }
       }
- 
+
       currentFridayId = fridayId;
       await loadResultsForSelectedDate();
       await loadFridayList();
       refreshPublicView();
       loadPotTotal();
     });
- 
+
     async function loadFridayList() {
       if (!activeSeason) return;
       const { data, error } = await supabaseClient
@@ -945,18 +945,18 @@
         .select("*")
         .eq("season_id", activeSeason.id)
         .order("game_date", { ascending: false });
- 
+
       if (error) {
         fridayList.innerHTML = `<li class="muted">Could not load Fridays: ${escapeHtml(error.message)}</li>`;
         return;
       }
- 
+
       fridayList.innerHTML = "";
       if (!data.length) {
         fridayList.innerHTML = '<li class="muted">No Fridays recorded yet this season.</li>';
         return;
       }
- 
+
       for (const f of data) {
         const li = document.createElement("li");
         li.className = "friday-row";
@@ -974,11 +974,11 @@
         fridayList.appendChild(li);
       }
     }
- 
+
     // ------------------------------------------------------------------
     // High Hands — poker hand evaluation + admin entry
     // ------------------------------------------------------------------
- 
+
     // Works out what a 5-card hand is (Royal Flush ... High Card), its
     // tiebreak ranks (for comparing two hands of the same category), and a
     // human-readable description — all calculated automatically so no one
@@ -987,7 +987,7 @@
       const parsed = cards.map((c) => ({ rank: RANK_NUMERIC[c.slice(0, -1)], suit: c.slice(-1) }));
       const ranks = parsed.map((c) => c.rank).sort((a, b) => b - a);
       const isFlush = parsed.every((c) => c.suit === parsed[0].suit);
- 
+
       const uniqueRanks = [...new Set(ranks)];
       let isStraight = false;
       let straightHigh = null;
@@ -1001,16 +1001,16 @@
           straightHigh = 5;
         }
       }
- 
+
       const countMap = new Map();
       for (const r of ranks) countMap.set(r, (countMap.get(r) || 0) + 1);
       const groups = [...countMap.entries()]
         .map(([rank, count]) => ({ rank, count }))
         .sort((a, b) => b.count - a.count || b.rank - a.rank);
       const counts = groups.map((g) => g.count);
- 
+
       let category, tiebreak, description;
- 
+
       if (isStraight && isFlush && straightHigh === 14) {
         category = 1;
         tiebreak = [14];
@@ -1052,10 +1052,10 @@
         tiebreak = [...ranks];
         description = `High Card, ${RANK_NAME_SINGULAR[ranks[0]]}`;
       }
- 
+
       return { category, tiebreak, description };
     }
- 
+
     // Compares two hands (each with hand_category + tiebreak_ranks). Negative
     // means "a" is the better hand — sorting an array with this puts the best
     // hand first.
@@ -1069,7 +1069,7 @@
       }
       return 0;
     }
- 
+
     function renderCardsInline(cards) {
       return cards
         .map((c) => {
@@ -1081,7 +1081,7 @@
         })
         .join(" ");
     }
- 
+
     // Realistic flipping card graphics, used just for the featured
     // "Season Best" high hand callout.
     const REAL_CARD_BACK_SVG = `
@@ -1091,7 +1091,7 @@
         <text x="50" y="82" font-size="42" text-anchor="middle" fill="#d4af37">♠</text>
       </svg>
     `;
- 
+
     // Classic playing-card pip layouts for number cards (2-10): one suit
     // symbol per pip, arranged the way a real deck lays them out, so a 3 of
     // hearts actually shows 3 hearts instead of one big one you have to read
@@ -1144,7 +1144,7 @@
         { x: 32, y: 112, flip: true }, { x: 68, y: 112, flip: true },
       ],
     };
- 
+
     // A simple stylized court-card portrait for J/Q/K - a face with
     // rank-specific headwear so they read as an actual face rather than a
     // big suit symbol, mirrored top/bottom the way a real deck's face
@@ -1165,7 +1165,7 @@
             : // Jack: a flatter, wider soft cap with a small side plume - no jewels or points
               `<path d="M36 30 Q50 18 64 30 Z" fill="${color}" stroke="none"/>
                <path d="M60 22 L68 13" stroke="${color}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`;
- 
+
       return `
         <path d="M35 68 Q34 50 50 48 Q66 50 65 68 Z" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
         <text x="50" y="63" font-size="9" text-anchor="middle" fill="${color}">${symbol}</text>
@@ -1176,12 +1176,12 @@
         <path d="M46 44 Q50 46.5 54 44" fill="none" stroke="${color}" stroke-width="1.1" stroke-linecap="round"/>
       `;
     }
- 
+
     function courtCardSvg(rank, symbol, color) {
       const portrait = courtPortraitGroup(rank, symbol, color);
       return `<g>${portrait}</g><g transform="rotate(180 50 70)">${portrait}</g>`;
     }
- 
+
     function realCardFrontSvg(rank, suit) {
       const rankLabel = rank === "T" ? "10" : rank;
       const symbol = SUIT_SYMBOL[suit] || suit;
@@ -1208,7 +1208,7 @@
         </svg>
       `;
     }
- 
+
     function renderRealCard(cardStr, index) {
       const rank = cardStr.slice(0, -1);
       const suit = cardStr.slice(-1);
@@ -1221,11 +1221,11 @@
         </span>
       `;
     }
- 
+
     function renderRealHandCards(cards) {
       return cards.map((c, i) => renderRealCard(c, i)).join("");
     }
- 
+
     // Populate the rank/suit dropdowns for each of the 5 card rows, once.
     for (const row of hhCardRows) {
       const rankSelect = row.querySelector(".hh-rank-select");
@@ -1237,9 +1237,9 @@
       rankSelect.addEventListener("change", updateHighHandPreview);
       suitSelect.addEventListener("change", updateHighHandPreview);
     }
- 
+
     if (hhDateInput) hhDateInput.value = todayIso();
- 
+
     function getSelectedCards() {
       return hhCardRows.map((row) => {
         const rank = row.querySelector(".hh-rank-select").value;
@@ -1247,7 +1247,7 @@
         return rank && suit ? rank + suit : null;
       });
     }
- 
+
     function updateHighHandPreview() {
       const cards = getSelectedCards();
       highHandError.textContent = "";
@@ -1263,14 +1263,14 @@
       const evalResult = evaluatePokerHand(cards);
       hhPreview.innerHTML = `${renderCardsInline(cards)} &nbsp; <strong>${escapeHtml(evalResult.description)}</strong>`;
     }
- 
+
     async function loadPlayersForHighHand() {
       const { data, error } = await supabaseClient
         .from("players")
         .select("*")
         .order("is_active", { ascending: false })
         .order("name", { ascending: true });
- 
+
       if (error) {
         highHandError.textContent = "Could not load players: " + error.message;
         return;
@@ -1281,7 +1281,7 @@
         .join("");
       if (previousValue) hhPlayerSelect.value = previousValue;
     }
- 
+
     function resetHighHandForm() {
       editingHighHandId = null;
       addHighHandForm.reset();
@@ -1294,16 +1294,16 @@
       highHandError.textContent = "";
       updateHighHandPreview();
     }
- 
+
     hhCancelEditBtn.addEventListener("click", resetHighHandForm);
- 
+
     addHighHandForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       highHandError.textContent = "";
       const date = hhDateInput.value;
       const playerId = hhPlayerSelect.value;
       const cards = getSelectedCards();
- 
+
       if (!date) {
         highHandError.textContent = "Pick a date.";
         return;
@@ -1324,9 +1324,9 @@
         highHandError.textContent = "Create and activate a season first.";
         return;
       }
- 
+
       const evalResult = evaluatePokerHand(cards);
- 
+
       // Find or create the Friday this hand happened on.
       const { data: existingFriday, error: fridayLookupErr } = await supabaseClient
         .from("fridays")
@@ -1334,12 +1334,12 @@
         .eq("season_id", activeSeason.id)
         .eq("game_date", date)
         .maybeSingle();
- 
+
       if (fridayLookupErr) {
         highHandError.textContent = "Could not check this date: " + fridayLookupErr.message;
         return;
       }
- 
+
       let fridayId;
       if (existingFriday) {
         fridayId = existingFriday.id;
@@ -1355,7 +1355,7 @@
         }
         fridayId = inserted.id;
       }
- 
+
       const payload = {
         friday_id: fridayId,
         player_id: playerId,
@@ -1364,7 +1364,7 @@
         tiebreak_ranks: evalResult.tiebreak,
         description: evalResult.description,
       };
- 
+
       if (editingHighHandId) {
         const { error } = await supabaseClient.from("high_hands").update(payload).eq("id", editingHighHandId);
         if (error) {
@@ -1378,18 +1378,18 @@
           return;
         }
       }
- 
+
       resetHighHandForm();
       loadHighHandsAdmin();
       refreshPublicView();
     });
- 
+
     async function loadHighHandsAdmin() {
       const { data, error } = await supabaseClient
         .from("high_hands")
         .select("*, fridays(game_date, seasons(name)), players(name)")
         .order("recorded_at", { ascending: false });
- 
+
       if (error) {
         highHandList.innerHTML = `<li class="muted">Could not load high hands: ${escapeHtml(error.message)}</li>`;
         return;
@@ -1398,7 +1398,7 @@
         highHandList.innerHTML = '<li class="muted">No high hands recorded yet.</li>';
         return;
       }
- 
+
       highHandList.innerHTML = "";
       for (const hh of data) {
         const li = document.createElement("li");
@@ -1418,7 +1418,7 @@
         highHandList.appendChild(li);
       }
     }
- 
+
     function editHighHand(hh) {
       editingHighHandId = hh.id;
       hhDateInput.value = hh.fridays?.game_date || todayIso();
@@ -1433,7 +1433,7 @@
       hhCancelEditBtn.hidden = false;
       window.scrollTo({ top: addHighHandForm.offsetTop, behavior: "smooth" });
     }
- 
+
     async function deleteHighHand(hh) {
       if (
         !window.confirm(
@@ -1451,45 +1451,45 @@
       loadHighHandsAdmin();
       refreshPublicView();
     }
- 
+
     // ------------------------------------------------------------------
     // Site Stats — a simple page-view counter, admin-only.
     // ------------------------------------------------------------------
- 
+
     async function loadSiteStats() {
       statsError.textContent = "";
- 
+
       const { count: totalCount, error: totalErr } = await supabaseClient
         .from("page_views")
         .select("*", { count: "exact", head: true });
- 
+
       if (totalErr) {
         statsError.textContent = "Could not load view stats: " + totalErr.message;
         return;
       }
- 
+
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { count: weekCount, error: weekErr } = await supabaseClient
         .from("page_views")
         .select("*", { count: "exact", head: true })
         .gte("viewed_at", oneDayAgo);
- 
+
       statTotalViews.textContent = totalCount ?? 0;
       statWeekViews.textContent = weekErr ? "—" : weekCount ?? 0;
- 
+
       const { data: recentVisits, error: recentErr } = await supabaseClient
         .from("page_views")
         .select("viewed_at, ip_address, city, region, country, user_agent")
         .order("viewed_at", { ascending: false })
         .limit(50);
- 
+
       if (recentErr) {
         visitLogList.innerHTML = `<p class="error">Could not load recent visits: ${escapeHtml(recentErr.message)}</p>`;
         return;
       }
       renderRecentVisits(recentVisits || []);
     }
- 
+
     // Approximate city/state from Vercel's geo headers - "Unknown" only
     // when we truly have nothing (e.g. rows logged before this feature,
     // or a visit where Vercel couldn't determine a location).
@@ -1500,7 +1500,7 @@
       if (row.country) return row.country;
       return "Unknown location";
     }
- 
+
     function formatVisitTime(iso) {
       const d = new Date(iso);
       if (isNaN(d)) return "";
@@ -1512,7 +1512,7 @@
       if (d.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
       return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
     }
- 
+
     // Rough, best-effort device/browser label parsed from the user-agent
     // string - just enough to help tell visits apart, not a precise
     // device-detection library.
@@ -1525,17 +1525,17 @@
       else if (/Macintosh/i.test(ua)) device = "Mac";
       else if (/Windows/i.test(ua)) device = "Windows";
       else if (/Linux/i.test(ua)) device = "Linux";
- 
+
       let browser = "";
       if (/Edg\//i.test(ua)) browser = "Edge";
       else if (/OPR\//i.test(ua) || /Opera/i.test(ua)) browser = "Opera";
       else if (/CriOS/i.test(ua) || /Chrome\//i.test(ua)) browser = "Chrome";
       else if (/FxiOS/i.test(ua) || /Firefox\//i.test(ua)) browser = "Firefox";
       else if (/Safari\//i.test(ua)) browser = "Safari";
- 
+
       return browser ? `${device} · ${browser}` : device;
     }
- 
+
     function renderRecentVisits(rows) {
       if (!rows.length) {
         visitLogList.innerHTML = '<p class="muted">No visits recorded yet.</p>';
@@ -1558,7 +1558,7 @@
         )
         .join("");
     }
- 
+
     resetViewsBtn.addEventListener("click", async () => {
       statsError.textContent = "";
       if (
@@ -1568,7 +1568,7 @@
       ) {
         return;
       }
- 
+
       const { error } = await supabaseClient.from("page_views").delete().gt("viewed_at", "1970-01-01");
       if (error) {
         statsError.textContent = "Could not reset counter: " + error.message;
@@ -1576,12 +1576,12 @@
       }
       loadSiteStats();
     });
- 
+
     // ------------------------------------------------------------------
     // Feedback — public comments (visible to everyone) and problem
     // reports (admin-only), both submitted from the public site.
     // ------------------------------------------------------------------
- 
+
     function renderFeedbackRow(item) {
       const when = new Date(item.created_at).toLocaleDateString(undefined, {
         month: "short",
@@ -1601,30 +1601,30 @@
         </li>
       `;
     }
- 
+
     async function loadFeedbackAdmin() {
       feedbackAdminError.textContent = "";
       const { data, error } = await supabaseClient
         .from("feedback")
         .select("*")
         .order("created_at", { ascending: false });
- 
+
       if (error) {
         feedbackAdminError.textContent = "Could not load feedback: " + error.message;
         return;
       }
- 
+
       const problems = (data || []).filter((f) => f.type === "problem");
       const comments = (data || []).filter((f) => f.type === "comment");
- 
+
       adminProblemList.innerHTML = problems.length
         ? problems.map(renderFeedbackRow).join("")
         : '<li class="muted">No problems reported.</li>';
- 
+
       adminCommentList.innerHTML = comments.length
         ? comments.map(renderFeedbackRow).join("")
         : '<li class="muted">No comments yet.</li>';
- 
+
       document.querySelectorAll(".delete-feedback-btn").forEach((btn) => {
         btn.addEventListener("click", async () => {
           if (!window.confirm("Delete this permanently?")) return;
@@ -1638,25 +1638,25 @@
         });
       });
     }
- 
+
     // ------------------------------------------------------------------
     // Export & Backup — everything downloads straight to the admin's
     // device as a file. Nothing here is emailed or sent anywhere.
     // ------------------------------------------------------------------
- 
+
     function csvEscape(value) {
       if (value === null || value === undefined) return "";
       const s = String(value);
       if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
       return s;
     }
- 
+
     function rowsToCSV(columns, rows) {
       const header = columns.map((c) => csvEscape(c.label)).join(",");
       const lines = rows.map((row) => columns.map((c) => csvEscape(row[c.key])).join(","));
       return [header, ...lines].join("\r\n");
     }
- 
+
     function slugify(str) {
       return (
         String(str || "")
@@ -1666,7 +1666,7 @@
           .replace(/^-+|-+$/g, "") || "export"
       );
     }
- 
+
     function downloadFile(filename, content, mimeType) {
       const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
@@ -1678,7 +1678,7 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
- 
+
     function getSelectedExportSeasonId() {
       if (!exportSeasonSelect || !exportSeasonSelect.value) {
         exportError.textContent = "Create a season first.";
@@ -1686,18 +1686,18 @@
       }
       return exportSeasonSelect.value;
     }
- 
+
     exportStandingsBtn.addEventListener("click", async () => {
       exportError.textContent = "";
       const seasonId = getSelectedExportSeasonId();
       if (!seasonId) return;
- 
+
       const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
       if (seasonErr || !season) {
         exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
         return;
       }
- 
+
       const { data: fridays, error: fridaysErr } = await supabaseClient
         .from("fridays")
         .select("id")
@@ -1707,7 +1707,7 @@
         exportError.textContent = "Could not load Fridays: " + fridaysErr.message;
         return;
       }
- 
+
       const fridayIds = (fridays || []).map((f) => f.id);
       let results = [];
       if (fridayIds.length) {
@@ -1721,14 +1721,14 @@
         }
         results = data || [];
       }
- 
+
       const { data: players, error: playersErr } = await supabaseClient.from("players").select("id, name");
       if (playersErr) {
         exportError.textContent = "Could not load players: " + playersErr.message;
         return;
       }
       const playerMap = new Map(players.map((p) => [p.id, p]));
- 
+
       const agg = new Map();
       for (const r of results) {
         if (!agg.has(r.player_id)) agg.set(r.player_id, { points: 0, played: 0, wins: 0, bounties: 0 });
@@ -1738,19 +1738,19 @@
         if (r.placement === 1) a.wins += 1;
         if (r.bounty_winner) a.bounties += 1;
       }
- 
+
       const rows = [...agg.entries()]
         .map(([playerId, stats]) => ({
           name: playerMap.get(playerId)?.name || "Unknown player",
           ...stats,
         }))
         .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
- 
+
       rows.forEach((r, i) => {
         r.rank = i + 1;
         r.avg = r.played ? (r.points / r.played).toFixed(1) : "";
       });
- 
+
       const csv = rowsToCSV(
         [
           { key: "rank", label: "Rank" },
@@ -1763,21 +1763,21 @@
         ],
         rows
       );
- 
+
       downloadFile(`standings-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
     });
- 
+
     exportResultsBtn.addEventListener("click", async () => {
       exportError.textContent = "";
       const seasonId = getSelectedExportSeasonId();
       if (!seasonId) return;
- 
+
       const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
       if (seasonErr || !season) {
         exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
         return;
       }
- 
+
       const { data: fridays, error: fridaysErr } = await supabaseClient
         .from("fridays")
         .select("id, game_date, status")
@@ -1787,10 +1787,10 @@
         exportError.textContent = "Could not load Fridays: " + fridaysErr.message;
         return;
       }
- 
+
       const fridayMap = new Map((fridays || []).map((f) => [f.id, f]));
       const fridayIds = [...fridayMap.keys()];
- 
+
       let results = [];
       if (fridayIds.length) {
         const { data, error } = await supabaseClient
@@ -1803,7 +1803,7 @@
         }
         results = data || [];
       }
- 
+
       const rows = results
         .map((r) => {
           const friday = fridayMap.get(r.friday_id);
@@ -1816,7 +1816,7 @@
           };
         })
         .sort((a, b) => a.date.localeCompare(b.date) || (a.finish || "zzz").localeCompare(b.finish || "zzz"));
- 
+
       const csv = rowsToCSV(
         [
           { key: "date", label: "Date" },
@@ -1827,39 +1827,39 @@
         ],
         rows
       );
- 
+
       downloadFile(`results-history-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
     });
- 
+
     exportHighHandsBtn.addEventListener("click", async () => {
       exportError.textContent = "";
       const seasonId = getSelectedExportSeasonId();
       if (!seasonId) return;
- 
+
       const { data: season, error: seasonErr } = await supabaseClient.from("seasons").select("*").eq("id", seasonId).single();
       if (seasonErr || !season) {
         exportError.textContent = "Could not load that season: " + (seasonErr?.message || "not found");
         return;
       }
- 
+
       const { data: hands, error } = await supabaseClient
         .from("high_hands")
         .select("*, fridays!inner(game_date, season_id), players(name)")
         .eq("fridays.season_id", seasonId)
         .order("recorded_at", { ascending: true });
- 
+
       if (error) {
         exportError.textContent = "Could not load high hands: " + error.message;
         return;
       }
- 
+
       const rows = (hands || []).map((hh) => ({
         date: hh.fridays?.game_date || "",
         player: hh.players?.name || "Unknown",
         hand: hh.description,
         cards: hh.cards.join(" "),
       }));
- 
+
       const csv = rowsToCSV(
         [
           { key: "date", label: "Date" },
@@ -1869,10 +1869,10 @@
         ],
         rows
       );
- 
+
       downloadFile(`high-hands-${slugify(season.name)}-${todayIso()}.csv`, csv, "text/csv");
     });
- 
+
     exportPlayersBtn.addEventListener("click", async () => {
       exportError.textContent = "";
       const { data: players, error } = await supabaseClient.from("players").select("*").order("name", { ascending: true });
@@ -1880,14 +1880,14 @@
         exportError.textContent = "Could not load players: " + error.message;
         return;
       }
- 
+
       const rows = players.map((p) => ({
         name: p.name,
         nickname: p.nickname || "",
         status: p.is_active ? "Active" : "Inactive",
         joined: p.joined_date,
       }));
- 
+
       const csv = rowsToCSV(
         [
           { key: "name", label: "Name" },
@@ -1897,15 +1897,15 @@
         ],
         rows
       );
- 
+
       downloadFile(`players-${todayIso()}.csv`, csv, "text/csv");
     });
- 
+
     exportBackupBtn.addEventListener("click", async () => {
       exportError.textContent = "";
       const tables = ["seasons", "players", "fridays", "results", "high_hands"];
       const backup = { exported_at: new Date().toISOString() };
- 
+
       for (const table of tables) {
         const { data, error } = await supabaseClient.from(table).select("*");
         if (error) {
@@ -1914,14 +1914,14 @@
         }
         backup[table] = data;
       }
- 
+
       downloadFile(`poker-league-full-backup-${todayIso()}.json`, JSON.stringify(backup, null, 2), "application/json");
     });
- 
+
     // ------------------------------------------------------------------
     // Public view: Standings / Players / Fridays
     // ------------------------------------------------------------------
- 
+
     function refreshPublicView() {
       loadStandings();
       loadAwards();
@@ -1934,20 +1934,21 @@
       loadPublicComments();
       loadPublicPot();
       loadLastUpdated();
+      loadBjLeaderboard();
     }
- 
+
     async function loadLastUpdated() {
       const { data, error } = await supabaseClient
         .from("app_meta")
         .select("last_updated")
         .eq("id", 1)
         .maybeSingle();
- 
+
       if (error || !data) {
         footerLastUpdated.textContent = "";
         return;
       }
- 
+
       const when = new Date(data.last_updated).toLocaleString(undefined, {
         month: "short",
         day: "numeric",
@@ -1957,48 +1958,48 @@
       });
       footerLastUpdated.textContent = `Data last updated: ${when}`;
     }
- 
+
     async function loadPublicPot() {
       const { data: seasons, error: seasonErr } = await supabaseClient
         .from("seasons")
         .select("*")
         .eq("is_active", true)
         .limit(1);
- 
+
       if (seasonErr || !seasons || !seasons.length) {
         publicPotDollars.textContent = "$0";
         publicPotMeta.textContent = "No active season right now.";
         return;
       }
- 
+
       const { data: fridays, error } = await supabaseClient
         .from("fridays")
         .select("pot_players")
         .eq("season_id", seasons[0].id);
- 
+
       if (error) {
         publicPotDollars.textContent = "—";
         publicPotMeta.textContent = "Could not load the pot total.";
         return;
       }
- 
+
       const totalBuyins = (fridays || []).reduce((sum, f) => sum + (f.pot_players || 0), 0);
       publicPotDollars.textContent = "$" + (totalBuyins * 5).toLocaleString();
       publicPotMeta.textContent = `${totalBuyins} player buy-in${totalBuyins === 1 ? "" : "s"} so far this season — $5 each`;
     }
- 
+
     async function loadPublicComments() {
       const { data, error } = await supabaseClient
         .from("feedback")
         .select("*")
         .eq("type", "comment")
         .order("created_at", { ascending: false });
- 
+
       if (error) {
         publicCommentList.innerHTML = `<li class="muted">Could not load comments: ${escapeHtml(error.message)}</li>`;
         return;
       }
- 
+
       publicCommentList.innerHTML = (data || []).length
         ? data
             .map((c) => {
@@ -2019,26 +2020,26 @@
             .join("")
         : '<li class="muted">No comments yet — be the first!</li>';
     }
- 
+
     feedbackForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       feedbackFormMsg.textContent = "";
       feedbackFormMsg.classList.remove("error", "ok");
- 
+
       const message = feedbackMessageInput.value.trim();
       if (!message) return;
- 
+
       const name = feedbackNameInput.value.trim() || null;
       const type = document.querySelector('input[name="feedback-type"]:checked').value;
- 
+
       const { error } = await supabaseClient.from("feedback").insert({ type, name, message });
- 
+
       if (error) {
         feedbackFormMsg.classList.add("error");
         feedbackFormMsg.textContent = "Could not submit: " + error.message;
         return;
       }
- 
+
       feedbackForm.reset();
       feedbackFormMsg.classList.add("ok");
       feedbackFormMsg.textContent = type === "problem" ? "Thanks — Spoon will see this." : "Thanks for the comment!";
@@ -2046,24 +2047,24 @@
         feedbackFormMsg.textContent = "";
         feedbackFormMsg.classList.remove("ok");
       }, 3000);
- 
+
       if (type === "comment") loadPublicComments();
     });
- 
+
     async function loadNextGameBanner() {
       const { data: seasons, error: seasonErr } = await supabaseClient
         .from("seasons")
         .select("*")
         .eq("is_active", true)
         .limit(1);
- 
+
       if (seasonErr || !seasons || !seasons.length) {
         nextGameBanner.hidden = true;
         return;
       }
- 
+
       const today = new Date().toISOString().slice(0, 10);
- 
+
       const { data: fridays, error } = await supabaseClient
         .from("fridays")
         .select("game_date, location")
@@ -2073,12 +2074,12 @@
         .not("location", "is", null)
         .order("game_date", { ascending: true })
         .limit(1);
- 
+
       if (error || !fridays || !fridays.length || !fridays[0].location) {
         nextGameBanner.hidden = true;
         return;
       }
- 
+
       const next = fridays[0];
       const dateLabel = new Date(next.game_date + "T00:00:00").toLocaleDateString(undefined, {
         weekday: "long",
@@ -2088,13 +2089,13 @@
       nextGameText.textContent = `${dateLabel} — ${next.location}`;
       nextGameBanner.hidden = false;
     }
- 
+
     function showPublicList() {
       publicListView.hidden = false;
       publicPlayerProfile.hidden = true;
       publicFridayDetail.hidden = true;
     }
- 
+
     function switchPublicTab(tab) {
       document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
       document.querySelectorAll(".public-tab").forEach((el) => {
@@ -2102,7 +2103,7 @@
       });
       showPublicList();
     }
- 
+
     // ------------------------------------------------------------------
     // Sound effects — synthesized sounds (no audio files to upload),
     // built with layered tones/noise plus a touch of algorithmic
@@ -2112,7 +2113,7 @@
     // ------------------------------------------------------------------
     let audioCtx = null;
     let audioGraph = null;
- 
+
     function getAudioCtx() {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return null;
@@ -2120,7 +2121,7 @@
       if (audioCtx.state === "suspended") audioCtx.resume();
       return audioCtx;
     }
- 
+
     // A synthetic "impulse response" (decaying noise) fed into a
     // ConvolverNode gives a cheap, file-free room reverb.
     function createImpulseResponse(ctx, duration, decay) {
@@ -2135,7 +2136,7 @@
       }
       return impulse;
     }
- 
+
     // Shared output chain every sound routes through: a dry path and
     // a reverb ("wet") path, both glued together by a limiter so
     // nothing clips.
@@ -2148,30 +2149,30 @@
       compressor.attack.value = 0.003;
       compressor.release.value = 0.18;
       compressor.connect(ctx.destination);
- 
+
       const convolver = ctx.createConvolver();
       convolver.buffer = createImpulseResponse(ctx, 1.1, 3.2);
       const wetSend = ctx.createGain();
       wetSend.gain.value = 0.32;
       wetSend.connect(convolver);
       convolver.connect(compressor);
- 
+
       audioGraph = { compressor, wetSend };
       return audioGraph;
     }
- 
+
     // Connects a gain node to both the dry and reverb paths.
     function routeToOutput(ctx, gainNode) {
       const { compressor, wetSend } = getAudioGraph(ctx);
       gainNode.connect(compressor);
       gainNode.connect(wetSend);
     }
- 
+
     function playChipClick() {
       const ctx = getAudioCtx();
       if (!ctx) return;
       const now = ctx.currentTime;
- 
+
       // Sharp plastic "clack" — bandpassed noise transient.
       const bufferSize = Math.floor(ctx.sampleRate * 0.045);
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -2189,7 +2190,7 @@
       noiseGain.gain.setValueAtTime(0.55, now);
       noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
       noise.connect(bp).connect(noiseGain);
- 
+
       // Short damped "thock" underneath, for a bit of body/resonance.
       const osc = ctx.createOscillator();
       osc.type = "triangle";
@@ -2199,20 +2200,20 @@
       oscGain.gain.setValueAtTime(0.16, now);
       oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
       osc.connect(oscGain);
- 
+
       routeToOutput(ctx, noiseGain);
       routeToOutput(ctx, oscGain);
- 
+
       noise.start(now);
       osc.start(now);
       osc.stop(now + 0.07);
     }
- 
+
     function playCardSnap() {
       const ctx = getAudioCtx();
       if (!ctx) return;
       const now = ctx.currentTime;
- 
+
       const bufferSize = Math.floor(ctx.sampleRate * 0.08);
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
@@ -2229,12 +2230,12 @@
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.6, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
- 
+
       noise.connect(bp).connect(gain);
       routeToOutput(ctx, gain);
       noise.start(now);
     }
- 
+
     // The Pot tab plays an actual recorded cash-register sound
     // (sounds/cha-ching.mp3) rather than a synthesized one — cached
     // after the first play so repeat taps are instant.
@@ -2247,7 +2248,7 @@
       chaChingAudio.currentTime = 0;
       chaChingAudio.play().catch(() => {});
     }
- 
+
     // The High Hands tab plays real recorded card sounds (card fan +
     // pack-open, layered) instead of the synthesized card-snap — same
     // cache-after-first-play pattern as the Pot tab's cha-ching sound.
@@ -2267,7 +2268,7 @@
       cardsPackOpenAudio.currentTime = 0;
       cardsPackOpenAudio.play().catch(() => {});
     }
- 
+
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const tab = btn.dataset.tab;
@@ -2279,67 +2280,67 @@
         switchPublicTab(tab);
       });
     });
- 
+
     document.querySelectorAll(".back-btn").forEach((btn) => {
       btn.addEventListener("click", () => switchPublicTab(btn.dataset.back));
     });
- 
+
     async function loadStandings() {
       const { data: seasons, error: seasonErr } = await supabaseClient
         .from("seasons")
         .select("*")
         .eq("is_active", true)
         .limit(1);
- 
+
       if (seasonErr) {
         seasonProgressLine.textContent = "Could not load the season: " + seasonErr.message;
         standingsBody.innerHTML = "";
         return;
       }
- 
+
       const season = seasons && seasons[0];
       if (!season) {
         seasonProgressLine.textContent = "No active season right now.";
         standingsBody.innerHTML = "";
         return;
       }
- 
+
       const { data: fridays, error: fridaysErr } = await supabaseClient
         .from("fridays")
         .select("id")
         .eq("season_id", season.id)
         .eq("status", "completed");
- 
+
       if (fridaysErr) {
         seasonProgressLine.textContent = "Could not load Fridays: " + fridaysErr.message;
         return;
       }
- 
+
       const fridayIds = (fridays || []).map((f) => f.id);
       seasonProgressLine.textContent = `${season.name} — ${fridayIds.length} Friday${fridayIds.length === 1 ? "" : "s"} played so far`;
- 
+
       if (!fridayIds.length) {
         standingsBody.innerHTML = '<tr><td colspan="7" class="muted">No results recorded yet this season.</td></tr>';
         return;
       }
- 
+
       const { data: results, error: resultsErr } = await supabaseClient
         .from("results")
         .select("player_id, placement, bounty_winner, total_points")
         .in("friday_id", fridayIds);
- 
+
       if (resultsErr) {
         standingsBody.innerHTML = `<tr><td colspan="7" class="muted">Could not load results: ${escapeHtml(resultsErr.message)}</td></tr>`;
         return;
       }
- 
+
       const { data: players, error: playersErr } = await supabaseClient.from("players").select("id, name");
       if (playersErr) {
         standingsBody.innerHTML = `<tr><td colspan="7" class="muted">Could not load players: ${escapeHtml(playersErr.message)}</td></tr>`;
         return;
       }
       const playerMap = new Map(players.map((p) => [p.id, p]));
- 
+
       const agg = new Map();
       for (const r of results || []) {
         if (!agg.has(r.player_id)) agg.set(r.player_id, { points: 0, played: 0, wins: 0, bounties: 0 });
@@ -2349,21 +2350,21 @@
         if (r.placement === 1) a.wins += 1;
         if (r.bounty_winner) a.bounties += 1;
       }
- 
+
       const rows = [...agg.entries()].map(([playerId, stats]) => ({
         playerId,
         name: playerMap.get(playerId)?.name || "Unknown player",
         ...stats,
       }));
       rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
- 
+
       if (!rows.length) {
         standingsBody.innerHTML = '<tr><td colspan="7" class="muted">No results recorded yet this season.</td></tr>';
         return;
       }
- 
+
       const leaderPoints = rows[0].points;
- 
+
       standingsBody.innerHTML = rows
         .map(
           (r, i) => `
@@ -2379,12 +2380,12 @@
       `
         )
         .join("");
- 
+
       standingsBody.querySelectorAll("tr[data-player-id]").forEach((tr) => {
         tr.addEventListener("click", () => showPlayerProfile(tr.dataset.playerId));
       });
     }
- 
+
     // ------------------------------------------------------------------
     // Awards & Bragging Rights - fun, live-updating superlatives computed
     // entirely from this season's existing results/high_hands data (no
@@ -2397,53 +2398,53 @@
       if (!iso) return "";
       return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
     }
- 
+
     async function loadAwards() {
       if (!awardsSection || !awardsGrid) return;
- 
+
       const { data: seasons, error: seasonErr } = await supabaseClient
         .from("seasons")
         .select("*")
         .eq("is_active", true)
         .limit(1);
- 
+
       const season = !seasonErr && seasons ? seasons[0] : null;
       if (!season) {
         awardsSection.hidden = true;
         awardsGrid.innerHTML = "";
         return;
       }
- 
+
       const { data: fridays, error: fridaysErr } = await supabaseClient
         .from("fridays")
         .select("id, game_date")
         .eq("season_id", season.id)
         .eq("status", "completed")
         .order("game_date", { ascending: true });
- 
+
       if (fridaysErr || !fridays || !fridays.length) {
         awardsSection.hidden = true;
         awardsGrid.innerHTML = "";
         return;
       }
- 
+
       const fridayIds = fridays.map((f) => f.id);
       const fridayDateById = new Map(fridays.map((f) => [f.id, f.game_date]));
- 
+
       const [resultsRes, playersRes, handsRes] = await Promise.all([
         supabaseClient.from("results").select("player_id, friday_id, placement, bounty_winner").in("friday_id", fridayIds),
         supabaseClient.from("players").select("id, name"),
         supabaseClient.from("high_hands").select("player_id, friday_id, hand_category, tiebreak_ranks, description").in("friday_id", fridayIds),
       ]);
- 
+
       if (resultsRes.error || playersRes.error || handsRes.error || !resultsRes.data || !playersRes.data) {
         awardsSection.hidden = true;
         awardsGrid.innerHTML = "";
         return;
       }
- 
+
       const playerMap = new Map(playersRes.data.map((p) => [p.id, p]));
- 
+
       // Each player's results, oldest to newest, so streaks and "who hit
       // this count first" tie-breaks can be read off in order.
       const byPlayer = new Map();
@@ -2454,7 +2455,7 @@
       for (const list of byPlayer.values()) {
         list.sort((a, b) => (fridayDateById.get(a.friday_id) || "").localeCompare(fridayDateById.get(b.friday_id) || ""));
       }
- 
+
       // Picks the leader for a "most X" style award. `countFor` returns
       // the qualifying events for a player, oldest-first; the award goes
       // to whoever has the most, and ties go to whoever reached that
@@ -2472,9 +2473,9 @@
         }
         return best;
       }
- 
+
       const cards = [];
- 
+
       // ---- Iron Man: most Fridays played this season ----
       {
         const best = pickMostAward((list) => list);
@@ -2487,7 +2488,7 @@
           });
         }
       }
- 
+
       // ---- Bounty King: most bounty wins this season ----
       {
         const best = pickMostAward((list) => list.filter((r) => r.bounty_winner));
@@ -2500,7 +2501,7 @@
           });
         }
       }
- 
+
       // ---- Hot Streak / Cold Streak: current trailing streak, walking
       // backward from each player's most recent game this season ----
       {
@@ -2547,7 +2548,7 @@
           });
         }
       }
- 
+
       // ---- Best Hand of the Season (reuses the same hand-strength
       // comparison as the High Hands tab's "Season Best" callout) ----
       if (handsRes.data && handsRes.data.length) {
@@ -2565,7 +2566,7 @@
           });
         }
       }
- 
+
       // ---- The Bridesmaid: most 2nd-place finishes, with zero wins ----
       {
         const best = pickMostAward((list) => {
@@ -2581,13 +2582,13 @@
           });
         }
       }
- 
+
       if (!cards.length) {
         awardsSection.hidden = true;
         awardsGrid.innerHTML = "";
         return;
       }
- 
+
       awardsSection.hidden = false;
       awardsGrid.innerHTML = cards
         .map(
@@ -2604,7 +2605,7 @@
         )
         .join("");
     }
- 
+
     // ------------------------------------------------------------------
     // Milestone callouts - shows at the top of the Standings tab, but
     // only in the exact moment a round-number milestone is true: games
@@ -2615,36 +2616,36 @@
     // ------------------------------------------------------------------
     async function loadMilestones() {
       if (!milestoneList) return;
- 
+
       const { data: seasons, error: seasonErr } = await supabaseClient
         .from("seasons")
         .select("*")
         .eq("is_active", true)
         .limit(1);
- 
+
       const season = !seasonErr && seasons ? seasons[0] : null;
       if (!season) {
         milestoneList.innerHTML = "";
         return;
       }
- 
+
       const { data: fridays, error: fridaysErr } = await supabaseClient
         .from("fridays")
         .select("id, pot_players")
         .eq("season_id", season.id)
         .eq("status", "completed");
- 
+
       if (fridaysErr || !fridays) {
         milestoneList.innerHTML = "";
         return;
       }
- 
+
       const gamesPlayed = fridays.length;
       const totalBuyins = fridays.reduce((sum, f) => sum + (f.pot_players || 0), 0);
       const potDollars = totalBuyins * 5;
- 
+
       const banners = [];
- 
+
       // ---- Games left in the season (only if a planned count is set) ----
       if (season.planned_games) {
         const gamesLeft = season.planned_games - gamesPlayed;
@@ -2660,7 +2661,7 @@
           });
         }
       }
- 
+
       // ---- Pot crossing a $100 mark ----
       if (potDollars > 0 && potDollars % 100 === 0) {
         banners.push({
@@ -2668,12 +2669,12 @@
           sub: `${totalBuyins} player buy-in${totalBuyins === 1 ? "" : "s"} this season — $5 each`,
         });
       }
- 
+
       if (!banners.length) {
         milestoneList.innerHTML = "";
         return;
       }
- 
+
       milestoneList.innerHTML = banners
         .map(
           (b) => `
@@ -2686,10 +2687,10 @@
         )
         .join("");
     }
- 
+
     async function loadPublicPlayers() {
       const { data: players, error } = await supabaseClient.from("players").select("*").order("name", { ascending: true });
- 
+
       if (error) {
         publicPlayerList.innerHTML = `<li class="muted">Could not load players: ${escapeHtml(error.message)}</li>`;
         return;
@@ -2698,7 +2699,7 @@
         publicPlayerList.innerHTML = '<li class="muted">No players yet.</li>';
         return;
       }
- 
+
       publicPlayerList.innerHTML = players
         .map(
           (p) => `
@@ -2709,12 +2710,12 @@
       `
         )
         .join("");
- 
+
       publicPlayerList.querySelectorAll("li[data-player-id]").forEach((li) => {
         li.addEventListener("click", () => showPlayerProfile(li.dataset.playerId));
       });
     }
- 
+
     // ------------------------------------------------------------------
     // Hall of Fame - one entry per past (non-active) season, showing
     // whoever finished #1 in points that season. Sits at the bottom of
@@ -2725,47 +2726,47 @@
     // ------------------------------------------------------------------
     async function loadHallOfFame() {
       if (!hofSection || !hofList) return;
- 
+
       const { data: pastSeasons, error: seasonsErr } = await supabaseClient
         .from("seasons")
         .select("id, name, start_date")
         .eq("is_active", false)
         .order("start_date", { ascending: false });
- 
+
       if (seasonsErr || !pastSeasons || !pastSeasons.length) {
         hofSection.hidden = true;
         hofList.innerHTML = "";
         return;
       }
- 
+
       const seasonIds = pastSeasons.map((s) => s.id);
- 
+
       const [fridaysRes, playersRes] = await Promise.all([
         supabaseClient.from("fridays").select("id, season_id").eq("status", "completed").in("season_id", seasonIds),
         supabaseClient.from("players").select("id, name, photo_url"),
       ]);
- 
+
       if (fridaysRes.error || playersRes.error || !fridaysRes.data || !playersRes.data || !fridaysRes.data.length) {
         hofSection.hidden = true;
         hofList.innerHTML = "";
         return;
       }
- 
+
       const fridayIds = fridaysRes.data.map((f) => f.id);
       const seasonIdByFriday = new Map(fridaysRes.data.map((f) => [f.id, f.season_id]));
       const playerMap = new Map(playersRes.data.map((p) => [p.id, p]));
- 
+
       const { data: results, error: resultsErr } = await supabaseClient
         .from("results")
         .select("player_id, friday_id, placement, total_points")
         .in("friday_id", fridayIds);
- 
+
       if (resultsErr || !results) {
         hofSection.hidden = true;
         hofList.innerHTML = "";
         return;
       }
- 
+
       // Aggregate points/wins per player, per season.
       const aggBySeasonPlayer = new Map(); // seasonId -> Map(playerId -> {points, wins})
       for (const r of results) {
@@ -2778,19 +2779,19 @@
         a.points += r.total_points;
         if (r.placement === 1) a.wins += 1;
       }
- 
+
       const entries = [];
       for (const season of pastSeasons) {
         const seasonAgg = aggBySeasonPlayer.get(season.id);
         if (!seasonAgg || !seasonAgg.size) continue;
- 
+
         const standings = [...seasonAgg.entries()].map(([playerId, stats]) => ({
           playerId,
           name: playerMap.get(playerId)?.name || "Unknown player",
           ...stats,
         }));
         standings.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
- 
+
         const champion = standings[0];
         entries.push({
           seasonName: season.name,
@@ -2799,13 +2800,13 @@
           points: champion.points,
         });
       }
- 
+
       if (!entries.length) {
         hofSection.hidden = true;
         hofList.innerHTML = "";
         return;
       }
- 
+
       hofSection.hidden = false;
       hofList.innerHTML = entries
         .map((e) => {
@@ -2827,13 +2828,13 @@
         })
         .join("");
     }
- 
+
     async function loadPublicFridays() {
       const { data: fridays, error } = await supabaseClient
         .from("fridays")
         .select("*, seasons(name)")
         .order("game_date", { ascending: false });
- 
+
       if (error) {
         publicFridayList.innerHTML = `<li class="muted">Could not load Fridays: ${escapeHtml(error.message)}</li>`;
         return;
@@ -2842,7 +2843,7 @@
         publicFridayList.innerHTML = '<li class="muted">No Fridays recorded yet.</li>';
         return;
       }
- 
+
       publicFridayList.innerHTML = fridays
         .map((f) => {
           const badgeClass =
@@ -2857,31 +2858,31 @@
       `;
         })
         .join("");
- 
+
       publicFridayList.querySelectorAll("li[data-friday-id]").forEach((li) => {
         li.addEventListener("click", () => showFridayDetail(li.dataset.fridayId));
       });
     }
- 
+
     async function showPlayerProfile(playerId) {
       const { data: player, error: playerErr } = await supabaseClient
         .from("players")
         .select("*")
         .eq("id", playerId)
         .single();
- 
+
       if (playerErr || !player) return;
- 
+
       profileName.textContent = player.name;
       profileNickname.textContent = player.nickname ? `"${player.nickname}"` : "";
       profileNickname.hidden = !player.nickname;
- 
+
       const { data: history, error: historyErr } = await supabaseClient
         .from("results")
         .select("friday_id, placement, bounty_winner, total_points, fridays(game_date, status, seasons(name))")
         .eq("player_id", playerId)
         .order("game_date", { foreignTable: "fridays", ascending: false });
- 
+
       if (historyErr) {
         profileHistoryBody.innerHTML = `<tr><td colspan="5" class="muted">Could not load history: ${escapeHtml(historyErr.message)}</td></tr>`;
         currentProfileHistory = [];
@@ -2891,7 +2892,7 @@
         const played = (history || []).length;
         const wins = (history || []).filter((r) => r.placement === 1).length;
         const bounties = (history || []).filter((r) => r.bounty_winner).length;
- 
+
         profileStats.innerHTML = `
           <div class="stat-box"><div class="value">${totalPoints}</div><div class="label">Total Points</div></div>
           <div class="stat-box"><div class="value">${played}</div><div class="label">Fridays Played</div></div>
@@ -2899,7 +2900,7 @@
           <div class="stat-box"><div class="value">${wins}</div><div class="label">Wins</div></div>
           <div class="stat-box"><div class="value">${bounties}</div><div class="label">Bounties</div></div>
         `;
- 
+
         profileHistoryBody.innerHTML = (history || []).length
           ? history
               .map(
@@ -2915,20 +2916,20 @@
               )
               .join("")
           : '<tr><td colspan="5" class="muted">No Fridays played yet.</td></tr>';
- 
+
         currentProfileHistory = history || [];
         currentProfileAgg = { totalPoints, played, wins, bounties };
       }
- 
+
       currentProfilePlayerId = playerId;
       currentProfilePlayerName = player.name;
       await populateRivalrySelect(playerId);
- 
+
       publicListView.hidden = true;
       publicFridayDetail.hidden = true;
       publicPlayerProfile.hidden = false;
     }
- 
+
     // ------------------------------------------------------------------
     // Head-to-Head - a fun "tale of the tape" comparing the open profile
     // against another player of your choice: full all-time stats side by
@@ -2938,52 +2939,52 @@
     // ------------------------------------------------------------------
     async function populateRivalrySelect(currentPlayerId) {
       if (!rivalrySection || !rivalrySelect || !rivalryResult) return;
- 
+
       rivalryResult.innerHTML = "";
       rivalrySelect.value = "";
- 
+
       const { data: players, error } = await supabaseClient
         .from("players")
         .select("id, name")
         .order("name", { ascending: true });
- 
+
       const others = !error && players ? players.filter((p) => p.id !== currentPlayerId) : [];
- 
+
       if (!others.length) {
         rivalrySection.hidden = true;
         return;
       }
- 
+
       rivalrySelect.innerHTML =
         '<option value="">Choose a player…</option>' +
         others.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
       rivalrySection.hidden = false;
     }
- 
+
     async function computeRivalry(opponentId) {
       if (!opponentId || !currentProfilePlayerId || !currentProfileAgg) {
         rivalryResult.innerHTML = "";
         return;
       }
- 
+
       rivalryResult.innerHTML = '<p class="muted">Loading…</p>';
- 
+
       const { data: opponent, error: opponentErr } = await supabaseClient
         .from("players")
         .select("id, name")
         .eq("id", opponentId)
         .single();
- 
+
       const { data: oppHistory, error: historyErr } = await supabaseClient
         .from("results")
         .select("friday_id, placement, bounty_winner, total_points")
         .eq("player_id", opponentId);
- 
+
       if (opponentErr || historyErr || !opponent) {
         rivalryResult.innerHTML = '<p class="muted">Could not load that comparison.</p>';
         return;
       }
- 
+
       const oppList = oppHistory || [];
       const oppAgg = {
         totalPoints: oppList.reduce((sum, r) => sum + r.total_points, 0),
@@ -2991,15 +2992,15 @@
         wins: oppList.filter((r) => r.placement === 1).length,
         bounties: oppList.filter((r) => r.bounty_winner).length,
       };
- 
+
       const aName = currentProfilePlayerName;
       const bName = opponent.name;
       const aAgg = currentProfileAgg;
       const aAvg = aAgg.played ? aAgg.totalPoints / aAgg.played : 0;
       const bAvg = oppAgg.played ? oppAgg.totalPoints / oppAgg.played : 0;
- 
+
       const lead = (a, b) => (a > b ? "lead" : "");
- 
+
       let tape = `
         <table class="rivalry-tape">
           <thead><tr><th></th><th>${escapeHtml(aName)}</th><th>${escapeHtml(bName)}</th></tr></thead>
@@ -3012,16 +3013,16 @@
           </tbody>
         </table>
       `;
- 
+
       // Shared nights: Fridays where both players have a recorded result.
       const oppByFriday = new Map(oppList.map((r) => [r.friday_id, r]));
       const shared = currentProfileHistory.filter((r) => oppByFriday.has(r.friday_id));
- 
+
       if (!shared.length) {
         rivalryResult.innerHTML = tape + `<p class="muted">${escapeHtml(aName)} and ${escapeHtml(bName)} haven't played a Friday together yet.</p>`;
         return;
       }
- 
+
       let aBetter = 0;
       let bBetter = 0;
       let aBounties = 0;
@@ -3035,7 +3036,7 @@
         if (r.bounty_winner) aBounties++;
         if (opp.bounty_winner) bBounties++;
       }
- 
+
       let leaderLine;
       if (aBetter === bBetter) {
         leaderLine = `Dead even — ${aBetter} of ${shared.length} nights decided each way`;
@@ -3043,7 +3044,7 @@
         const [leadName, leadCount] = aBetter > bBetter ? [aName, aBetter] : [bName, bBetter];
         leaderLine = `${escapeHtml(leadName)} has the better finish in ${leadCount} of ${shared.length} night${shared.length === 1 ? "" : "s"} played together`;
       }
- 
+
       rivalryResult.innerHTML =
         tape +
         `
@@ -3061,27 +3062,27 @@
         </div>
       `;
     }
- 
+
     if (rivalrySelect) {
       rivalrySelect.addEventListener("change", () => computeRivalry(rivalrySelect.value));
     }
- 
+
     async function showFridayDetail(fridayId) {
       const { data: friday, error: fridayErr } = await supabaseClient
         .from("fridays")
         .select("*, seasons(name)")
         .eq("id", fridayId)
         .single();
- 
+
       if (fridayErr || !friday) return;
- 
+
       fridayDetailDate.textContent = friday.game_date;
       const statusLabel =
         friday.status === "cancelled" ? "Cancelled / No Game" : friday.status === "scheduled" ? "Not Played Yet" : "Completed";
       fridayDetailMeta.textContent = `${friday.seasons?.name || ""} — ${statusLabel}${
         friday.location ? ` — 📍 ${friday.location}` : ""
       }`;
- 
+
       if (friday.status === "cancelled") {
         fridayDetailBody.innerHTML = '<tr><td colspan="4" class="muted">No game was played this night.</td></tr>';
       } else if (friday.status === "scheduled") {
@@ -3092,7 +3093,7 @@
           .select("placement, bounty_winner, total_points, players(name, nickname)")
           .eq("friday_id", fridayId)
           .order("total_points", { ascending: false });
- 
+
         if (resultsErr) {
           fridayDetailBody.innerHTML = `<tr><td colspan="4" class="muted">Could not load results: ${escapeHtml(resultsErr.message)}</td></tr>`;
         } else {
@@ -3112,34 +3113,34 @@
             : '<tr><td colspan="4" class="muted">No results recorded.</td></tr>';
         }
       }
- 
+
       publicListView.hidden = true;
       publicPlayerProfile.hidden = true;
       publicFridayDetail.hidden = false;
     }
- 
+
     async function loadHighHandsPublic() {
       const { data: seasons, error: seasonErr } = await supabaseClient
         .from("seasons")
         .select("*")
         .eq("is_active", true)
         .limit(1);
- 
+
       const activeSeasonRow = !seasonErr && seasons ? seasons[0] : null;
- 
+
       const { data: allHands, error } = await supabaseClient
         .from("high_hands")
         .select("*, fridays(game_date, season_id, seasons(name)), players(name, nickname)")
         .order("recorded_at", { ascending: false });
- 
+
       if (error) {
         publicHighHandList.innerHTML = `<li class="muted">Could not load high hands: ${escapeHtml(error.message)}</li>`;
         seasonHighHandBox.innerHTML = "";
         return;
       }
- 
+
       const hands = allHands || [];
- 
+
       // Work out the best hand within each season, so we can show the
       // current season's best up top, and mark it in the full history below
       // (which stays visible even after a new season high is recorded).
@@ -3152,7 +3153,7 @@
           bestBySeasonId.set(seasonId, hh);
         }
       }
- 
+
       if (!activeSeasonRow) {
         seasonHighHandBox.innerHTML = '<p class="muted">No active season right now.</p>';
       } else {
@@ -3170,12 +3171,12 @@
           `;
         }
       }
- 
+
       if (!hands.length) {
         publicHighHandList.innerHTML = '<li class="muted">No high hands recorded yet.</li>';
         return;
       }
- 
+
       publicHighHandList.innerHTML = hands
         .map((hh) => {
           const seasonBest = bestBySeasonId.get(hh.fridays?.season_id);
@@ -3190,7 +3191,7 @@
         })
         .join("");
     }
- 
+
     // ------------------------------------------------------------------
     // Random Roaster Machine — a just-for-fun feature. Spins three reels,
     // picks a random active player from the real player list, and
@@ -3199,7 +3200,7 @@
     // player list and writes nothing back.
     // ------------------------------------------------------------------
     const SLOT_SYMBOLS = ["♠", "♥", "♦", "♣", "🃏", "🎰", "🔥", "💀", "🍺", "💸"];
- 
+
     const slotReelEls = [
       document.getElementById("slot-reel-1"),
       document.getElementById("slot-reel-2"),
@@ -3213,7 +3214,7 @@
     const slotReplayBtn = document.getElementById("slot-replay-btn");
     const slotErrorEl = document.getElementById("slot-error");
     let lastSlotInsult = "";
- 
+
     // Reads the insult out loud with the browser's built-in speech
     // synthesis. Purely a nice-to-have — if the browser doesn't support
     // it, or speaking fails for any reason, we just stay silent instead
@@ -3235,11 +3236,11 @@
         // Speech is optional; ignore failures silently.
       }
     }
- 
+
     if (slotReplayBtn) {
       slotReplayBtn.addEventListener("click", () => speakSlotInsult(lastSlotInsult));
     }
- 
+
     // Setup + punchline halves, combined and randomized, so the same
     // joke doesn't show up every time. {name} is swapped for the
     // chosen player's name in both halves.
@@ -3563,22 +3564,22 @@
         ],
       },
     };
- 
+
     function pickRandom(arr) {
       return arr[Math.floor(Math.random() * arr.length)];
     }
- 
+
     function randomSlotSymbol() {
       return pickRandom(SLOT_SYMBOLS);
     }
- 
+
     // Remembers the last several setup+punchline combos (per intensity)
     // that have already come up this session, so the machine avoids
     // repeating one you just heard even when luck would otherwise
     // pick it again soon.
     const SLOT_RECENT_LIMIT = 15;
     let slotRecentCombos = [];
- 
+
     function generateInsult(playerName, intensity) {
       const tier = INSULT_COMPONENTS[intensity] || INSULT_COMPONENTS.playful;
       let rawSetup, rawPunchline, comboKey;
@@ -3589,17 +3590,17 @@
         comboKey = `${intensity}::${rawSetup}::${rawPunchline}`;
         attempts++;
       } while (slotRecentCombos.includes(comboKey) && attempts < 20);
- 
+
       slotRecentCombos.push(comboKey);
       if (slotRecentCombos.length > SLOT_RECENT_LIMIT) {
         slotRecentCombos.shift();
       }
- 
+
       const setup = rawSetup.replace(/\{name\}/g, playerName);
       const punchline = rawPunchline.replace(/\{name\}/g, playerName);
       return `${setup} ${punchline}`;
     }
- 
+
     async function getEligibleSlotPlayers() {
       const { data, error } = await supabaseClient
         .from("players")
@@ -3608,18 +3609,18 @@
       if (error || !data) return [];
       return data.filter((p) => p.is_active && p.name && p.name.trim());
     }
- 
+
     // Picks the next player like dealing through a shuffled deck: everyone
     // in the eligible list gets picked once before anyone repeats, then
     // the "deck" reshuffles. This is what keeps the same one or two
     // people from getting roasted over and over by pure bad luck.
     let slotPlayerBag = [];
     let slotLastPickedId = null;
- 
+
     function pickSlotPlayer(players) {
       const eligibleIds = new Set(players.map((p) => p.id));
       slotPlayerBag = slotPlayerBag.filter((id) => eligibleIds.has(id));
- 
+
       if (slotPlayerBag.length === 0) {
         slotPlayerBag = players.map((p) => p.id);
         for (let i = slotPlayerBag.length - 1; i > 0; i--) {
@@ -3634,12 +3635,12 @@
           [slotPlayerBag[0], slotPlayerBag[swapWith]] = [slotPlayerBag[swapWith], slotPlayerBag[0]];
         }
       }
- 
+
       const nextId = slotPlayerBag.shift();
       slotLastPickedId = nextId;
       return players.find((p) => p.id === nextId) || pickRandom(players);
     }
- 
+
     function playReelTick() {
       const ctx = getAudioCtx();
       if (!ctx) return;
@@ -3655,7 +3656,7 @@
       osc.start(now);
       osc.stop(now + 0.03);
     }
- 
+
     function playJackpotFanfare() {
       const ctx = getAudioCtx();
       if (!ctx) return;
@@ -3676,7 +3677,7 @@
         osc.stop(t + 0.36);
       });
     }
- 
+
     // Jackpot wins play this real recorded sound instead of the
     // synthesized fanfare above — same cache-after-first-play pattern
     // as the other real sounds in the app.
@@ -3689,7 +3690,7 @@
       jackpotWinAudio.currentTime = 0;
       jackpotWinAudio.play().catch(() => {});
     }
- 
+
     // Jackpot fireworks — a small dependency-free particle burst drawn on
     // a full-screen canvas overlay. Purely decorative: it sits above
     // everything with pointer-events disabled so it never blocks taps,
@@ -3699,7 +3700,7 @@
     let slotFireworksParticles = [];
     let slotFireworksAnimId = null;
     const SLOT_FIREWORK_COLORS = ["#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93", "#d4af37"];
- 
+
     function spawnFireworkBurst(x, y) {
       const particleCount = 36;
       const color = SLOT_FIREWORK_COLORS[Math.floor(Math.random() * SLOT_FIREWORK_COLORS.length)];
@@ -3716,16 +3717,16 @@
         });
       }
     }
- 
+
     function playJackpotFireworks() {
       if (!slotFireworksCanvas || !slotFireworksCtx) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
- 
+
       slotFireworksCanvas.width = window.innerWidth;
       slotFireworksCanvas.height = window.innerHeight;
       slotFireworksCanvas.hidden = false;
       slotFireworksParticles = [];
- 
+
       const w = slotFireworksCanvas.width;
       const h = slotFireworksCanvas.height;
       const burstPoints = [
@@ -3736,10 +3737,10 @@
       const burstTimeouts = burstPoints.map(([x, y], i) =>
         setTimeout(() => spawnFireworkBurst(x, y), i * 220)
       );
- 
+
       const startTime = performance.now();
       const duration = 2600;
- 
+
       function tick(now) {
         slotFireworksCtx.clearRect(0, 0, w, h);
         slotFireworksParticles.forEach((p) => {
@@ -3755,7 +3756,7 @@
         });
         slotFireworksCtx.globalAlpha = 1;
         slotFireworksParticles = slotFireworksParticles.filter((p) => p.life > 0);
- 
+
         if (now - startTime < duration) {
           slotFireworksAnimId = requestAnimationFrame(tick);
         } else {
@@ -3764,11 +3765,11 @@
           burstTimeouts.forEach(clearTimeout);
         }
       }
- 
+
       if (slotFireworksAnimId) cancelAnimationFrame(slotFireworksAnimId);
       slotFireworksAnimId = requestAnimationFrame(tick);
     }
- 
+
     // A real recorded chip-clatter sound, played right as the reels lock
     // in — same cache-after-first-play pattern as the other real (not
     // synthesized) sounds elsewhere in the app.
@@ -3781,32 +3782,32 @@
       chipsCollideAudio.currentTime = 0;
       chipsCollideAudio.play().catch(() => {});
     }
- 
+
     let slotSpinning = false;
- 
+
     async function spinSlotMachine() {
       if (slotSpinning || !slotSpinBtn) return;
- 
+
       slotErrorEl.textContent = "";
       const players = await getEligibleSlotPlayers();
       if (!players.length) {
         slotErrorEl.textContent = "Add at least one active player before using the Random Roaster Machine.";
         return;
       }
- 
+
       slotSpinning = true;
       slotSpinBtn.disabled = true;
       slotJackpotBanner.hidden = true;
       slotResultPlayer.textContent = "";
       slotResultInsult.textContent = "";
       if (slotReplayBtn) slotReplayBtn.hidden = true;
- 
+
       const chosenPlayer = pickSlotPlayer(players);
       const finalSymbols = [randomSlotSymbol(), randomSlotSymbol(), randomSlotSymbol()];
       const isJackpot = finalSymbols[0] === finalSymbols[1] && finalSymbols[1] === finalSymbols[2];
       const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const stopDelays = [700, 1000, 1400];
- 
+
       if (prefersReducedMotion) {
         slotReelEls.forEach((el, i) => {
           el.textContent = finalSymbols[i];
@@ -3834,42 +3835,56 @@
           )
         );
       }
- 
+
       playRoastLanding();
- 
+
       const intensityInput = document.querySelector('input[name="slot-intensity"]:checked');
       const intensity = intensityInput ? intensityInput.value : "playful";
       let insult = generateInsult(chosenPlayer.name, intensity);
- 
+
       slotResultPlayer.textContent = chosenPlayer.name;
- 
+
       if (isJackpot) {
         slotJackpotBanner.hidden = false;
         insult = `🎰 ROAST JACKPOT! ${insult}`;
         playJackpotWinSound();
         playJackpotFireworks();
       }
- 
+
       slotResultInsult.textContent = insult;
- 
+
       lastSlotInsult = `${chosenPlayer.name}. ${insult}`;
       speakSlotInsult(lastSlotInsult);
       if (slotReplayBtn) slotReplayBtn.hidden = false;
- 
+
       slotSpinning = false;
       slotSpinBtn.disabled = false;
     }
- 
+
     if (slotSpinBtn) {
       slotSpinBtn.addEventListener("click", spinSlotMachine);
     }
- 
+
     // ------------------------------------------------------------------
     // Blackjack — single-player against the dealer, played with pretend
-    // chips stored on this device only (localStorage, not Supabase — this
-    // is just for fun, nothing here touches real scoring or the pot).
-    // Reuses the realistic flipping-card renderer built for High Hands.
+    // chips. The chip balance is tied to whichever league player you say
+    // you are (picked once per device, remembered via localStorage) and
+    // stored in the shared "blackjack_chips" Supabase table — so it's the
+    // same balance no matter which device or browser you play from, and
+    // everyone can see a public Chip Leaderboard. Nothing here touches
+    // real scoring or the pot. Reuses the realistic flipping-card renderer
+    // built for High Hands.
     // ------------------------------------------------------------------
+    const bjPlayerPickerEl = document.getElementById("bj-player-picker");
+    const bjPlayerSelectEl = document.getElementById("bj-player-select");
+    const bjPlayerConfirmBtn = document.getElementById("bj-player-confirm-btn");
+    const bjPlayerErrorEl = document.getElementById("bj-player-error");
+    const bjPlayerBannerEl = document.getElementById("bj-player-banner");
+    const bjPlayerNameEl = document.getElementById("bj-player-name");
+    const bjSwitchPlayerBtn = document.getElementById("bj-switch-player-btn");
+    const bjLeaderboardSection = document.getElementById("bj-leaderboard-section");
+    const bjLeaderboardBody = document.getElementById("bj-leaderboard-body");
+
     const bjBalanceEl = document.getElementById("bj-balance");
     const bjCurrentBetEl = document.getElementById("bj-current-bet");
     const bjBetInput = document.getElementById("bj-bet-input");
@@ -3887,39 +3902,190 @@
     const bjResultEl = document.getElementById("bj-result");
     const bjResetBtn = document.getElementById("bj-reset-btn");
     const bjErrorEl = document.getElementById("bj-error");
- 
-    const BJ_STORAGE_KEY = "pokerLeagueBlackjackChips";
+
+    const BJ_PLAYER_STORAGE_KEY = "pokerLeagueBlackjackPlayerId";
     const BJ_STARTING_BALANCE = 1000;
     const BJ_MIN_BET = 5;
     const BJ_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
     const BJ_SUITS = ["S", "H", "D", "C"];
- 
-    function loadBjBalance() {
-      try {
-        const saved = window.localStorage.getItem(BJ_STORAGE_KEY);
-        const parsed = saved === null ? NaN : parseInt(saved, 10);
-        return Number.isFinite(parsed) && parsed >= 0 ? parsed : BJ_STARTING_BALANCE;
-      } catch (err) {
-        return BJ_STARTING_BALANCE;
-      }
-    }
- 
-    function saveBjBalance(amount) {
-      try {
-        window.localStorage.setItem(BJ_STORAGE_KEY, String(amount));
-      } catch (err) {
-        // localStorage unavailable (private browsing, etc.) — the balance
-        // just won't persist across reloads. It's only pretend chips.
-      }
-    }
- 
-    let bjBalance = loadBjBalance();
+
+    let bjPlayerId = null;
+    let bjPlayerName = "";
+    let bjBalance = 0;
     let bjDeck = [];
     let bjPlayerHand = [];
     let bjDealerHand = [];
     let bjCurrentBet = 0;
     let bjHandActive = false;
- 
+
+    // ---- Shared chip balance (Supabase-backed, keyed by player_id) ----
+
+    async function fetchOrCreateBjBalance(playerId) {
+      const { data, error } = await supabaseClient
+        .from("blackjack_chips")
+        .select("balance")
+        .eq("player_id", playerId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) return data.balance;
+
+      const { data: inserted, error: insertErr } = await supabaseClient
+        .from("blackjack_chips")
+        .insert({ player_id: playerId, balance: BJ_STARTING_BALANCE })
+        .select("balance")
+        .single();
+      if (insertErr) throw insertErr;
+      return inserted.balance;
+    }
+
+    async function persistBjBalance(playerId, amount) {
+      if (!playerId) return;
+      const { error } = await supabaseClient
+        .from("blackjack_chips")
+        .upsert({ player_id: playerId, balance: amount, updated_at: new Date().toISOString() });
+      if (error) {
+        // Pretend chips only — if the shared save fails (offline, RLS, etc.)
+        // the game keeps going locally rather than blocking play.
+        console.error("Could not save Blackjack balance:", error.message);
+      }
+      loadBjLeaderboard();
+    }
+
+    // ---- Chip Leaderboard — everyone's balance, shared across devices ----
+
+    async function loadBjLeaderboard() {
+      if (!bjLeaderboardSection || !bjLeaderboardBody) return;
+
+      const { data, error } = await supabaseClient
+        .from("blackjack_chips")
+        .select("player_id, balance, players(name)")
+        .order("balance", { ascending: false })
+        .limit(10);
+
+      if (error || !data || !data.length) {
+        bjLeaderboardSection.hidden = true;
+        bjLeaderboardBody.innerHTML = "";
+        return;
+      }
+
+      bjLeaderboardSection.hidden = false;
+      bjLeaderboardBody.innerHTML = data
+        .map(
+          (row, i) => `
+        <tr class="${row.player_id === bjPlayerId ? "bj-leaderboard-you" : ""}">
+          <td>${i + 1}</td>
+          <td>${escapeHtml(row.players?.name || "Unknown")}</td>
+          <td>${row.balance.toLocaleString()}</td>
+        </tr>
+      `
+        )
+        .join("");
+    }
+
+    // ---- Who's playing? (picks which league player's chips this device uses) ----
+
+    async function populateBjPlayerSelect() {
+      const { data, error } = await supabaseClient
+        .from("players")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+
+      if (error || !data) {
+        bjPlayerErrorEl.textContent = "Could not load players: " + (error?.message || "unknown error");
+        return [];
+      }
+      bjPlayerSelectEl.innerHTML = data.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+      return data;
+    }
+
+    function showBjPlayerPicker(preselectId) {
+      bjPlayerBannerEl.hidden = true;
+      bjPlayerPickerEl.hidden = false;
+      setBjBetControlsEnabled(false);
+      bjDealBtn.disabled = true;
+      if (preselectId) bjPlayerSelectEl.value = preselectId;
+    }
+
+    async function selectBjPlayer(id, name) {
+      bjPlayerId = id;
+      bjPlayerName = name;
+      try {
+        window.localStorage.setItem(BJ_PLAYER_STORAGE_KEY, id);
+      } catch (err) {
+        // localStorage unavailable (private browsing, etc.) — the device
+        // just won't remember the choice next visit.
+      }
+
+      bjPlayerErrorEl.textContent = "";
+      bjPlayerNameEl.textContent = name;
+      bjPlayerPickerEl.hidden = true;
+      bjPlayerBannerEl.hidden = false;
+
+      bjBalanceEl.textContent = "…";
+      try {
+        bjBalance = await fetchOrCreateBjBalance(id);
+      } catch (err) {
+        bjErrorEl.textContent = "Could not load your chip balance: " + err.message;
+        return;
+      }
+
+      updateBjBalanceDisplay();
+      bjBetInput.max = bjBalance;
+      if (!bjHandActive) {
+        setBjBetControlsEnabled(true);
+        bjDealBtn.disabled = bjBalance < BJ_MIN_BET;
+        bjErrorEl.textContent = bjBalance < BJ_MIN_BET ? "Out of chips — hit Reset Chips to start over." : "";
+      }
+      loadBjLeaderboard();
+    }
+
+    if (bjPlayerConfirmBtn) {
+      bjPlayerConfirmBtn.addEventListener("click", () => {
+        const id = bjPlayerSelectEl.value;
+        const name = bjPlayerSelectEl.selectedOptions[0]?.textContent || "";
+        if (!id) {
+          bjPlayerErrorEl.textContent = "Add at least one active player in Admin first.";
+          return;
+        }
+        selectBjPlayer(id, name);
+      });
+    }
+
+    if (bjSwitchPlayerBtn) {
+      bjSwitchPlayerBtn.addEventListener("click", () => {
+        if (bjHandActive) {
+          bjErrorEl.textContent = "Finish this hand before switching players.";
+          return;
+        }
+        showBjPlayerPicker(bjPlayerId);
+      });
+    }
+
+    async function initBlackjackPlayer() {
+      const players = await populateBjPlayerSelect();
+      if (!players.length) {
+        bjPlayerErrorEl.textContent = "Add at least one active player in Admin before playing Blackjack.";
+        showBjPlayerPicker();
+        return;
+      }
+
+      let rememberedId = null;
+      try {
+        rememberedId = window.localStorage.getItem(BJ_PLAYER_STORAGE_KEY);
+      } catch (err) {
+        rememberedId = null;
+      }
+
+      const remembered = rememberedId ? players.find((p) => p.id === rememberedId) : null;
+      if (remembered) {
+        selectBjPlayer(remembered.id, remembered.name);
+      } else {
+        showBjPlayerPicker();
+      }
+    }
+
     function buildShuffledBjDeck() {
       const deck = [];
       BJ_SUITS.forEach((suit) => {
@@ -3931,18 +4097,18 @@
       }
       return deck;
     }
- 
+
     function bjDrawCard() {
       if (bjDeck.length === 0) bjDeck = buildShuffledBjDeck();
       return bjDeck.pop();
     }
- 
+
     function bjCardValue(rank) {
       if (rank === "A") return 11;
       if (rank === "T" || rank === "J" || rank === "Q" || rank === "K") return 10;
       return parseInt(rank, 10);
     }
- 
+
     function bjHandTotal(cards) {
       let total = 0;
       let aces = 0;
@@ -3957,23 +4123,23 @@
       }
       return total;
     }
- 
+
     function bjIsBlackjack(cards) {
       return cards.length === 2 && bjHandTotal(cards) === 21;
     }
- 
+
     // A static face-down card, styled with the same card back used
     // elsewhere — no reveal animation, since it's meant to stay hidden.
     function renderBjFaceDownCard() {
       return `<span class="real-card"><span class="real-card-flip" style="animation:none; transform:rotateY(360deg);"><span class="card-face card-front">${REAL_CARD_BACK_SVG}</span></span></span>`;
     }
- 
+
     function renderBjHand(container, cards, hideSecondCard) {
       container.innerHTML = cards
         .map((c, i) => (hideSecondCard && i === 1 ? renderBjFaceDownCard() : renderRealCard(c, i)))
         .join("");
     }
- 
+
     function bjTotalLabel(cards, hideSecondCard) {
       if (hideSecondCard) {
         return `(${bjHandTotal([cards[0]])} + ?)`;
@@ -3981,11 +4147,11 @@
       const total = bjHandTotal(cards);
       return bjIsBlackjack(cards) ? `(${total} — Blackjack!)` : `(${total})`;
     }
- 
+
     function updateBjBalanceDisplay() {
       bjBalanceEl.textContent = bjBalance;
     }
- 
+
     function setBjBetControlsEnabled(enabled) {
       bjBetInput.disabled = !enabled;
       bjBetMaxBtn.disabled = !enabled;
@@ -3993,13 +4159,13 @@
         btn.disabled = !enabled;
       });
     }
- 
+
     function setBjActionsEnabled(enabled) {
       bjHitBtn.disabled = !enabled;
       bjStandBtn.disabled = !enabled;
       bjDoubleBtn.disabled = !enabled || bjBalance < bjCurrentBet;
     }
- 
+
     bjBetChipBtns.forEach((btn) => {
       btn.addEventListener("click", () => {
         const add = parseInt(btn.dataset.chip, 10) || 0;
@@ -4008,25 +4174,25 @@
         playChipClick();
       });
     });
- 
+
     if (bjBetMaxBtn) {
       bjBetMaxBtn.addEventListener("click", () => {
         bjBetInput.value = Math.max(bjBalance, BJ_MIN_BET);
         playChipClick();
       });
     }
- 
+
     function determineBjOutcome(dealerTotal, playerTotal) {
       if (dealerTotal > 21) return "win";
       if (playerTotal > dealerTotal) return "win";
       if (playerTotal < dealerTotal) return "lose";
       return "push";
     }
- 
+
     function settleBjHand(outcome) {
       bjHandActive = false;
       let message = "";
- 
+
       if (outcome === "blackjack") {
         const winnings = Math.floor(bjCurrentBet * 1.5);
         bjBalance += bjCurrentBet + winnings;
@@ -4046,19 +4212,19 @@
         message = `You lose ${bjCurrentBet} chips.`;
         bjResultEl.className = "bj-result bj-lose";
       }
- 
-      saveBjBalance(bjBalance);
+
+      persistBjBalance(bjPlayerId, bjBalance);
       updateBjBalanceDisplay();
       bjCurrentBetEl.textContent = "—";
       bjResultEl.textContent = message;
       bjResultEl.hidden = false;
- 
+
       setBjBetControlsEnabled(true);
       bjBetInput.max = bjBalance;
       if (parseInt(bjBetInput.value, 10) > bjBalance) {
         bjBetInput.value = Math.max(Math.min(BJ_MIN_BET, bjBalance), 0);
       }
- 
+
       if (bjBalance < BJ_MIN_BET) {
         bjDealBtn.disabled = true;
         bjErrorEl.textContent = "Out of chips — hit Reset Chips to start over.";
@@ -4066,19 +4232,19 @@
         bjDealBtn.disabled = false;
       }
     }
- 
+
     function finishBjHand() {
       setBjActionsEnabled(false);
       const playerTotal = bjHandTotal(bjPlayerHand);
- 
+
       renderBjHand(bjDealerCardsEl, bjDealerHand, false);
       bjDealerTotalEl.textContent = bjTotalLabel(bjDealerHand, false);
- 
+
       if (playerTotal > 21) {
         setTimeout(() => settleBjHand("lose"), 400);
         return;
       }
- 
+
       function dealerStep() {
         const dealerTotal = bjHandTotal(bjDealerHand);
         if (dealerTotal < 17) {
@@ -4091,10 +4257,10 @@
         }
         settleBjHand(determineBjOutcome(dealerTotal, playerTotal));
       }
- 
+
       setTimeout(dealerStep, 500);
     }
- 
+
     function bjHit() {
       if (!bjHandActive) return;
       bjPlayerHand.push(bjDrawCard());
@@ -4103,20 +4269,20 @@
       const total = bjHandTotal(bjPlayerHand);
       bjPlayerTotalEl.textContent = bjTotalLabel(bjPlayerHand, false);
       bjDoubleBtn.disabled = true;
- 
+
       if (total > 21) {
         finishBjHand();
       } else if (total === 21) {
         bjStand();
       }
     }
- 
+
     function bjStand() {
       if (!bjHandActive) return;
       setBjActionsEnabled(false);
       finishBjHand();
     }
- 
+
     function bjDoubleDown() {
       if (!bjHandActive || bjPlayerHand.length !== 2) return;
       if (bjBalance < bjCurrentBet) {
@@ -4125,23 +4291,27 @@
       }
       bjBalance -= bjCurrentBet;
       bjCurrentBet *= 2;
-      saveBjBalance(bjBalance);
+      persistBjBalance(bjPlayerId, bjBalance);
       updateBjBalanceDisplay();
       bjCurrentBetEl.textContent = bjCurrentBet;
- 
+
       bjPlayerHand.push(bjDrawCard());
       playCardSnap();
       renderBjHand(bjPlayerCardsEl, bjPlayerHand, false);
       bjPlayerTotalEl.textContent = bjTotalLabel(bjPlayerHand, false);
- 
+
       setBjActionsEnabled(false);
       finishBjHand();
     }
- 
+
     function startBjHand() {
       bjErrorEl.textContent = "";
       if (bjHandActive) return;
- 
+      if (!bjPlayerId) {
+        bjErrorEl.textContent = "Pick who's playing first.";
+        return;
+      }
+
       const bet = parseInt(bjBetInput.value, 10);
       if (!Number.isFinite(bet) || bet < BJ_MIN_BET) {
         bjErrorEl.textContent = `Minimum bet is ${BJ_MIN_BET} chips.`;
@@ -4151,30 +4321,30 @@
         bjErrorEl.textContent = "You don't have enough chips for that bet.";
         return;
       }
- 
+
       bjCurrentBet = bet;
       bjBalance -= bet;
-      saveBjBalance(bjBalance);
+      persistBjBalance(bjPlayerId, bjBalance);
       updateBjBalanceDisplay();
       bjCurrentBetEl.textContent = bjCurrentBet;
       setBjBetControlsEnabled(false);
       bjDealBtn.disabled = true;
- 
+
       bjDeck = buildShuffledBjDeck();
       bjPlayerHand = [bjDrawCard(), bjDrawCard()];
       bjDealerHand = [bjDrawCard(), bjDrawCard()];
       bjHandActive = true;
- 
+
       bjTable.hidden = false;
       bjResultEl.hidden = true;
       bjResultEl.className = "bj-result";
- 
+
       playCardSnap();
       renderBjHand(bjPlayerCardsEl, bjPlayerHand, false);
       renderBjHand(bjDealerCardsEl, bjDealerHand, true);
       bjPlayerTotalEl.textContent = bjTotalLabel(bjPlayerHand, false);
       bjDealerTotalEl.textContent = bjTotalLabel(bjDealerHand, true);
- 
+
       if (bjIsBlackjack(bjPlayerHand)) {
         setBjActionsEnabled(false);
         setTimeout(() => {
@@ -4184,21 +4354,25 @@
         }, 500);
         return;
       }
- 
+
       setBjActionsEnabled(true);
     }
- 
+
     if (bjDealBtn) bjDealBtn.addEventListener("click", startBjHand);
     if (bjHitBtn) bjHitBtn.addEventListener("click", bjHit);
     if (bjStandBtn) bjStandBtn.addEventListener("click", bjStand);
     if (bjDoubleBtn) bjDoubleBtn.addEventListener("click", bjDoubleDown);
- 
+
     if (bjResetBtn) {
       bjResetBtn.addEventListener("click", () => {
         if (bjHandActive) return;
+        if (!bjPlayerId) {
+          bjErrorEl.textContent = "Pick who's playing first.";
+          return;
+        }
         if (!window.confirm("Reset your Blackjack chips back to 1000?")) return;
         bjBalance = BJ_STARTING_BALANCE;
-        saveBjBalance(bjBalance);
+        persistBjBalance(bjPlayerId, bjBalance);
         updateBjBalanceDisplay();
         bjBetInput.max = bjBalance;
         bjBetInput.value = Math.min(25, bjBalance);
@@ -4209,16 +4383,11 @@
         bjTable.hidden = true;
       });
     }
- 
+
     if (bjBalanceEl) {
-      updateBjBalanceDisplay();
-      bjBetInput.max = bjBalance;
-      if (bjBalance < BJ_MIN_BET) {
-        bjDealBtn.disabled = true;
-        bjErrorEl.textContent = "Out of chips — hit Reset Chips to start over.";
-      }
+      initBlackjackPlayer();
     }
- 
+
     // ------------------------------------------------------------------
     // Texas Hold'em — single-player against 3 computer opponents, played
     // with pretend chips that reset whenever this tab is reloaded (no
@@ -4252,7 +4421,7 @@
     const heGameOverMessageEl = document.getElementById("he-game-over-message");
     const heRestartBtn = document.getElementById("he-restart-btn");
     const heErrorEl = document.getElementById("he-error");
- 
+
     const HOLDEM_STARTING_STACK = 1000;
     const HOLDEM_SMALL_BLIND = 10;
     const HOLDEM_BIG_BLIND = 20;
@@ -4263,7 +4432,7 @@
       { id: "ai2", name: "Belle", personality: "loose" },
       { id: "ai3", name: "Ace", personality: "tight" },
     ];
- 
+
     // Picks 3 real (active) league players' names to sit in the computer
     // seats, so the table feels like it's actually the tournament regulars
     // rather than made-up characters. Falls back to the generic names above
@@ -4283,7 +4452,7 @@
         return HOLDEM_AI_PROFILES.map((p) => p.name);
       }
     }
- 
+
     // ---- Best-of-7 hand evaluation (built on the existing evaluatePokerHand) ----
     function compareEvaluatedHands(a, b) {
       if (a.category !== b.category) return a.category - b.category; // lower category number = better
@@ -4295,7 +4464,7 @@
       }
       return 0;
     }
- 
+
     function chooseK(arr, k) {
       const results = [];
       function combo(start, chosen) {
@@ -4312,7 +4481,7 @@
       combo(0, []);
       return results;
     }
- 
+
     function evaluateBestHand(cards) {
       if (cards.length === 5) return evaluatePokerHand(cards);
       const combos = chooseK(cards, 5);
@@ -4323,7 +4492,7 @@
       }
       return best;
     }
- 
+
     // ---- Side-pot math (handles uneven all-ins) ----
     function computeSidePots(players) {
       const withMoney = players.filter((p) => p.contributed > 0);
@@ -4342,17 +4511,17 @@
       }
       return pots;
     }
- 
+
     // ---- Betting-round turn order / reopening logic ----
     function rotateAfter(seatOrder, afterId) {
       const idx = seatOrder.indexOf(afterId);
       return [...seatOrder.slice(idx + 1), ...seatOrder.slice(0, idx + 1)];
     }
- 
+
     function nextActionOrder(seatOrder, fromId, players) {
       return rotateAfter(seatOrder, fromId).filter((id) => id !== fromId && !players[id].folded && !players[id].allIn);
     }
- 
+
     // seatOrder is [dealer, sb, bb, ...]. Heads-up is special: preflop the
     // dealer (who also posts the small blind) acts first; postflop the
     // other player (big blind) acts first.
@@ -4373,14 +4542,14 @@
       const anchor = isPreflop ? seatOrder[2] : seatOrder[0];
       return rotateAfter(seatOrder, anchor).filter((id) => activeIds.includes(id));
     }
- 
+
     // ---- Simple AI opponents ----
     const AI_PERSONALITIES = {
       tight: { aggression: 0.12, looseness: 0.05, bluffRate: 0.03 },
       loose: { aggression: 0.03, looseness: 0.16, bluffRate: 0.09 },
       aggressive: { aggression: 0.22, looseness: 0.08, bluffRate: 0.14 },
     };
- 
+
     function estimatePreflopStrength(hole) {
       const r1 = RANK_NUMERIC[hole[0].slice(0, -1)];
       const r2 = RANK_NUMERIC[hole[1].slice(0, -1)];
@@ -4394,7 +4563,7 @@
       if (!pair) score += Math.max(0, 5 - (hi - lo)) * 0.015;
       return Math.max(0, Math.min(1, score));
     }
- 
+
     // Category number alone is a poor proxy for real equity (trips/two pair
     // are much stronger than a linear 1-10 scale implies), so use a rough
     // calibrated table of "typical equity vs a random continuing hand"
@@ -4407,39 +4576,39 @@
       const kickerBonus = ((topTiebreak - 2) / 12) * 0.08 - 0.04;
       return Math.max(0.05, Math.min(0.99, base + kickerBonus));
     }
- 
+
     function computeAiBetAmount(potSize, strength, stack) {
       const raw = Math.round(potSize * (0.4 + strength * 0.35));
       return Math.max(1, Math.min(raw, stack));
     }
- 
+
     function computeAiRaiseAmount(potSize, betToCall, minRaise, strength, stack) {
       const raw = betToCall + Math.round(potSize * (0.5 + strength * 0.4));
       const withFloor = Math.max(betToCall + minRaise, raw);
       return Math.min(withFloor, stack);
     }
- 
+
     function aiDecideAction({ hole, community, street, betToCall, potSize, stack, minRaise, personality }) {
       const p = AI_PERSONALITIES[personality] || AI_PERSONALITIES.tight;
       let strength = street === "preflop" ? estimatePreflopStrength(hole) : estimatePostflopStrength(hole, community);
       strength = Math.max(0, Math.min(1, strength + (Math.random() - 0.5) * p.looseness));
- 
+
       if (betToCall >= stack) {
         const requiredEquity = potSize > 0 ? stack / (potSize + stack) : 1;
         if (strength + 0.1 >= requiredEquity) return { action: "allin", amount: stack };
         return { action: "fold" };
       }
- 
+
       if (Math.random() < p.bluffRate) {
         if (betToCall === 0) return { action: "bet", amount: computeAiBetAmount(potSize, 0.9, stack) };
         return { action: "raise", amount: computeAiRaiseAmount(potSize, betToCall, minRaise, 0.9, stack) };
       }
- 
+
       if (betToCall === 0) {
         if (strength > 0.6 + p.aggression) return { action: "bet", amount: computeAiBetAmount(potSize, strength, stack) };
         return { action: "check" };
       }
- 
+
       const requiredEquity = betToCall / (potSize + betToCall);
       if (strength < requiredEquity - 0.05) return { action: "fold" };
       if (strength > requiredEquity + 0.25 + p.aggression) {
@@ -4447,7 +4616,7 @@
       }
       return { action: "call" };
     }
- 
+
     // ---- Table state ----
     let hePlayers = [];
     let heDealerIndex = 0;
@@ -4460,23 +4629,23 @@
     let heMinRaise = HOLDEM_BIG_BLIND;
     let heHandNumber = 0;
     let heActionTimer = null;
- 
+
     function heById(id) {
       return hePlayers.find((p) => p.id === id);
     }
- 
+
     function heByIdMap() {
       return Object.fromEntries(hePlayers.map((p) => [p.id, p]));
     }
- 
+
     function currentHePotTotal() {
       return hePlayers.reduce((sum, p) => sum + p.totalContributed, 0);
     }
- 
+
     function heCanActCount() {
       return hePlayers.filter((p) => !p.folded && !p.allIn && p.stack > 0).length;
     }
- 
+
     function buildHeInitialPlayers(aiNames) {
       return [
         { id: "human", name: "You", isHuman: true, personality: null, stack: HOLDEM_STARTING_STACK, holeCards: [], folded: false, allIn: false, betThisStreet: 0, totalContributed: 0 },
@@ -4486,16 +4655,16 @@
         })),
       ];
     }
- 
+
     function heDrawCard() {
       if (heDeck.length === 0) heDeck = buildShuffledBjDeck();
       return heDeck.pop();
     }
- 
+
     function dealHeCommunity(n) {
       for (let i = 0; i < n; i++) heCommunity.push(heDrawCard());
     }
- 
+
     function moveChipsIn(player, amt) {
       const actual = Math.max(0, Math.min(amt, player.stack));
       player.stack -= actual;
@@ -4504,11 +4673,11 @@
       if (player.stack === 0) player.allIn = true;
       return actual;
     }
- 
+
     function postHeBlind(playerId, amount) {
       moveChipsIn(heById(playerId), amount);
     }
- 
+
     function logHeAction(msg) {
       if (!heLogEl) return;
       const div = document.createElement("div");
@@ -4517,7 +4686,7 @@
       while (heLogEl.children.length > 8) heLogEl.removeChild(heLogEl.firstChild);
       heLogEl.scrollTop = heLogEl.scrollHeight;
     }
- 
+
     // Cards only get (re-)rendered when what they show actually changes,
     // keyed by element id. Without this, every render (which happens after
     // every action, many times per street) would tear down and rebuild the
@@ -4529,7 +4698,7 @@
       heRenderedSignatures[el.id] = signature;
       el.innerHTML = htmlFn();
     }
- 
+
     // Community cards grow one street at a time (3, then +1, then +1) rather
     // than all at once, so a signature over the whole list would still force
     // a full rebuild - and a re-flip - of the flop cards the moment the turn
@@ -4543,7 +4712,7 @@
         heCommunityRenderedCount++;
       }
     }
- 
+
     // Built once per table (seat ids/order never change within a table, even
     // as players bust out), then only updated in place - never torn down and
     // rebuilt - so a seat's cards don't replay their reveal animation just
@@ -4563,7 +4732,7 @@
         )
         .join("");
     }
- 
+
     function renderHeOpponentSeats(activeTurnId) {
       HOLDEM_AI_PROFILES.forEach((profile) => {
         const seatEl = document.getElementById(`he-seat-${profile.id}`);
@@ -4579,7 +4748,7 @@
         document.getElementById(`he-seat-stack-${profile.id}`).textContent = player.stack;
         document.getElementById(`he-seat-bet-${profile.id}`).textContent = player.betThisStreet > 0 ? `Bet: ${player.betThisStreet}` : "";
         document.getElementById(`he-seat-status-${profile.id}`).textContent = player.folded ? "Folded" : player.allIn ? "All-In" : "";
- 
+
         const cardsEl = document.getElementById(`he-seat-cards-${profile.id}`);
         const showCards = heStreet === "showdown" && !player.folded;
         const sig = player.folded ? "folded" : showCards ? `shown:${player.holeCards.join(",")}` : `hidden:${player.holeCards.length}`;
@@ -4588,7 +4757,7 @@
         );
       });
     }
- 
+
     function renderHeYouSeat() {
       const human = heById("human");
       if (!human) return;
@@ -4599,16 +4768,16 @@
       heYouSeatEl.classList.toggle("he-folded-seat", human.folded);
       heYouSeatEl.classList.toggle("he-active-seat", heToActQueue[0] === "human");
     }
- 
+
     function renderHeState() {
       hePotDisplayEl.textContent = `Pot: ${currentHePotTotal()}`;
       renderHeCommunityCards();
       heStreetLabelEl.textContent = heStreet === "showdown" ? "Showdown" : heStreet.charAt(0).toUpperCase() + heStreet.slice(1);
- 
+
       const activeTurnId = heToActQueue[0];
       renderHeOpponentSeats(activeTurnId);
       renderHeYouSeat();
- 
+
       const human = heById("human");
       if (!human) return;
       const toCall = Math.max(0, heCurrentBet - human.betThisStreet);
@@ -4623,7 +4792,7 @@
       }
       heRaiseBtn.textContent = heCurrentBet === 0 ? "Bet" : "Raise";
     }
- 
+
     function setHeActionsEnabled(enabled) {
       heActionsEl.hidden = !enabled;
       if (!enabled) return;
@@ -4636,7 +4805,7 @@
         b.disabled = !canRaise;
       });
     }
- 
+
     // Figures out how the hand went for the human specifically, so the UI
     // can say it plainly instead of making them read a table of everyone's
     // hands to work it out themselves.
@@ -4647,10 +4816,10 @@
       if (human && human.folded) return { outcome: "fold", amount: 0 };
       return { outcome: "lose", amount: 0 };
     }
- 
+
     function renderHeShowdown(results, winningsById, wonByFold) {
       heShowdownEl.hidden = false;
- 
+
       const { outcome, amount } = heComputeHumanOutcome(winningsById);
       heOutcomeBannerEl.hidden = false;
       heOutcomeBannerEl.className = `he-outcome he-${outcome}`;
@@ -4660,7 +4829,7 @@
           : outcome === "fold"
             ? "You folded this hand."
             : "You lose this hand.";
- 
+
       const lines = [];
       if (wonByFold) {
         const [winnerId, amt] = Object.entries(winningsById)[0];
@@ -4680,20 +4849,20 @@
       renderHeState();
       heNextHandBtn.hidden = false;
     }
- 
+
     function showHeGameOver(message) {
       heGameOverEl.hidden = false;
       heGameOverMessageEl.textContent = message;
       heActionsEl.hidden = true;
       heNextHandBtn.hidden = true;
     }
- 
+
     function goToHeShowdown() {
       heStreet = "showdown";
       const contenders = hePlayers.filter((p) => !p.folded);
       const results = contenders.map((p) => ({ id: p.id, hand: evaluateBestHand([...p.holeCards, ...heCommunity]) }));
       const pots = computeSidePots(hePlayers.map((p) => ({ id: p.id, contributed: p.totalContributed, folded: p.folded })));
- 
+
       const winningsById = {};
       pots.forEach((pot) => {
         const eligibleResults = results.filter((r) => pot.eligible.includes(r.id));
@@ -4710,7 +4879,7 @@
           if (remainder > 0) remainder--;
         });
       });
- 
+
       Object.entries(winningsById).forEach(([id, amt]) => {
         heById(id).stack += amt;
       });
@@ -4721,12 +4890,12 @@
       hePlayers.forEach((p) => {
         p.totalContributed = 0;
       });
- 
+
       if (winningsById.human) playCoinCascade();
       renderHeShowdown(results, winningsById, false);
       finishHeHand();
     }
- 
+
     function awardPotUncontested(winner) {
       const totalPot = currentHePotTotal();
       winner.stack += totalPot;
@@ -4739,39 +4908,39 @@
       renderHeShowdown([], { [winner.id]: totalPot }, true);
       finishHeHand();
     }
- 
+
     function finishHeHand() {
       setHeActionsEnabled(false);
       heActionsEl.hidden = true;
- 
+
       const human = heById("human");
       if (human.stack <= 0) {
         showHeGameOver("You're out of chips — game over.");
         return;
       }
- 
+
       const bustedAi = hePlayers.filter((p) => !p.isHuman && p.stack <= 0);
       bustedAi.forEach((p) => logHeAction(`${p.name} is out of chips and leaves the table.`));
       hePlayers = hePlayers.filter((p) => p.isHuman || p.stack > 0);
- 
+
       if (hePlayers.length === 1) {
         showHeGameOver("You busted every opponent — you win the table! 🏆");
         return;
       }
- 
+
       const priorDealerId = heSeatOrder[0];
       const priorDealerIdx = hePlayers.findIndex((p) => p.id === priorDealerId);
       heDealerIndex = priorDealerIdx === -1 ? 0 : (priorDealerIdx + 1) % hePlayers.length;
       heHandNumber++;
     }
- 
+
     function advanceHeStreet() {
       hePlayers.forEach((p) => {
         p.betThisStreet = 0;
       });
       heCurrentBet = 0;
       heMinRaise = HOLDEM_BIG_BLIND;
- 
+
       if (heStreet === "preflop") {
         dealHeCommunity(3);
         heStreet = "flop";
@@ -4785,29 +4954,29 @@
         goToHeShowdown();
         return;
       }
- 
+
       logHeAction(`— ${heStreet.charAt(0).toUpperCase()}${heStreet.slice(1)} —`);
       playCardSnap();
- 
+
       const activeIds = hePlayers.filter((p) => !p.folded).map((p) => p.id);
       heToActQueue = heCanActCount() <= 1 ? [] : buildStreetOrder(heSeatOrder, activeIds, false).filter((id) => !heById(id).allIn);
- 
+
       renderHeState();
       heActionTimer = setTimeout(advanceHeAction, 900);
     }
- 
+
     function advanceHeAction() {
       const stillIn = hePlayers.filter((p) => !p.folded);
       if (stillIn.length === 1) {
         awardPotUncontested(stillIn[0]);
         return;
       }
- 
+
       if (heToActQueue.length === 0) {
         advanceHeStreet();
         return;
       }
- 
+
       const nextId = heToActQueue[0];
       const nextPlayer = heById(nextId);
       if (nextPlayer.folded || nextPlayer.allIn || nextPlayer.stack === 0) {
@@ -4815,9 +4984,9 @@
         advanceHeAction();
         return;
       }
- 
+
       renderHeState();
- 
+
       if (nextPlayer.isHuman) {
         setHeActionsEnabled(true);
       } else {
@@ -4825,7 +4994,7 @@
         heActionTimer = setTimeout(() => performAiAction(nextPlayer), 900 + Math.random() * 500);
       }
     }
- 
+
     function performAiAction(player) {
       const betToCall = Math.max(0, heCurrentBet - player.betThisStreet);
       const decision = aiDecideAction({
@@ -4840,12 +5009,12 @@
       });
       applyHeAction(player.id, decision.action, decision.amount);
     }
- 
+
     function applyHeAction(playerId, action, amount) {
       const player = heById(playerId);
       if (!player || heToActQueue[0] !== playerId) return;
       heToActQueue.shift();
- 
+
       if (action === "fold") {
         player.folded = true;
         logHeAction(`${player.name} folds.`);
@@ -4871,11 +5040,11 @@
         logHeAction(`${player.name} ${label}`);
         playChipClick();
       }
- 
+
       renderHeState();
       heActionTimer = setTimeout(advanceHeAction, 450);
     }
- 
+
     function startHeHand() {
       heErrorEl.textContent = "";
       heShowdownEl.hidden = true;
@@ -4885,7 +5054,7 @@
       heRenderedSignatures = {}; // fresh hand - let every card animate in again
       heCommunityRenderedCount = 0;
       heCommunityCardsEl.innerHTML = "";
- 
+
       hePlayers.forEach((p) => {
         p.folded = false;
         p.allIn = false;
@@ -4896,14 +5065,14 @@
       heCommunity = [];
       heStreet = "preflop";
       heDeck = buildShuffledBjDeck();
- 
+
       heSeatOrder = [...hePlayers.slice(heDealerIndex), ...hePlayers.slice(0, heDealerIndex)].map((p) => p.id);
- 
+
       for (let round = 0; round < 2; round++) {
         heSeatOrder.forEach((id) => heById(id).holeCards.push(heDrawCard()));
       }
       playCardSnap();
- 
+
       if (heSeatOrder.length === 2) {
         postHeBlind(heSeatOrder[0], HOLDEM_SMALL_BLIND);
         postHeBlind(heSeatOrder[1], HOLDEM_BIG_BLIND);
@@ -4911,22 +5080,22 @@
         postHeBlind(heSeatOrder[1], HOLDEM_SMALL_BLIND);
         postHeBlind(heSeatOrder[2], HOLDEM_BIG_BLIND);
       }
- 
+
       heCurrentBet = Math.max(...hePlayers.map((p) => p.betThisStreet));
       heMinRaise = HOLDEM_BIG_BLIND;
- 
+
       const activeIds = hePlayers.map((p) => p.id);
       heToActQueue = heCanActCount() <= 1 ? [] : buildStreetOrder(heSeatOrder, activeIds, true).filter((id) => !heById(id).allIn);
- 
+
       logHeAction(`— Hand ${heHandNumber + 1}: ${heById(heSeatOrder[0]).name} is the dealer —`);
       renderHeState();
       heActionTimer = setTimeout(advanceHeAction, 500);
     }
- 
+
     if (heFoldBtn) {
       heFoldBtn.addEventListener("click", () => applyHeAction("human", "fold"));
     }
- 
+
     if (heCheckCallBtn) {
       heCheckCallBtn.addEventListener("click", () => {
         const human = heById("human");
@@ -4934,7 +5103,7 @@
         applyHeAction("human", toCall > 0 ? "call" : "check");
       });
     }
- 
+
     if (heRaiseBtn) {
       heRaiseBtn.addEventListener("click", () => {
         const human = heById("human");
@@ -4952,7 +5121,7 @@
         applyHeAction("human", heCurrentBet === 0 ? "bet" : "raise", incremental);
       });
     }
- 
+
     document.querySelectorAll("#he-actions [data-he-quick]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const human = heById("human");
@@ -4971,11 +5140,11 @@
         playChipClick();
       });
     });
- 
+
     if (heNextHandBtn) {
       heNextHandBtn.addEventListener("click", startHeHand);
     }
- 
+
     if (heStartBtn) {
       heStartBtn.addEventListener("click", async () => {
         heStartBtn.disabled = true;
@@ -4990,7 +5159,7 @@
         heStartBtn.disabled = false;
       });
     }
- 
+
     if (heRestartBtn) {
       heRestartBtn.addEventListener("click", async () => {
         heRestartBtn.disabled = true;
@@ -5004,9 +5173,9 @@
         heRestartBtn.disabled = false;
       });
     }
- 
+
     refreshPublicView();
- 
+
     // ------------------------------------------------------------------
     // Utility
     // ------------------------------------------------------------------
@@ -5015,4 +5184,3 @@
       div.textContent = str;
       return div.innerHTML;
     }
- 

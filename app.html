@@ -181,7 +181,20 @@
         <div id="public-tab-blackjack" class="public-tab" hidden>
           <div class="bj-cabinet">
             <div class="bj-marquee">🃏 BLACKJACK 🃏</div>
-            <p class="muted slot-intro">Play against the dealer with pretend chips. Just for fun — nobody's real money or points are touched.</p>
+            <p class="muted slot-intro">Play against the dealer with pretend chips — your balance is shared across every device under your name. Just for fun — nobody's real money or points are touched.</p>
+ 
+            <div id="bj-player-picker" class="bj-player-picker">
+              <label>Who's playing?
+                <select id="bj-player-select"></select>
+              </label>
+              <button id="bj-player-confirm-btn" class="btn btn-small" type="button">Start Playing</button>
+              <p id="bj-player-error" class="error"></p>
+            </div>
+ 
+            <div id="bj-player-banner" class="bj-player-banner" hidden>
+              <span>Playing as <strong id="bj-player-name"></strong></span>
+              <button id="bj-switch-player-btn" class="btn btn-small btn-secondary" type="button">Switch</button>
+            </div>
  
             <div class="stat-grid">
               <div class="stat-box"><div class="value" id="bj-balance">—</div><div class="label">Chips</div></div>
@@ -223,6 +236,17 @@
  
             <button id="bj-reset-btn" class="btn btn-small btn-danger bj-reset-btn" type="button">Reset Chips</button>
             <p id="bj-error" class="error"></p>
+ 
+            <div id="bj-leaderboard-section" class="bj-leaderboard-section" hidden>
+              <h3>Chip Leaderboard</h3>
+              <p class="muted hof-subline">Everyone's Blackjack chips — shared across every device.</p>
+              <div class="table-wrap">
+                <table class="standings-table">
+                  <thead><tr><th>#</th><th>Player</th><th>Chips</th></tr></thead>
+                  <tbody id="bj-leaderboard-body"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
  

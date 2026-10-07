@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
- 
+
 <!-- PWA: lets Android/Chrome offer "Install app" and iPhone "Add to Home Screen" -->
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0f1720" />
@@ -49,7 +49,7 @@
     </div>
     <button id="admin-toggle" class="link-btn" type="button">Admin</button>
   </header>
- 
+
   <main class="container">
     <!-- ===================== PUBLIC VIEW ===================== -->
     <section id="public-view" class="card">
@@ -57,7 +57,7 @@
         <div class="next-game-label">Next Game</div>
         <div id="next-game-text"></div>
       </div>
- 
+
       <div id="public-list-view">
         <nav class="public-tabs">
           <button class="tab-btn active" data-tab="standings" type="button">Standings</button>
@@ -70,7 +70,7 @@
           <button class="tab-btn" data-tab="blackjack" type="button">🃏 Blackjack</button>
           <button class="tab-btn" data-tab="holdem" type="button">♠️ Hold'em</button>
         </nav>
- 
+
         <div id="public-tab-standings" class="public-tab">
           <div id="milestone-list"></div>
           <p id="season-progress-line" class="muted"></p>
@@ -82,7 +82,7 @@
               <tbody id="standings-body"></tbody>
             </table>
           </div>
- 
+
           <div id="awards-section" class="awards-section" hidden>
             <div class="awards-heading">
               <h3>Awards &amp; Bragging Rights</h3>
@@ -91,27 +91,27 @@
             <div class="awards-grid" id="awards-grid"></div>
           </div>
         </div>
- 
+
         <div id="public-tab-players" class="public-tab" hidden>
           <ul id="public-player-list" class="clickable-list"></ul>
- 
+
           <div id="hof-section" class="hof-section" hidden>
             <h3>Hall of Fame</h3>
             <p class="muted hof-subline">Past season champions.</p>
             <div class="hof-list" id="hof-list"></div>
           </div>
         </div>
- 
+
         <div id="public-tab-fridays" class="public-tab" hidden>
           <ul id="public-friday-list" class="clickable-list"></ul>
         </div>
- 
+
         <div id="public-tab-highhands" class="public-tab" hidden>
           <div id="season-high-hand-box"></div>
           <h3 style="margin-top:16px; font-size:0.85rem; text-transform:uppercase; color:var(--muted);">High Hand History</h3>
           <ul id="public-highhand-list"></ul>
         </div>
- 
+
         <div id="public-tab-pot" class="public-tab" hidden>
           <div class="high-hand-callout">
             <div class="hh-callout-label">🏆 Championship Game Pot</div>
@@ -119,7 +119,7 @@
             <div class="hh-callout-meta" id="public-pot-meta"></div>
           </div>
         </div>
- 
+
         <div id="public-tab-feedback" class="public-tab" hidden>
           <form id="feedback-form">
             <label>Your name (optional)
@@ -141,48 +141,48 @@
             <button type="submit" class="btn">Submit</button>
             <p id="feedback-form-msg" class="muted"></p>
           </form>
- 
+
           <h3 style="margin-top:20px; font-size:0.85rem; text-transform:uppercase; color:var(--muted);">Comments</h3>
           <ul id="public-comment-list"></ul>
         </div>
- 
+
         <div id="public-tab-slots" class="public-tab" hidden>
           <canvas id="slot-fireworks-canvas" aria-hidden="true" hidden></canvas>
           <div class="slot-cabinet">
             <div class="slot-marquee">🎰 RANDOM ROASTER MACHINE 🎰</div>
             <p class="muted slot-intro">Spin to pick a random player and roast them. All in good fun — nobody's data or points are affected.</p>
- 
+
             <div class="slot-reels">
               <div class="slot-reel" id="slot-reel-1">♠</div>
               <div class="slot-reel" id="slot-reel-2">♥</div>
               <div class="slot-reel" id="slot-reel-3">♦</div>
             </div>
- 
+
             <div class="slot-intensity-row" role="radiogroup" aria-label="Roast intensity">
               <label class="radio-label"><input type="radio" name="slot-intensity" value="playful" checked> Playful</label>
               <label class="radio-label"><input type="radio" name="slot-intensity" value="savage"> Savage</label>
               <label class="radio-label"><input type="radio" name="slot-intensity" value="adult"> Adult</label>
             </div>
- 
+
             <button id="slot-spin-btn" class="btn slot-spin-btn" type="button">🎰 SPIN</button>
- 
+
             <div id="slot-jackpot-banner" class="slot-jackpot-banner" hidden>🎉 ROAST JACKPOT! 🎉</div>
- 
+
             <div id="slot-result" class="slot-result" aria-live="polite">
               <div id="slot-result-player" class="slot-result-player"></div>
               <div id="slot-result-insult" class="slot-result-insult"></div>
               <button id="slot-replay-btn" class="slot-replay-btn" type="button" hidden>🔊 Read it again</button>
             </div>
- 
+
             <p id="slot-error" class="error"></p>
           </div>
         </div>
- 
+
         <div id="public-tab-blackjack" class="public-tab" hidden>
           <div class="bj-cabinet">
             <div class="bj-marquee">🃏 BLACKJACK 🃏</div>
             <p class="muted slot-intro">Play against the dealer with pretend chips — your balance is shared across every device under your name. Just for fun — nobody's real money or points are touched.</p>
- 
+
             <div id="bj-player-picker" class="bj-player-picker">
               <label>Who's playing?
                 <select id="bj-player-select"></select>
@@ -190,17 +190,17 @@
               <button id="bj-player-confirm-btn" class="btn btn-small" type="button">Start Playing</button>
               <p id="bj-player-error" class="error"></p>
             </div>
- 
+
             <div id="bj-player-banner" class="bj-player-banner" hidden>
               <span>Playing as <strong id="bj-player-name"></strong></span>
               <button id="bj-switch-player-btn" class="btn btn-small btn-secondary" type="button">Switch</button>
             </div>
- 
+
             <div class="stat-grid">
               <div class="stat-box"><div class="value" id="bj-balance">—</div><div class="label">Chips</div></div>
               <div class="stat-box"><div class="value" id="bj-current-bet">—</div><div class="label">Current Bet</div></div>
             </div>
- 
+
             <div id="bj-bet-controls" class="bj-bet-controls">
               <label class="bj-bet-label">Bet
                 <input type="number" id="bj-bet-input" min="5" step="5" value="25">
@@ -213,30 +213,30 @@
               </div>
               <button id="bj-deal-btn" class="btn bj-deal-btn" type="button">Deal</button>
             </div>
- 
+
             <div class="bj-table" id="bj-table" hidden>
               <div class="bj-hand-block">
                 <div class="bj-hand-label">Dealer <span id="bj-dealer-total" class="bj-hand-total"></span></div>
                 <div id="bj-dealer-cards" class="bj-hand"></div>
               </div>
- 
+
               <div class="bj-hand-block">
                 <div class="bj-hand-label">You <span id="bj-player-total" class="bj-hand-total"></span></div>
                 <div id="bj-player-cards" class="bj-hand"></div>
               </div>
- 
+
               <div class="bj-actions" id="bj-actions">
                 <button id="bj-hit-btn" class="btn btn-small" type="button">Hit</button>
                 <button id="bj-stand-btn" class="btn btn-small btn-secondary" type="button">Stand</button>
                 <button id="bj-double-btn" class="btn btn-small btn-secondary" type="button">Double Down</button>
               </div>
- 
+
               <div id="bj-result" class="bj-result" hidden></div>
             </div>
- 
+
             <button id="bj-reset-btn" class="btn btn-small btn-danger bj-reset-btn" type="button">Reset Chips</button>
             <p id="bj-error" class="error"></p>
- 
+
             <div id="bj-leaderboard-section" class="bj-leaderboard-section" hidden>
               <h3>Chip Leaderboard</h3>
               <p class="muted hof-subline">Everyone's Blackjack chips — shared across every device.</p>
@@ -249,31 +249,44 @@
             </div>
           </div>
         </div>
- 
+
         <div id="public-tab-holdem" class="public-tab" hidden>
           <div class="he-cabinet">
             <div class="he-marquee">♠️ TEXAS HOLD'EM ♠️</div>
-            <p class="muted slot-intro">Play a full table against 3 computer opponents. Just for fun — pretend chips only, and the table resets whenever you leave this tab.</p>
- 
-            <div id="he-intro-screen">
-              <button id="he-start-btn" class="btn he-start-btn" type="button">Sit Down &amp; Deal</button>
+            <p class="muted slot-intro">One shared table for the whole league — join from any device. Just for fun — pretend chips only.</p>
+
+            <div id="he-lobby-bar" class="he-lobby-bar">
+              <span id="he-seats-filled-text" class="muted">—</span>
+              <label class="he-ai-toggle">
+                <input type="checkbox" id="he-fill-ai-toggle" checked>
+                Fill empty seats with AI
+              </label>
             </div>
- 
+
+            <div id="he-join-row" class="he-join-row">
+              <label>Who's joining?
+                <select id="he-player-select"></select>
+              </label>
+              <button id="he-join-btn" class="btn he-start-btn" type="button">Join Table</button>
+            </div>
+
+            <div id="he-your-seat-bar" class="he-your-seat-bar" hidden>
+              <span>You're seated as <strong id="he-your-seat-name"></strong> <span id="he-your-seat-stack" class="muted"></span></span>
+              <button id="he-leave-btn" class="btn btn-small btn-secondary" type="button">Leave Table</button>
+            </div>
+
+            <p id="he-waiting-notice" class="muted" hidden>You're seated for the next hand — the current hand is still playing.</p>
+            <p id="he-busted-notice" class="muted" hidden>You're out of chips. Hit "Join Table" again for a fresh 1000.</p>
+
             <div id="he-table" class="he-table" hidden>
-              <div id="he-opponents" class="he-opponents"></div>
- 
+              <div id="he-seats-list" class="he-seats-list"></div>
+
               <div class="he-board-area">
                 <div id="he-pot-display" class="he-pot-display">Pot: 0</div>
                 <div id="he-community-cards" class="he-hand he-community-cards"></div>
                 <div id="he-street-label" class="he-street-label"></div>
               </div>
- 
-              <div id="he-you-seat" class="he-seat he-you-seat">
-                <div class="he-seat-name">You <span id="he-you-stack" class="he-seat-stack"></span></div>
-                <div id="he-you-cards" class="he-hand"></div>
-                <div id="he-you-bet" class="he-seat-bet"></div>
-              </div>
- 
+
               <div id="he-actions" class="he-actions" hidden>
                 <button id="he-fold-btn" class="btn btn-small btn-secondary" type="button">Fold</button>
                 <button id="he-check-call-btn" class="btn btn-small" type="button">Check</button>
@@ -287,32 +300,27 @@
                   <button class="btn btn-small btn-secondary" type="button" data-he-quick="allin">All In</button>
                 </div>
               </div>
- 
+
               <div id="he-log" class="he-log" aria-live="polite"></div>
- 
+
               <div id="he-showdown" class="he-showdown" hidden>
                 <div id="he-outcome-banner" class="he-outcome" hidden></div>
                 <div id="he-showdown-summary"></div>
-                <button id="he-next-hand-btn" class="btn he-next-hand-btn" type="button" hidden>Next Hand</button>
-              </div>
- 
-              <div id="he-game-over" class="he-game-over" hidden>
-                <div id="he-game-over-message"></div>
-                <button id="he-restart-btn" class="btn btn-small btn-danger" type="button">Start New Table</button>
+                <p id="he-next-hand-countdown" class="muted"></p>
               </div>
             </div>
- 
+
             <p id="he-error" class="error"></p>
           </div>
         </div>
       </div>
- 
+
       <div id="public-player-profile" class="public-detail" hidden>
         <button class="btn btn-small btn-secondary back-btn" data-back="players" type="button">&larr; Back to Players</button>
         <h2 id="profile-name"></h2>
         <p id="profile-nickname" class="muted"></p>
         <div class="stat-grid" id="profile-stats"></div>
- 
+
         <div class="rivalry-section" id="rivalry-section" hidden>
           <h3 style="margin-top:20px; font-size:0.95rem;">Head-to-Head</h3>
           <div class="rivalry-vs-row">
@@ -323,7 +331,7 @@
           </div>
           <div id="rivalry-result"></div>
         </div>
- 
+
         <h3 style="margin-top:20px; font-size:0.95rem;">Points History</h3>
         <div class="table-wrap">
           <table class="standings-table">
@@ -332,7 +340,7 @@
           </table>
         </div>
       </div>
- 
+
       <div id="public-friday-detail" class="public-detail" hidden>
         <button class="btn btn-small btn-secondary back-btn" data-back="fridays" type="button">&larr; Back to Fridays</button>
         <h2 id="friday-detail-date"></h2>
@@ -345,10 +353,10 @@
         </div>
       </div>
     </section>
- 
+
     <!-- ===================== ADMIN VIEW ===================== -->
     <section id="admin-view" class="card" hidden>
- 
+
       <!-- Login form -->
       <div id="admin-login">
         <h2>Admin Login</h2>
@@ -363,14 +371,14 @@
           <p id="login-error" class="error"></p>
         </form>
       </div>
- 
+
       <!-- Admin dashboard, shown once logged in -->
       <div id="admin-dashboard" hidden>
         <div class="admin-bar">
           <span id="admin-email"></span>
           <button id="logout-btn" class="btn btn-small btn-secondary" type="button">Log Out</button>
         </div>
- 
+
         <h2>Site Stats</h2>
         <div class="stat-grid">
           <div class="stat-box"><div class="value" id="stat-total-views">—</div><div class="label">Total Views</div></div>
@@ -379,7 +387,7 @@
         <p class="muted" style="margin-top:6px;">Counts page loads by visitors who aren't logged in as admin. Starts counting from when this feature was added — earlier visits aren't included.</p>
         <button id="reset-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Counter</button>
         <p id="stats-error" class="error"></p>
- 
+
         <details id="visit-log-details" class="visit-log-details">
           <summary>Recent Visits <span class="muted">— last 50</span></summary>
           <div class="visit-log-body">
@@ -387,7 +395,7 @@
             <div class="visit-log-wrap" id="visit-log-list"></div>
           </div>
         </details>
- 
+
         <h2 style="margin-top:24px;">Seasons</h2>
         <form id="add-season-form">
           <label>Season name
@@ -403,7 +411,7 @@
         </form>
         <p id="season-error" class="error"></p>
         <ul id="season-list"></ul>
- 
+
         <h2 style="margin-top:24px;">Friday Results</h2>
         <p id="results-no-season" class="muted" hidden>Create and activate a season above before entering Friday results.</p>
         <div id="results-editor" hidden>
@@ -411,37 +419,37 @@
             <input type="date" id="friday-date-input">
           </label>
           <p id="friday-status-line" class="muted"></p>
- 
+
           <label>Location (optional) — announce this before results are in
             <input type="text" id="friday-location-input" placeholder="e.g. Mike's house">
           </label>
           <button id="save-location-btn" class="btn btn-small btn-secondary" type="button">Save Location</button>
           <p id="location-error" class="error"></p>
- 
+
           <label>Players who played tonight (Championship Pot — $5 each)
             <input type="number" id="friday-pot-players-input" min="0" step="1" placeholder="e.g. 6">
           </label>
           <button id="save-pot-btn" class="btn btn-small btn-secondary" type="button">Save Player Count</button>
           <p id="pot-error" class="error"></p>
- 
+
           <div id="results-player-rows"></div>
           <p id="results-error" class="error"></p>
           <div style="display:flex; gap:8px; margin-top:8px;">
             <button id="save-results-btn" class="btn" type="button">Save Results</button>
             <button id="cancel-friday-btn" class="btn btn-danger" type="button">Mark Cancelled / No Game</button>
           </div>
- 
+
           <h3 style="margin-top:22px; font-size:0.95rem;">Recorded Fridays This Season</h3>
           <ul id="friday-list"></ul>
         </div>
- 
+
         <h2 style="margin-top:24px;">Championship Game Pot</h2>
         <p class="muted">$5 per player, added up across every Friday recorded this season.</p>
         <div class="stat-grid">
           <div class="stat-box"><div class="value" id="pot-total-buyins">—</div><div class="label">Total Buy-ins</div></div>
           <div class="stat-box"><div class="value" id="pot-total-dollars">—</div><div class="label">Pot Total</div></div>
         </div>
- 
+
         <h2 style="margin-top:24px;">High Hands</h2>
         <form id="add-highhand-form">
           <label>Date
@@ -466,7 +474,7 @@
         </form>
         <h3 style="margin-top:22px; font-size:0.95rem;">Recorded High Hands</h3>
         <ul id="highhand-list"></ul>
- 
+
         <h2 style="margin-top:24px;">Players</h2>
         <form id="add-player-form">
           <label>Player name
@@ -479,14 +487,14 @@
         </form>
         <p id="player-error" class="error"></p>
         <ul id="player-list"></ul>
- 
+
         <h2 style="margin-top:24px;">Feedback</h2>
         <h3 style="font-size:0.9rem;">Problems Reported</h3>
         <ul id="admin-problem-list"></ul>
         <h3 style="margin-top:16px; font-size:0.9rem;">Comments Posted</h3>
         <ul id="admin-comment-list"></ul>
         <p id="feedback-admin-error" class="error"></p>
- 
+
         <h2 style="margin-top:24px;">Export &amp; Backup</h2>
         <label>Season for the exports below
           <select id="export-season-select"></select>
@@ -505,12 +513,12 @@
       </div>
     </section>
   </main>
- 
+
   <footer class="app-footer">
     <p id="footer-last-updated" class="last-updated"></p>
     <p><img src="icons/spoonlab-logo.png" alt="" class="footer-logo">Created by: Spoon Lab Creations</p>
   </footer>
- 
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="app.js"></script>
   <script>
@@ -522,4 +530,3 @@
   </script>
 </body>
 </html>
- 

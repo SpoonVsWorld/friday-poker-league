@@ -5538,64 +5538,100 @@
       });
     }
 
+    // Every handler below is wrapped in try/catch/finally so a bug never
+    // shows up as a silent "nothing happened" — any failure surfaces as a
+    // message near the table, and heBusyAction always gets released even if
+    // something throws partway through.
     if (heFoldBtn) {
       heFoldBtn.addEventListener("click", async () => {
         if (heMySeat === null || heBusyAction || !heTableRow) return;
         heBusyAction = true;
-        await heCommitAction(heTableRow, heSeats, heMySeat, "fold");
-        heBusyAction = false;
+        try {
+          const ok = await heCommitAction(heTableRow, heSeats, heMySeat, "fold");
+          if (!ok) heErrorEl.textContent = "That didn't go through — someone else may have just acted. Try again.";
+        } catch (err) {
+          console.error("Hold'em fold failed:", err);
+          heErrorEl.textContent = "Fold failed: " + (err?.message || "unknown error");
+        } finally {
+          heBusyAction = false;
+        }
       });
     }
 
     if (heCheckCallBtn) {
       heCheckCallBtn.addEventListener("click", async () => {
         if (heMySeat === null || heBusyAction || !heTableRow) return;
-        const me = heSeats[heMySeat];
-        const toCall = heTableRow.current_bet - me.bet_this_street;
         heBusyAction = true;
-        await heCommitAction(heTableRow, heSeats, heMySeat, toCall > 0 ? "call" : "check");
-        heBusyAction = false;
+        try {
+          const me = heSeats[heMySeat];
+          const toCall = heTableRow.current_bet - me.bet_this_street;
+          const ok = await heCommitAction(heTableRow, heSeats, heMySeat, toCall > 0 ? "call" : "check");
+          if (!ok) heErrorEl.textContent = "That didn't go through — someone else may have just acted. Try again.";
+        } catch (err) {
+          console.error("Hold'em check/call failed:", err);
+          heErrorEl.textContent = "Check/call failed: " + (err?.message || "unknown error");
+        } finally {
+          heBusyAction = false;
+        }
       });
     }
 
     if (heRaiseBtn) {
       heRaiseBtn.addEventListener("click", async () => {
         if (heMySeat === null || heBusyAction || !heTableRow) return;
-        const me = heSeats[heMySeat];
         heErrorEl.textContent = "";
-        const targetTotal = parseInt(heRaiseInput.value, 10);
-        const minTotal = heTableRow.current_bet === 0 ? HOLDEM_BIG_BLIND : heTableRow.current_bet + heTableRow.min_raise;
-        const maxTotal = me.bet_this_street + me.stack;
-        const floorTotal = Math.min(minTotal, maxTotal);
-        if (!Number.isFinite(targetTotal) || targetTotal < floorTotal) {
-          heErrorEl.textContent = `Minimum is ${floorTotal}.`;
-          return;
+        try {
+          const me = heSeats[heMySeat];
+          if (!me) {
+            heErrorEl.textContent = "Couldn't find your seat — try reloading.";
+            return;
+          }
+          const targetTotal = parseInt(heRaiseInput.value, 10);
+          const minTotal = heTableRow.current_bet === 0 ? HOLDEM_BIG_BLIND : heTableRow.current_bet + heTableRow.min_raise;
+          const maxTotal = me.bet_this_street + me.stack;
+          const floorTotal = Math.min(minTotal, maxTotal);
+          if (!Number.isFinite(targetTotal) || targetTotal < floorTotal) {
+            heErrorEl.textContent = `Minimum is ${floorTotal}.`;
+            return;
+          }
+          const clampedTotal = Math.min(targetTotal, maxTotal);
+          const incremental = clampedTotal - me.bet_this_street;
+          heBusyAction = true;
+          const ok = await heCommitAction(heTableRow, heSeats, heMySeat, heTableRow.current_bet === 0 ? "bet" : "raise", incremental);
+          if (!ok) heErrorEl.textContent = "That didn't go through — someone else may have just acted. Try again.";
+        } catch (err) {
+          console.error("Hold'em bet/raise failed:", err);
+          heErrorEl.textContent = "Bet/raise failed: " + (err?.message || "unknown error");
+        } finally {
+          heBusyAction = false;
         }
-        const clampedTotal = Math.min(targetTotal, maxTotal);
-        const incremental = clampedTotal - me.bet_this_street;
-        heBusyAction = true;
-        await heCommitAction(heTableRow, heSeats, heMySeat, heTableRow.current_bet === 0 ? "bet" : "raise", incremental);
-        heBusyAction = false;
       });
     }
 
     document.querySelectorAll("#he-actions [data-he-quick]").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (heMySeat === null || !heTableRow) return;
-        const me = heSeats[heMySeat];
-        const pot = heTableRow.hand_seats.reduce((sum, s) => sum + (heSeats[s] ? heSeats[s].total_contributed : 0), 0);
-        const maxTotal = me.bet_this_street + me.stack;
-        let targetTotal;
-        if (btn.dataset.heQuick === "allin") {
-          targetTotal = maxTotal;
-        } else {
-          const toCall = Math.max(0, heTableRow.current_bet - me.bet_this_street);
-          const potAfterCall = pot + toCall;
-          const raiseSize = btn.dataset.heQuick === "half" ? Math.round(potAfterCall / 2) : potAfterCall;
-          targetTotal = Math.min(maxTotal, heTableRow.current_bet + Math.max(heTableRow.min_raise, raiseSize));
+        try {
+          const me = heSeats[heMySeat];
+          if (!me) return;
+          const pot = heTableRow.hand_seats.reduce((sum, s) => sum + (heSeats[s] ? heSeats[s].total_contributed : 0), 0);
+          const maxTotal = me.bet_this_street + me.stack;
+          let targetTotal;
+          if (btn.dataset.heQuick === "allin") {
+            targetTotal = maxTotal;
+          } else {
+            const toCall = Math.max(0, heTableRow.current_bet - me.bet_this_street);
+            const potAfterCall = pot + toCall;
+            const raiseSize = btn.dataset.heQuick === "half" ? Math.round(potAfterCall / 2) : potAfterCall;
+            targetTotal = Math.min(maxTotal, heTableRow.current_bet + Math.max(heTableRow.min_raise, raiseSize));
+          }
+          heRaiseInput.value = targetTotal;
+          heErrorEl.textContent = `Raise amount set to ${targetTotal} — click Bet/Raise to submit it.`;
+          playChipClick();
+        } catch (err) {
+          console.error("Hold'em quick-bet failed:", err);
+          heErrorEl.textContent = "Quick-bet failed: " + (err?.message || "unknown error");
         }
-        heRaiseInput.value = targetTotal;
-        playChipClick();
       });
     });
 

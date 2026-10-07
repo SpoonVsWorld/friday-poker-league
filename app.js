@@ -5377,7 +5377,7 @@
         heSeatsListEl.innerHTML = seatedNums
           .map(
             (n) => `
-          <div class="he-seat" id="he-seat-${n}">
+          <div class="he-seat he-seat-pos-${n}" id="he-seat-${n}">
             <div class="he-seat-name">${escapeHtml(seats[n].player_name || "")} <span class="he-seat-stack" id="he-seat-stack-${n}"></span></div>
             <div class="he-hand he-hand-small" id="he-seat-cards-${n}"></div>
             <div class="he-seat-bet" id="he-seat-bet-${n}"></div>

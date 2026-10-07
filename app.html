@@ -290,16 +290,21 @@
               </div>
 
               <div id="he-actions" class="he-actions" hidden>
-                <button id="he-fold-btn" class="btn btn-small btn-secondary" type="button">Fold</button>
-                <button id="he-check-call-btn" class="btn btn-small" type="button">Check</button>
-                <div class="he-raise-controls">
-                  <input type="number" id="he-raise-input" min="0" step="10">
-                  <button id="he-raise-btn" class="btn btn-small btn-secondary" type="button">Bet</button>
+                <div class="he-bet-builder">
+                  <input type="range" id="he-raise-slider" class="he-raise-slider" min="0" step="10">
+                  <div class="he-quick-bets">
+                    <button class="btn btn-small btn-secondary" type="button" data-he-quick="half">½ Pot</button>
+                    <button class="btn btn-small btn-secondary" type="button" data-he-quick="pot">Pot</button>
+                    <button class="btn btn-small btn-secondary" type="button" data-he-quick="allin">All In</button>
+                  </div>
                 </div>
-                <div class="he-quick-bets">
-                  <button class="btn btn-small btn-secondary" type="button" data-he-quick="half">½ Pot</button>
-                  <button class="btn btn-small btn-secondary" type="button" data-he-quick="pot">Pot</button>
-                  <button class="btn btn-small btn-secondary" type="button" data-he-quick="allin">All In</button>
+                <div class="he-action-row">
+                  <button id="he-fold-btn" class="btn btn-small" type="button">Fold</button>
+                  <button id="he-check-call-btn" class="btn btn-small" type="button">Check</button>
+                  <div class="he-raise-controls">
+                    <input type="number" id="he-raise-input" min="0" step="10">
+                    <button id="he-raise-btn" class="btn btn-small" type="button">Bet</button>
+                  </div>
                 </div>
               </div>
 

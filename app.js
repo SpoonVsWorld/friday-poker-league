@@ -4425,6 +4425,7 @@
     const heFoldBtn = document.getElementById("he-fold-btn");
     const heCheckCallBtn = document.getElementById("he-check-call-btn");
     const heRaiseInput = document.getElementById("he-raise-input");
+    const heRaiseSlider = document.getElementById("he-raise-slider");
     const heRaiseBtn = document.getElementById("he-raise-btn");
     const heLogEl = document.getElementById("he-log");
     const heShowdownEl = document.getElementById("he-showdown");
@@ -5360,12 +5361,44 @@
 
       heTableEl.hidden = false;
       heRenderHeSeatsList(table, seats);
-      hePotDisplayEl.textContent = `Pot: ${table.hand_seats.reduce((sum, s) => sum + (seats[s] ? seats[s].total_contributed : 0), 0)}`;
+      hePotDisplayEl.innerHTML = `${heChipIconSvg()} Pot: ${table.hand_seats.reduce((sum, s) => sum + (seats[s] ? seats[s].total_contributed : 0), 0).toLocaleString()}`;
       heRenderHeCommunityCards(table);
       heStreetLabelEl.textContent = table.street === "waiting" ? "Waiting for players…" : table.street === "showdown" ? "Showdown" : table.street.charAt(0).toUpperCase() + table.street.slice(1);
       heRenderHeLog(table);
       heRenderHeActions(table, seats);
       heRenderHeShowdown(table, seats);
+    }
+
+    // Initials for a round avatar badge — "Duke" -> "DU", "Matt Smith" -> "MS".
+    function heInitials(name) {
+      if (!name) return "?";
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "?";
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    // A small inline poker-chip glyph used next to stack/pot numbers.
+    function heChipIconSvg() {
+      return (
+        '<svg class="he-chip-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">' +
+        '<circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.92"/>' +
+        '<circle cx="12" cy="12" r="10" fill="none" stroke="#fff" stroke-width="1.6" stroke-dasharray="3 3" opacity="0.75"/>' +
+        '<circle cx="12" cy="12" r="5.5" fill="none" stroke="#fff" stroke-width="1.3" opacity="0.9"/>' +
+        "</svg>"
+      );
+    }
+
+    // Who's on the button and in the blinds this hand, purely for display —
+    // recomputed the same way heStartHand works out the actual blind seats.
+    function heComputeBlindSeats(table) {
+      if (!table.hand_seats || !table.hand_seats.length || table.dealer_seat === null || table.dealer_seat === undefined) {
+        return { sb: null, bb: null };
+      }
+      const seatOrder = heHandSeatOrder(table);
+      if (seatOrder.length < 2) return { sb: null, bb: null };
+      if (seatOrder.length === 2) return { sb: seatOrder[0], bb: seatOrder[1] };
+      return { sb: seatOrder[1], bb: seatOrder[2] };
     }
 
     function heRenderHeSeatsList(table, seats) {
@@ -5378,6 +5411,11 @@
           .map(
             (n) => `
           <div class="he-seat he-seat-pos-${n}" id="he-seat-${n}">
+            <div class="he-position-badges" id="he-badges-${n}"></div>
+            <div class="he-avatar-wrap">
+              <div class="he-timer-ring" id="he-timer-ring-${n}"></div>
+              <div class="he-avatar he-avatar-c${n % 8}" id="he-avatar-${n}"></div>
+            </div>
             <div class="he-seat-name">${escapeHtml(seats[n].player_name || "")} <span class="he-seat-stack" id="he-seat-stack-${n}"></span></div>
             <div class="he-hand he-hand-small" id="he-seat-cards-${n}"></div>
             <div class="he-seat-bet" id="he-seat-bet-${n}"></div>
@@ -5386,10 +5424,15 @@
         `
           )
           .join("");
+        seatedNums.forEach((n) => {
+          const avatarEl = document.getElementById(`he-avatar-${n}`);
+          if (avatarEl) avatarEl.textContent = heInitials(seats[n].player_name);
+        });
       }
 
       const handActive = heIsStreetActive(table.street) || table.street === "showdown";
       const contenders = table.hand_seats.filter((s) => seats[s] && !seats[s].folded);
+      const blinds = handActive ? heComputeBlindSeats(table) : { sb: null, bb: null };
       seatedNums.forEach((n) => {
         const seat = seats[n];
         const seatEl = document.getElementById(`he-seat-${n}`);
@@ -5399,9 +5442,21 @@
         seatEl.classList.toggle("he-seat-you", n === heMySeat);
         seatEl.classList.toggle("he-seat-waiting", heIsStreetActive(table.street) && !table.hand_seats.includes(n));
 
-        document.getElementById(`he-seat-stack-${n}`).textContent = seat.stack;
-        document.getElementById(`he-seat-bet-${n}`).textContent = seat.bet_this_street > 0 ? `Bet: ${seat.bet_this_street}` : "";
-        document.getElementById(`he-seat-status-${n}`).textContent = !table.hand_seats.includes(n) ? "" : seat.folded ? "Folded" : seat.all_in ? "All-In" : "";
+        document.getElementById(`he-seat-stack-${n}`).innerHTML = `${heChipIconSvg()} ${seat.stack.toLocaleString()}`;
+        document.getElementById(`he-seat-bet-${n}`).innerHTML = seat.bet_this_street > 0 ? `${heChipIconSvg()} ${seat.bet_this_street.toLocaleString()}` : "";
+        const isAllIn = table.hand_seats.includes(n) && seat.all_in && !seat.folded;
+        const statusEl = document.getElementById(`he-seat-status-${n}`);
+        statusEl.textContent = !table.hand_seats.includes(n) ? "" : seat.folded ? "Folded" : isAllIn ? "All-In" : "";
+        statusEl.classList.toggle("he-seat-allin", isAllIn);
+
+        const badgesEl = document.getElementById(`he-badges-${n}`);
+        if (badgesEl) {
+          let badgeHtml = "";
+          if (handActive && n === table.dealer_seat) badgeHtml += `<span class="he-badge-dealer">D</span>`;
+          if (handActive && n === blinds.sb) badgeHtml += `<span class="he-badge-sb">SB</span>`;
+          if (handActive && n === blinds.bb) badgeHtml += `<span class="he-badge-bb">BB</span>`;
+          badgesEl.innerHTML = badgeHtml;
+        }
 
         const dealt = table.hand_seats.includes(n) && seat.hole_cards && seat.hole_cards.length > 0;
         const isShowdownReveal = table.street === "showdown" && contenders.length > 1 && !seat.folded && table.hand_seats.includes(n);
@@ -5413,6 +5468,28 @@
           !dealt || seat.folded ? "" : showFaceUp ? renderRealHandCards(seat.hole_cards) : seat.hole_cards.map(() => renderBjFaceDownCard()).join("")
         );
       });
+    }
+
+    // ---- Per-turn countdown ring around the acting seat's avatar ----
+    let heTimerRingTimer = null;
+    function heUpdateTimerRing() {
+      document.querySelectorAll(".he-timer-ring").forEach((el) => {
+        el.style.setProperty("--p", "0");
+        el.classList.remove("he-timer-ring-active");
+      });
+      if (!heTableRow) return;
+      const table = heTableRow;
+      if (!heIsStreetActive(table.street) || table.action_seat === null || table.action_seat === undefined || !table.action_deadline) return;
+      const seat = heSeats[table.action_seat];
+      if (!seat) return;
+      const total = seat.is_ai ? HOLDEM_AI_THINK_MS : HOLDEM_ACTION_TIMEOUT_MS;
+      const remaining = new Date(table.action_deadline).getTime() - Date.now();
+      const frac = Math.max(0, Math.min(1, remaining / total));
+      const ringEl = document.getElementById(`he-timer-ring-${table.action_seat}`);
+      if (ringEl) {
+        ringEl.style.setProperty("--p", String(frac * 100));
+        ringEl.classList.add("he-timer-ring-active");
+      }
     }
 
     function heRenderHeCommunityCards(table) {
@@ -5459,6 +5536,14 @@
       document.querySelectorAll("#he-actions [data-he-quick]").forEach((b) => {
         b.disabled = !canRaise;
       });
+
+      if (heRaiseSlider) {
+        heRaiseSlider.min = floorTotal;
+        heRaiseSlider.max = maxTotal;
+        heRaiseSlider.step = maxTotal - floorTotal > 400 ? 20 : 10;
+        heRaiseSlider.disabled = !canRaise;
+        if (parseInt(heRaiseSlider.value, 10) !== parseInt(heRaiseInput.value, 10)) heRaiseSlider.value = heRaiseInput.value;
+      }
     }
 
     function heRenderHeShowdown(table, seats) {
@@ -5608,6 +5693,18 @@
       });
     }
 
+    // Slide-to-bet: the slider and the number field stay in sync either way.
+    if (heRaiseSlider) {
+      heRaiseSlider.addEventListener("input", () => {
+        heRaiseInput.value = heRaiseSlider.value;
+      });
+    }
+    if (heRaiseInput) {
+      heRaiseInput.addEventListener("input", () => {
+        if (heRaiseSlider) heRaiseSlider.value = heRaiseInput.value;
+      });
+    }
+
     document.querySelectorAll("#he-actions [data-he-quick]").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (heMySeat === null || !heTableRow) return;
@@ -5626,6 +5723,7 @@
             targetTotal = Math.min(maxTotal, heTableRow.current_bet + Math.max(heTableRow.min_raise, raiseSize));
           }
           heRaiseInput.value = targetTotal;
+          if (heRaiseSlider) heRaiseSlider.value = targetTotal;
           heErrorEl.textContent = `Raise amount set to ${targetTotal} — click Bet/Raise to submit it.`;
           playChipClick();
         } catch (err) {
@@ -5652,6 +5750,7 @@
         heMyPlayerId = heSeats[rememberedSeat].player_id;
       }
       heStartTickLoop();
+      if (!heTimerRingTimer) heTimerRingTimer = setInterval(heUpdateTimerRing, 250);
       heRenderHoldem();
     }
 

@@ -1496,6 +1496,79 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   text-align: left;
 }
 
+.he-lobby-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+  font-size: 0.85rem;
+}
+
+.he-ai-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-direction: row;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.he-ai-toggle input {
+  width: auto;
+}
+
+.he-join-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.he-join-row label {
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+
+.he-your-seat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: rgba(16, 26, 36, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.he-your-seat-bar strong {
+  color: var(--poker-gold);
+}
+
+.he-seats-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.he-seat-you {
+  border-color: var(--poker-gold) !important;
+  box-shadow: 0 0 0 2px rgba(var(--poker-gold-rgb), 0.3);
+}
+
+.he-seat-waiting {
+  opacity: 0.65;
+}
+
 .he-opponents {
   display: flex;
   flex-wrap: wrap;

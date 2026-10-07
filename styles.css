@@ -1603,13 +1603,13 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
    regardless of who's currently occupying it. Laid out clockwise starting
    at the bottom, like seats around an oval table. */
 .he-seat-pos-0 { left: 50%; top: 94%; }
-.he-seat-pos-1 { left: 83%; top: 82%; }
-.he-seat-pos-2 { left: 96%; top: 50%; }
-.he-seat-pos-3 { left: 83%; top: 18%; }
+.he-seat-pos-1 { left: 17%; top: 82%; }
+.he-seat-pos-2 { left: 4%; top: 50%; }
+.he-seat-pos-3 { left: 17%; top: 18%; }
 .he-seat-pos-4 { left: 50%; top: 6%; }
-.he-seat-pos-5 { left: 17%; top: 18%; }
-.he-seat-pos-6 { left: 4%; top: 50%; }
-.he-seat-pos-7 { left: 17%; top: 82%; }
+.he-seat-pos-5 { left: 83%; top: 18%; }
+.he-seat-pos-6 { left: 96%; top: 50%; }
+.he-seat-pos-7 { left: 83%; top: 82%; }
 
 .he-active-seat {
   border-color: var(--poker-gold);

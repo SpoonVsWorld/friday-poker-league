@@ -1593,10 +1593,99 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   background: rgba(10, 18, 14, 0.82);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 6px 7px;
-  width: 92px;
+  padding: 8px 7px 6px;
+  width: 94px;
   text-align: center;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, left 0.2s ease, top 0.2s ease;
+}
+
+/* Dealer-button / blind badges, pinned above the seat card. */
+.he-position-badges {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.he-badge-dealer, .he-badge-sb, .he-badge-bb {
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 8px;
+  line-height: 1.4;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.he-badge-dealer {
+  background: var(--poker-gold);
+  color: var(--poker-gold-ink);
+}
+
+.he-badge-sb {
+  background: rgba(240, 243, 247, 0.92);
+  color: #1c2530;
+}
+
+.he-badge-bb {
+  background: rgba(var(--poker-red-rgb), 0.92);
+  color: #fff;
+}
+
+/* Round avatar with initials, plus the countdown ring for whoever's turn
+   it is (drawn with a conic-gradient masked into a ring shape). */
+.he-avatar-wrap {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 4px;
+}
+
+.he-timer-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(var(--poker-gold) calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.12) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  opacity: 0;
+  transition: background 0.2s linear, opacity 0.2s ease;
+}
+
+.he-timer-ring-active {
+  opacity: 1;
+}
+
+.he-avatar {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+}
+
+.he-avatar-c0 { background: #5b7c99; }
+.he-avatar-c1 { background: #9c5b8c; }
+.he-avatar-c2 { background: #4e9c6e; }
+.he-avatar-c3 { background: #a1792f; }
+.he-avatar-c4 { background: #6a5b9c; }
+.he-avatar-c5 { background: #a15050; }
+.he-avatar-c6 { background: #3a85a3; }
+.he-avatar-c7 { background: #7c9c3a; }
+
+.he-chip-icon {
+  color: var(--poker-gold);
+  vertical-align: -2px;
+  margin-right: 1px;
 }
 
 /* Fixed rim positions by physical seat number (0-7), so a seat stays put
@@ -1655,6 +1744,21 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   font-weight: 700;
 }
 
+.he-seat-status.he-seat-allin {
+  display: inline-block;
+  color: #fff;
+  background: rgba(var(--poker-red-rgb), 0.85);
+  border-radius: 6px;
+  padding: 1px 6px;
+  letter-spacing: 0.03em;
+  animation: he-allin-pulse 1s ease-in-out infinite;
+}
+
+@keyframes he-allin-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--poker-red-rgb), 0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(var(--poker-red-rgb), 0); }
+}
+
 .he-board-area {
   position: absolute;
   left: 50%;
@@ -1692,11 +1796,58 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 
 .he-actions {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.he-bet-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.he-raise-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(var(--poker-gold-rgb), 0.5), rgba(var(--poker-gold-rgb), 0.15));
+  outline: none;
+}
+
+.he-raise-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--poker-gold), var(--poker-gold-dark));
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.he-raise-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--poker-gold), var(--poker-gold-dark));
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.he-raise-slider:disabled {
+  opacity: 0.4;
+}
+
+.he-action-row {
+  display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
   align-items: center;
-  margin-bottom: 14px;
 }
 
 .he-raise-controls {
@@ -1718,8 +1869,37 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 .he-quick-bets {
   display: flex;
   gap: 6px;
-  flex-basis: 100%;
   justify-content: center;
+}
+
+/* Color-coded like most live-poker apps: red fold, blue check/call, green
+   bet/raise, so the acting player can tell the buttons apart at a glance. */
+#he-fold-btn {
+  background: transparent;
+  border: 1px solid rgba(var(--poker-red-rgb), 0.55);
+  color: #ffb4b4;
+}
+
+#he-fold-btn:hover {
+  border-color: rgba(var(--poker-red-rgb), 0.85);
+  background: rgba(var(--poker-red-rgb), 0.1);
+}
+
+#he-check-call-btn {
+  background: linear-gradient(180deg, #4a9fe0, #1f5f94);
+  border: none;
+  color: #fff;
+}
+
+#he-raise-btn {
+  background: linear-gradient(180deg, var(--poker-green), var(--poker-green-dark));
+  border: none;
+  color: #fff;
+}
+
+#he-raise-btn:disabled {
+  background: var(--card-bg);
+  color: var(--muted);
 }
 
 .he-log {
@@ -1805,5 +1985,29 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   .he-board-area {
     width: 76%;
     padding: 8px 10px;
+  }
+
+  .he-avatar-wrap {
+    width: 28px;
+    height: 28px;
+  }
+
+  .he-avatar {
+    font-size: 0.65rem;
+  }
+
+  .he-badge-dealer, .he-badge-sb, .he-badge-bb {
+    font-size: 0.55rem;
+    padding: 1px 4px;
+  }
+
+  .he-raise-slider::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+  }
+
+  .he-raise-slider::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
   }
 }

@@ -4389,24 +4389,38 @@
     }
 
     // ------------------------------------------------------------------
-    // Texas Hold'em — single-player against 3 computer opponents, played
-    // with pretend chips that reset whenever this tab is reloaded (no
-    // localStorage here, unlike Blackjack — a full table's worth of state
-    // isn't worth persisting for a just-for-fun feature). Reuses the same
-    // realistic card renderer, hand evaluator, and sound effects as the
-    // rest of the app.
+    // Texas Hold'em — one shared table for the whole league. Every visitor's
+    // browser reads/writes the same Supabase rows (holdem_table + the 8
+    // holdem_seats), synced live via Realtime, so anyone who joins from any
+    // device is playing at the same table together. One connected browser is
+    // elected "host" at a time and is responsible for dealing, running AI
+    // turns, and auto-folding anyone who goes quiet on their turn; everyone
+    // else's browser writes only its own seat's own actions. Same realistic
+    // card renderer, hand evaluator, and sound effects as the rest of the app.
+    //
+    // Trust note: like Feedback and the Blackjack chip balance, this site has
+    // no visitor login, so nothing stops someone from editing any seat (or
+    // reading anyone's hole cards) via the raw API. The UI never shows you
+    // someone else's cards. Fine for a trusted friend group, not a real
+    // security boundary.
     // ------------------------------------------------------------------
-    const heIntroScreen = document.getElementById("he-intro-screen");
-    const heStartBtn = document.getElementById("he-start-btn");
+    const heLobbyBarEl = document.getElementById("he-lobby-bar");
+    const heSeatsFilledTextEl = document.getElementById("he-seats-filled-text");
+    const heFillAiToggleEl = document.getElementById("he-fill-ai-toggle");
+    const heJoinRowEl = document.getElementById("he-join-row");
+    const hePlayerSelectEl = document.getElementById("he-player-select");
+    const heJoinBtn = document.getElementById("he-join-btn");
+    const heYourSeatBarEl = document.getElementById("he-your-seat-bar");
+    const heYourSeatNameEl = document.getElementById("he-your-seat-name");
+    const heYourSeatStackEl = document.getElementById("he-your-seat-stack");
+    const heLeaveBtn = document.getElementById("he-leave-btn");
+    const heWaitingNoticeEl = document.getElementById("he-waiting-notice");
+    const heBustedNoticeEl = document.getElementById("he-busted-notice");
     const heTableEl = document.getElementById("he-table");
-    const heOpponentsEl = document.getElementById("he-opponents");
+    const heSeatsListEl = document.getElementById("he-seats-list");
     const hePotDisplayEl = document.getElementById("he-pot-display");
     const heCommunityCardsEl = document.getElementById("he-community-cards");
     const heStreetLabelEl = document.getElementById("he-street-label");
-    const heYouSeatEl = document.getElementById("he-you-seat");
-    const heYouStackEl = document.getElementById("he-you-stack");
-    const heYouCardsEl = document.getElementById("he-you-cards");
-    const heYouBetEl = document.getElementById("he-you-bet");
     const heActionsEl = document.getElementById("he-actions");
     const heFoldBtn = document.getElementById("he-fold-btn");
     const heCheckCallBtn = document.getElementById("he-check-call-btn");
@@ -4416,42 +4430,34 @@
     const heShowdownEl = document.getElementById("he-showdown");
     const heOutcomeBannerEl = document.getElementById("he-outcome-banner");
     const heShowdownSummaryEl = document.getElementById("he-showdown-summary");
-    const heNextHandBtn = document.getElementById("he-next-hand-btn");
-    const heGameOverEl = document.getElementById("he-game-over");
-    const heGameOverMessageEl = document.getElementById("he-game-over-message");
-    const heRestartBtn = document.getElementById("he-restart-btn");
+    const heNextHandCountdownEl = document.getElementById("he-next-hand-countdown");
     const heErrorEl = document.getElementById("he-error");
 
+    const HOLDEM_SEAT_COUNT = 8;
     const HOLDEM_STARTING_STACK = 1000;
     const HOLDEM_SMALL_BLIND = 10;
     const HOLDEM_BIG_BLIND = 20;
-    // Fallback names/personalities for the 3 computer seats - used if the real
-    // player roster can't be loaded. Personality stays tied to the seat id.
-    const HOLDEM_AI_PROFILES = [
-      { id: "ai1", name: "Duke", personality: "aggressive" },
-      { id: "ai2", name: "Belle", personality: "loose" },
-      { id: "ai3", name: "Ace", personality: "tight" },
-    ];
+    const HOLDEM_ACTION_TIMEOUT_MS = 45000; // humans get 45s to act before being auto-folded
+    const HOLDEM_AI_THINK_MS = 1400; // AI seats "act" quickly instead of waiting out the timeout
+    const HOLDEM_SHOWDOWN_PAUSE_MS = 6000; // pause after a hand ends before the next one is dealt
+    const HOLDEM_HOST_STALE_MS = 8000; // how long before another seated browser can take over as host
+    const HOLDEM_DISCONNECT_MS = 90000; // seated-but-quiet humans get freed up after ~90s between hands
+    const HOLDEM_TICK_MS = 1000;
+    const HOLDEM_SEAT_STORAGE_KEY = "pokerLeagueHoldemSeat";
 
-    // Picks 3 real (active) league players' names to sit in the computer
-    // seats, so the table feels like it's actually the tournament regulars
-    // rather than made-up characters. Falls back to the generic names above
-    // for any seat it can't fill (fetch failure, or fewer than 3 active
-    // players on file).
-    async function pickHoldemOpponentNames() {
-      try {
-        const { data, error } = await supabaseClient.from("players").select("name").eq("is_active", true);
-        if (error || !data || !data.length) return HOLDEM_AI_PROFILES.map((p) => p.name);
-        const pool = data.map((p) => p.name).filter(Boolean);
-        for (let i = pool.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [pool[i], pool[j]] = [pool[j], pool[i]];
-        }
-        return HOLDEM_AI_PROFILES.map((profile, i) => pool[i] || profile.name);
-      } catch (err) {
-        return HOLDEM_AI_PROFILES.map((p) => p.name);
-      }
-    }
+    // Fallback names/personalities for AI-filled seats. Assigned deterministically
+    // by seat number (seat 0 -> pool[0], etc.) so every browser agrees on who's
+    // who without needing to coordinate the choice.
+    const HOLDEM_AI_POOL = [
+      { name: "Duke", personality: "aggressive" },
+      { name: "Belle", personality: "loose" },
+      { name: "Ace", personality: "tight" },
+      { name: "Trix", personality: "loose" },
+      { name: "Reed", personality: "tight" },
+      { name: "Cruz", personality: "aggressive" },
+      { name: "Nova", personality: "loose" },
+      { name: "Hawk", personality: "tight" },
+    ];
 
     // ---- Best-of-7 hand evaluation (built on the existing evaluatePokerHand) ----
     function compareEvaluatedHands(a, b) {
@@ -4617,188 +4623,837 @@
       return { action: "call" };
     }
 
-    // ---- Table state ----
-    let hePlayers = [];
-    let heDealerIndex = 0;
-    let heDeck = [];
-    let heCommunity = [];
-    let heStreet = "preflop";
-    let heSeatOrder = [];
-    let heToActQueue = [];
-    let heCurrentBet = 0;
-    let heMinRaise = HOLDEM_BIG_BLIND;
-    let heHandNumber = 0;
-    let heActionTimer = null;
-
-    function heById(id) {
-      return hePlayers.find((p) => p.id === id);
-    }
-
-    function heByIdMap() {
-      return Object.fromEntries(hePlayers.map((p) => [p.id, p]));
-    }
-
-    function currentHePotTotal() {
-      return hePlayers.reduce((sum, p) => sum + p.totalContributed, 0);
-    }
-
-    function heCanActCount() {
-      return hePlayers.filter((p) => !p.folded && !p.allIn && p.stack > 0).length;
-    }
-
-    function buildHeInitialPlayers(aiNames) {
-      return [
-        { id: "human", name: "You", isHuman: true, personality: null, stack: HOLDEM_STARTING_STACK, holeCards: [], folded: false, allIn: false, betThisStreet: 0, totalContributed: 0 },
-        ...HOLDEM_AI_PROFILES.map((p, i) => ({
-          id: p.id, name: (aiNames && aiNames[i]) || p.name, isHuman: false, personality: p.personality,
-          stack: HOLDEM_STARTING_STACK, holeCards: [], folded: false, allIn: false, betThisStreet: 0, totalContributed: 0,
-        })),
-      ];
-    }
-
-    function heDrawCard() {
-      if (heDeck.length === 0) heDeck = buildShuffledBjDeck();
-      return heDeck.pop();
-    }
-
-    function dealHeCommunity(n) {
-      for (let i = 0; i < n; i++) heCommunity.push(heDrawCard());
-    }
-
-    function moveChipsIn(player, amt) {
-      const actual = Math.max(0, Math.min(amt, player.stack));
-      player.stack -= actual;
-      player.betThisStreet += actual;
-      player.totalContributed += actual;
-      if (player.stack === 0) player.allIn = true;
-      return actual;
-    }
-
-    function postHeBlind(playerId, amount) {
-      moveChipsIn(heById(playerId), amount);
-    }
-
-    function logHeAction(msg) {
-      if (!heLogEl) return;
-      const div = document.createElement("div");
-      div.textContent = msg;
-      heLogEl.appendChild(div);
-      while (heLogEl.children.length > 8) heLogEl.removeChild(heLogEl.firstChild);
-      heLogEl.scrollTop = heLogEl.scrollHeight;
-    }
+    // ---- Shared table state (mirrors the holdem_table / holdem_seats rows) ----
+    let heTableRow = null; // last-known holdem_table row (snake_case fields, straight from Supabase)
+    let heSeats = new Array(HOLDEM_SEAT_COUNT).fill(null); // index = seat_number
+    let heMySeat = null; // seat_number this browser currently occupies, or null
+    let heMyPlayerId = null; // the league player id seated in heMySeat
+    let heAmHost = false;
+    let heChannel = null;
+    let heTickTimer = null;
+    let heLastHeartbeatAt = 0;
+    let heBusyAction = false; // guards against double-submitting while a write is in flight
+    let heShowBustedNotice = false;
+    let heRenderedSignatures = {};
+    let heSeatsListSignature = "";
+    let heLastHandNumberSeen = -1;
 
     // Cards only get (re-)rendered when what they show actually changes,
-    // keyed by element id. Without this, every render (which happens after
-    // every action, many times per street) would tear down and rebuild the
-    // card markup wholesale - replaying the flip-in animation each time and
-    // making already-dealt cards look like they're re-shuffling in place.
-    let heRenderedSignatures = {};
+    // keyed by element id, so an action elsewhere on the table doesn't replay
+    // the flip-in animation on cards that haven't changed.
     function renderCardsIfChanged(el, signature, htmlFn) {
       if (!el || heRenderedSignatures[el.id] === signature) return;
       heRenderedSignatures[el.id] = signature;
       el.innerHTML = htmlFn();
     }
 
-    // Community cards grow one street at a time (3, then +1, then +1) rather
-    // than all at once, so a signature over the whole list would still force
-    // a full rebuild - and a re-flip - of the flop cards the moment the turn
-    // card lands. Append only the new card(s) instead; already-shown cards
-    // are never touched again this hand.
-    let heCommunityRenderedCount = 0;
-    function renderHeCommunityCards() {
-      while (heCommunityRenderedCount < heCommunity.length) {
-        const idx = heCommunityRenderedCount;
-        heCommunityCardsEl.insertAdjacentHTML("beforeend", renderRealCard(heCommunity[idx], idx));
-        heCommunityRenderedCount++;
+    function heNowIso() {
+      return new Date().toISOString();
+    }
+
+    function heFutureIso(ms) {
+      return new Date(Date.now() + ms).toISOString();
+    }
+
+    function heIsStreetActive(street) {
+      return street === "preflop" || street === "flop" || street === "turn" || street === "river";
+    }
+
+    function heRevealCount(street) {
+      if (street === "flop") return 3;
+      if (street === "turn") return 4;
+      if (street === "river" || street === "showdown") return 5;
+      return 0;
+    }
+
+    // Physical seat order starting at the dealer button, filtered down to just
+    // the seats dealt into the current hand. Recomputed from dealer_seat +
+    // hand_seats rather than stored separately, so there's nothing extra to
+    // keep in sync.
+    function heHandSeatOrder(table) {
+      const order = [];
+      for (let i = 0; i < HOLDEM_SEAT_COUNT; i++) order.push((table.dealer_seat + i) % HOLDEM_SEAT_COUNT);
+      return order.filter((s) => table.hand_seats.includes(s));
+    }
+
+    function heNextDealerSeat(prevDealer, handSeats) {
+      if (prevDealer === null || prevDealer === undefined) return handSeats[0];
+      for (let i = 1; i <= HOLDEM_SEAT_COUNT; i++) {
+        const candidate = (prevDealer + i) % HOLDEM_SEAT_COUNT;
+        if (handSeats.includes(candidate)) return candidate;
+      }
+      return handSeats[0];
+    }
+
+    function heSeatFoldAllInMap(seatsArr, patchSeatNum, patch) {
+      const map = {};
+      seatsArr.forEach((s) => {
+        if (!s) return;
+        const merged = s.seat_number === patchSeatNum ? { ...s, ...patch } : s;
+        map[s.seat_number] = { folded: !!merged.folded, allIn: !!merged.all_in };
+      });
+      return map;
+    }
+
+    function heAiProfileForSeat(seatNumber) {
+      return HOLDEM_AI_POOL[seatNumber % HOLDEM_AI_POOL.length];
+    }
+
+    // ---- Loading + Realtime sync ----
+    async function heLoadState() {
+      const [{ data: tableRow, error: tableErr }, { data: seatRows, error: seatErr }] = await Promise.all([
+        supabaseClient.from("holdem_table").select("*").eq("id", 1).single(),
+        supabaseClient.from("holdem_seats").select("*").order("seat_number", { ascending: true }),
+      ]);
+      if (tableErr || seatErr) {
+        heErrorEl.textContent = "Could not load the table: " + (tableErr?.message || seatErr?.message || "unknown error");
+        return;
+      }
+      heTableRow = tableRow;
+      heSeats = new Array(HOLDEM_SEAT_COUNT).fill(null);
+      (seatRows || []).forEach((row) => {
+        heSeats[row.seat_number] = row;
+      });
+      heReconcileMySeat();
+      heRenderHoldem();
+    }
+
+    function heSubscribeRealtime() {
+      if (heChannel) return;
+      heChannel = supabaseClient
+        .channel("holdem-table-sync")
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "holdem_table" }, (payload) => {
+          if (payload.new) heTableRow = payload.new;
+          heReconcileMySeat();
+          heRenderHoldem();
+        })
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "holdem_seats" }, (payload) => {
+          if (payload.new && typeof payload.new.seat_number === "number") heSeats[payload.new.seat_number] = payload.new;
+          heReconcileMySeat();
+          heRenderHoldem();
+        })
+        .subscribe();
+    }
+
+    // If the seat we think is "ours" no longer has our player in it (someone
+    // reset it — we left, got auto-removed for going stale, or busted out),
+    // forget it locally and let the UI fall back to the join screen.
+    function heReconcileMySeat() {
+      if (heMySeat === null) return;
+      const seat = heSeats[heMySeat];
+      if (!seat || seat.player_id !== heMyPlayerId) {
+        heShowBustedNotice = true;
+        heMySeat = null;
+        heMyPlayerId = null;
+        try {
+          window.localStorage.removeItem(HOLDEM_SEAT_STORAGE_KEY);
+        } catch (err) {
+          // ignore
+        }
       }
     }
 
-    // Built once per table (seat ids/order never change within a table, even
-    // as players bust out), then only updated in place - never torn down and
-    // rebuilt - so a seat's cards don't replay their reveal animation just
-    // because someone else's stack number changed.
-    function buildHeOpponentSeatsDom() {
-      heOpponentsEl.innerHTML = hePlayers
-        .filter((p) => !p.isHuman)
-        .map(
-          (p) => `
-        <div class="he-seat" id="he-seat-${p.id}">
-          <div class="he-seat-name">${escapeHtml(p.name)} <span class="he-seat-stack" id="he-seat-stack-${p.id}"></span></div>
-          <div class="he-hand he-hand-small" id="he-seat-cards-${p.id}"></div>
-          <div class="he-seat-bet" id="he-seat-bet-${p.id}"></div>
-          <div class="he-seat-status" id="he-seat-status-${p.id}"></div>
-        </div>
-      `
-        )
-        .join("");
+    async function populateHePlayerSelect() {
+      const { data, error } = await supabaseClient.from("players").select("id, name").eq("is_active", true).order("name", { ascending: true });
+      if (error || !data) {
+        heErrorEl.textContent = "Could not load players: " + (error?.message || "unknown error");
+        return [];
+      }
+      hePlayerSelectEl.innerHTML = data.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+      return data;
     }
 
-    function renderHeOpponentSeats(activeTurnId) {
-      HOLDEM_AI_PROFILES.forEach((profile) => {
-        const seatEl = document.getElementById(`he-seat-${profile.id}`);
-        if (!seatEl) return;
-        const player = heById(profile.id);
-        if (!player) {
-          seatEl.hidden = true;
+    // ---- Join / leave ----
+    async function heJoinTable(playerId, playerName) {
+      heErrorEl.textContent = "";
+      heShowBustedNotice = false;
+
+      // Already seated somewhere (e.g. this same player on another device, or
+      // us after a reload)? Just reclaim it instead of taking a second seat.
+      const already = heSeats.find((s) => s && s.player_id === playerId);
+      if (already) {
+        heMySeat = already.seat_number;
+        heMyPlayerId = playerId;
+        heRememberSeat(already.seat_number);
+        heRenderHoldem();
+        heStartTickLoop();
+        return;
+      }
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        // Prefer a truly empty seat; if the table's full of AI, bump the
+        // lowest-numbered AI seat to make room for a real person.
+        let candidate = heSeats.findIndex((s) => s && s.status === "empty");
+        let guardColumn = "status";
+        let guardValue = "empty";
+        if (candidate === -1) {
+          candidate = heSeats.findIndex((s) => s && s.is_ai);
+          guardColumn = "is_ai";
+          guardValue = true;
+        }
+        if (candidate === -1) {
+          heErrorEl.textContent = "The table is full — try again once a seat opens up.";
           return;
         }
-        seatEl.hidden = false;
-        seatEl.classList.toggle("he-active-seat", player.id === activeTurnId);
-        seatEl.classList.toggle("he-folded-seat", player.folded);
-        document.getElementById(`he-seat-stack-${profile.id}`).textContent = player.stack;
-        document.getElementById(`he-seat-bet-${profile.id}`).textContent = player.betThisStreet > 0 ? `Bet: ${player.betThisStreet}` : "";
-        document.getElementById(`he-seat-status-${profile.id}`).textContent = player.folded ? "Folded" : player.allIn ? "All-In" : "";
 
-        const cardsEl = document.getElementById(`he-seat-cards-${profile.id}`);
-        const showCards = heStreet === "showdown" && !player.folded;
-        const sig = player.folded ? "folded" : showCards ? `shown:${player.holeCards.join(",")}` : `hidden:${player.holeCards.length}`;
+        const patch = {
+          player_id: playerId,
+          player_name: playerName,
+          is_ai: false,
+          personality: null,
+          status: "seated",
+          stack: HOLDEM_STARTING_STACK,
+          hole_cards: [],
+          bet_this_street: 0,
+          total_contributed: 0,
+          folded: false,
+          all_in: false,
+          last_seen: heNowIso(),
+          joined_at: heNowIso(),
+          updated_at: heNowIso(),
+        };
+
+        const { data, error } = await supabaseClient
+          .from("holdem_seats")
+          .update(patch)
+          .eq("seat_number", candidate)
+          .eq(guardColumn, guardValue)
+          .select();
+
+        if (!error && data && data.length) {
+          heMySeat = candidate;
+          heMyPlayerId = playerId;
+          heSeats[candidate] = data[0];
+          heRememberSeat(candidate);
+          heRenderHoldem();
+          heStartTickLoop();
+          return;
+        }
+        // Lost the race for that seat — refresh and try again.
+        await heLoadState();
+      }
+      heErrorEl.textContent = "Couldn't grab a seat just then — try again.";
+    }
+
+    async function heLeaveTable() {
+      if (heMySeat === null) return;
+      const seatNum = heMySeat;
+      const seat = heSeats[seatNum];
+      heMySeat = null;
+      heMyPlayerId = null;
+      try {
+        window.localStorage.removeItem(HOLDEM_SEAT_STORAGE_KEY);
+      } catch (err) {
+        // ignore
+      }
+
+      if (seat && heTableRow && heIsStreetActive(heTableRow.street) && heTableRow.hand_seats.includes(seatNum) && !seat.folded) {
+        // Mid-hand and still live — fold out first so the pot math stays
+        // correct, then clear the seat so someone else (or an AI) can take it.
+        await supabaseClient
+          .from("holdem_seats")
+          .update({ folded: true, status: "empty", player_id: null, player_name: null, last_seen: heNowIso() })
+          .eq("seat_number", seatNum);
+        if (heTableRow.action_seat === seatNum) {
+          await heCommitAction(heTableRow, heSeats, seatNum, "fold");
+        }
+      } else {
+        await supabaseClient
+          .from("holdem_seats")
+          .update({
+            player_id: null,
+            player_name: null,
+            is_ai: false,
+            personality: null,
+            status: "empty",
+            stack: HOLDEM_STARTING_STACK,
+            hole_cards: [],
+            bet_this_street: 0,
+            total_contributed: 0,
+            folded: false,
+            all_in: false,
+            last_seen: null,
+            joined_at: null,
+          })
+          .eq("seat_number", seatNum);
+      }
+
+      if (heTableRow && heTableRow.host_seat === seatNum) {
+        await supabaseClient.from("holdem_table").update({ host_seat: null, version: heTableRow.version + 1 }).eq("id", 1).eq("version", heTableRow.version);
+      }
+      heAmHost = false;
+      heRenderHoldem();
+    }
+
+    function heRememberSeat(seatNum) {
+      try {
+        window.localStorage.setItem(HOLDEM_SEAT_STORAGE_KEY, String(seatNum));
+      } catch (err) {
+        // ignore — device just won't remember the seat next visit
+      }
+    }
+
+    // ---- Host election + heartbeat ----
+    async function heMaybeClaimHost() {
+      if (heMySeat === null || !heTableRow) return;
+      const stale = !heTableRow.host_seat || !heTableRow.host_last_beat || Date.now() - new Date(heTableRow.host_last_beat).getTime() > HOLDEM_HOST_STALE_MS;
+      if (heTableRow.host_seat === heMySeat) {
+        heAmHost = true;
+        return;
+      }
+      if (!stale) {
+        heAmHost = false;
+        return;
+      }
+      const { data, error } = await supabaseClient
+        .from("holdem_table")
+        .update({ host_seat: heMySeat, host_last_beat: heNowIso(), version: heTableRow.version + 1 })
+        .eq("id", 1)
+        .eq("version", heTableRow.version)
+        .select();
+      if (!error && data && data.length) {
+        heTableRow = data[0];
+        heAmHost = true;
+      }
+    }
+
+    async function heSendHostHeartbeat() {
+      if (!heAmHost || heMySeat === null || !heTableRow || heTableRow.host_seat !== heMySeat) return;
+      const { data, error } = await supabaseClient.from("holdem_table").update({ host_last_beat: heNowIso() }).eq("id", 1).eq("host_seat", heMySeat).select();
+      if (error || !data || !data.length) heAmHost = false;
+      else heTableRow = data[0];
+    }
+
+    // ---- Turn actions (fold / check / call / bet / raise) ----
+    // Shared by the real human clicking their own buttons, and the host
+    // acting on behalf of an AI seat or auto-folding someone who's gone
+    // quiet. Always writes the table row (with a version guard) before
+    // touching the seat row, so a race between a human's click and a
+    // host-driven timeout can never both land.
+    async function heCommitAction(table, seatsArr, seatNum, action, amount) {
+      if (table.action_seat !== seatNum) return false;
+      const seat = seatsArr[seatNum];
+      if (!seat) return false;
+
+      const seatPatch = { last_seen: heNowIso() };
+      let newCurrentBet = table.current_bet;
+      let newMinRaise = table.min_raise;
+      let newPendingSeats = table.pending_seats.slice(1);
+      let logMsg;
+
+      if (action === "fold") {
+        seatPatch.folded = true;
+        logMsg = `${seat.player_name} folds.`;
+      } else if (action === "check") {
+        logMsg = `${seat.player_name} checks.`;
+      } else {
+        const chipsIn = action === "call" ? Math.max(0, table.current_bet - seat.bet_this_street) : amount;
+        const actual = Math.max(0, Math.min(chipsIn, seat.stack));
+        const wasOpen = table.current_bet === 0;
+        seatPatch.stack = seat.stack - actual;
+        seatPatch.bet_this_street = seat.bet_this_street + actual;
+        seatPatch.total_contributed = seat.total_contributed + actual;
+        if (seatPatch.stack === 0) seatPatch.all_in = true;
+        const raised = seatPatch.bet_this_street > table.current_bet;
+        if (raised) {
+          newMinRaise = Math.max(HOLDEM_BIG_BLIND, seatPatch.bet_this_street - table.current_bet);
+          newCurrentBet = seatPatch.bet_this_street;
+          const seatOrder = heHandSeatOrder(table);
+          const map = heSeatFoldAllInMap(seatsArr, seatNum, seatPatch);
+          newPendingSeats = nextActionOrder(seatOrder, seatNum, map);
+        }
+        if (seatPatch.all_in) logMsg = `${seat.player_name} goes all-in for ${actual}!`;
+        else if (raised && wasOpen) logMsg = `${seat.player_name} bets ${seatPatch.bet_this_street}.`;
+        else if (raised) logMsg = `${seat.player_name} raises to ${seatPatch.bet_this_street}.`;
+        else logMsg = `${seat.player_name} calls ${actual}.`;
+      }
+
+      const stillIn = table.hand_seats.filter((s) => (s === seatNum ? !seatPatch.folded : !(seatsArr[s] && seatsArr[s].folded)));
+      const uncontested = stillIn.length <= 1;
+
+      const tablePatch = {
+        current_bet: newCurrentBet,
+        min_raise: newMinRaise,
+        pending_seats: uncontested ? [] : newPendingSeats,
+        action_seat: uncontested ? null : newPendingSeats[0] ?? null,
+        action_deadline: uncontested
+          ? heFutureIso(HOLDEM_SHOWDOWN_PAUSE_MS)
+          : newPendingSeats.length
+            ? heFutureIso(seatsArr[newPendingSeats[0]] && seatsArr[newPendingSeats[0]].is_ai ? HOLDEM_AI_THINK_MS : HOLDEM_ACTION_TIMEOUT_MS)
+            : heFutureIso(1), // street's done — let the host tick advance it almost immediately
+        street: uncontested ? "showdown" : table.street,
+        log: [...table.log, logMsg].slice(-30),
+        version: table.version + 1,
+        updated_at: heNowIso(),
+      };
+
+      const { data, error } = await supabaseClient.from("holdem_table").update(tablePatch).eq("id", 1).eq("version", table.version).select();
+      if (error || !data || !data.length) return false;
+
+      await supabaseClient.from("holdem_seats").update(seatPatch).eq("seat_number", seatNum);
+
+      if (uncontested) {
+        await heAwardUncontestedPot(stillIn[0], table, seatsArr, seatNum, seatPatch);
+      }
+
+      return true;
+    }
+
+    async function heAwardUncontestedPot(winnerSeatNum, table, seatsArr, patchSeatNum, patch) {
+      const total = table.hand_seats.reduce((sum, s) => {
+        if (s === patchSeatNum) return sum + (patch.total_contributed ?? (seatsArr[s] ? seatsArr[s].total_contributed : 0));
+        return sum + (seatsArr[s] ? seatsArr[s].total_contributed : 0);
+      }, 0);
+      const winnerSeat = seatsArr[winnerSeatNum];
+      const baseStack = winnerSeatNum === patchSeatNum ? patch.stack ?? winnerSeat.stack : winnerSeat.stack;
+      await supabaseClient.from("holdem_seats").update({ stack: baseStack + total, total_contributed: 0 }).eq("seat_number", winnerSeatNum);
+      if (winnerSeatNum === heMySeat) playCoinCascade();
+    }
+
+    // ---- Host-only duties: AI fill, dealing, advancing streets, timeouts ----
+    async function heHostTick() {
+      if (!heAmHost || !heTableRow) return;
+      const table = heTableRow;
+      const seats = heSeats;
+
+      await heSyncAiSeats(table, seats);
+      await heHostPruneStaleSeats(table, seats);
+
+      if (table.street === "waiting") {
+        const seated = seats.filter((s) => s && s.status === "seated").length;
+        if (seated >= 2) await heStartHand(table, seats);
+        return;
+      }
+
+      if (table.street === "showdown") {
+        if (table.action_deadline && Date.now() >= new Date(table.action_deadline).getTime()) {
+          await heWrapUpHand(table, seats);
+        }
+        return;
+      }
+
+      // Active betting street.
+      if (!table.pending_seats.length) {
+        await heAdvanceStreet(table, seats);
+        return;
+      }
+
+      if (table.action_deadline && Date.now() >= new Date(table.action_deadline).getTime()) {
+        const actingSeatNum = table.action_seat;
+        const actingSeat = seats[actingSeatNum];
+        if (!actingSeat) return;
+        if (actingSeat.is_ai) {
+          const revealed = table.community_cards.slice(0, heRevealCount(table.street));
+          const betToCall = Math.max(0, table.current_bet - actingSeat.bet_this_street);
+          const potSize = table.hand_seats.reduce((sum, s) => sum + (seats[s] ? seats[s].total_contributed : 0), 0);
+          const decision = aiDecideAction({
+            hole: actingSeat.hole_cards,
+            community: revealed,
+            street: table.street,
+            betToCall: Math.min(betToCall, actingSeat.stack),
+            potSize,
+            stack: actingSeat.stack,
+            minRaise: table.min_raise,
+            personality: actingSeat.personality,
+          });
+          await heCommitAction(table, seats, actingSeatNum, decision.action, decision.amount);
+        } else {
+          const name = actingSeat.player_name;
+          const ok = await heCommitAction(table, seats, actingSeatNum, "fold");
+          if (ok) {
+            const { data } = await supabaseClient.from("holdem_table").select("log").eq("id", 1).single();
+            if (data) await supabaseClient.from("holdem_table").update({ log: [...data.log, `${name} was auto-folded (inactive).`].slice(-30) }).eq("id", 1);
+          }
+        }
+      }
+    }
+
+    async function heSyncAiSeats(table, seats) {
+      if (table.fill_empty_with_ai) {
+        for (let n = 0; n < HOLDEM_SEAT_COUNT; n++) {
+          const seat = seats[n];
+          if (!seat || seat.status !== "empty") continue;
+          const profile = heAiProfileForSeat(n);
+          await supabaseClient
+            .from("holdem_seats")
+            .update({
+              player_id: null,
+              player_name: profile.name,
+              is_ai: true,
+              personality: profile.personality,
+              status: "seated",
+              stack: HOLDEM_STARTING_STACK,
+              hole_cards: [],
+              bet_this_street: 0,
+              total_contributed: 0,
+              folded: false,
+              all_in: false,
+              last_seen: heNowIso(),
+              joined_at: heNowIso(),
+            })
+            .eq("seat_number", n)
+            .eq("status", "empty");
+        }
+      } else {
+        for (let n = 0; n < HOLDEM_SEAT_COUNT; n++) {
+          const seat = seats[n];
+          if (!seat || !seat.is_ai || seat.status !== "seated") continue;
+          if (table.hand_seats.includes(n)) continue; // let it finish the hand it's in
+          await supabaseClient
+            .from("holdem_seats")
+            .update({
+              player_id: null,
+              player_name: null,
+              is_ai: false,
+              personality: null,
+              status: "empty",
+              stack: HOLDEM_STARTING_STACK,
+              hole_cards: [],
+              bet_this_street: 0,
+              total_contributed: 0,
+              folded: false,
+              all_in: false,
+              last_seen: null,
+              joined_at: null,
+            })
+            .eq("seat_number", n)
+            .eq("is_ai", true);
+        }
+      }
+    }
+
+    async function heHostPruneStaleSeats(table, seats) {
+      for (let n = 0; n < HOLDEM_SEAT_COUNT; n++) {
+        const seat = seats[n];
+        if (!seat || seat.is_ai || seat.status !== "seated" || !seat.player_id) continue;
+        if (table.hand_seats.includes(n)) continue; // don't yank someone out from under a live hand
+        if (!seat.last_seen || Date.now() - new Date(seat.last_seen).getTime() <= HOLDEM_DISCONNECT_MS) continue;
+        await supabaseClient
+          .from("holdem_seats")
+          .update({
+            player_id: null,
+            player_name: null,
+            status: "empty",
+            stack: HOLDEM_STARTING_STACK,
+            hole_cards: [],
+            bet_this_street: 0,
+            total_contributed: 0,
+            folded: false,
+            all_in: false,
+            last_seen: null,
+            joined_at: null,
+          })
+          .eq("seat_number", n)
+          .eq("player_id", seat.player_id);
+      }
+    }
+
+    async function heStartHand(table, seats) {
+      const handSeats = seats.filter((s) => s && s.status === "seated").map((s) => s.seat_number);
+      if (handSeats.length < 2) return;
+
+      const dealerSeat = heNextDealerSeat(table.dealer_seat, handSeats);
+      const seatOrder = heHandSeatOrder({ dealer_seat: dealerSeat, hand_seats: handSeats });
+      const deck = buildShuffledBjDeck();
+      const holeCardsBySeat = {};
+      seatOrder.forEach((s) => (holeCardsBySeat[s] = []));
+      for (let round = 0; round < 2; round++) {
+        seatOrder.forEach((s) => holeCardsBySeat[s].push(deck.pop()));
+      }
+      const community = [deck.pop(), deck.pop(), deck.pop(), deck.pop(), deck.pop()];
+
+      const blindOf = {};
+      if (seatOrder.length === 2) {
+        blindOf[seatOrder[0]] = HOLDEM_SMALL_BLIND;
+        blindOf[seatOrder[1]] = HOLDEM_BIG_BLIND;
+      } else {
+        blindOf[seatOrder[1]] = HOLDEM_SMALL_BLIND;
+        blindOf[seatOrder[2]] = HOLDEM_BIG_BLIND;
+      }
+
+      for (const s of seatOrder) {
+        const seat = seats[s];
+        const blind = Math.min(blindOf[s] || 0, seat.stack);
+        await supabaseClient
+          .from("holdem_seats")
+          .update({
+            hole_cards: holeCardsBySeat[s],
+            folded: false,
+            all_in: blind > 0 && blind === seat.stack,
+            stack: seat.stack - blind,
+            bet_this_street: blind,
+            total_contributed: blind,
+            last_seen: heNowIso(),
+          })
+          .eq("seat_number", s);
+      }
+
+      const currentBet = Math.max(...seatOrder.map((s) => blindOf[s] || 0), 0);
+      const pendingSeats = buildStreetOrder(seatOrder, seatOrder, true).filter((s) => !((blindOf[s] || 0) >= seats[s].stack));
+      const dealerSeatRow = seats[dealerSeat];
+
+      await supabaseClient
+        .from("holdem_table")
+        .update({
+          street: "preflop",
+          community_cards: community,
+          current_bet: currentBet,
+          min_raise: HOLDEM_BIG_BLIND,
+          dealer_seat: dealerSeat,
+          action_seat: pendingSeats[0] ?? null,
+          hand_number: table.hand_number + 1,
+          pending_seats: pendingSeats,
+          hand_seats: handSeats,
+          action_deadline: pendingSeats.length ? heFutureIso(seats[pendingSeats[0]].is_ai ? HOLDEM_AI_THINK_MS : HOLDEM_ACTION_TIMEOUT_MS) : heFutureIso(HOLDEM_SHOWDOWN_PAUSE_MS),
+          log: [...table.log, `— Hand ${table.hand_number + 1}: ${dealerSeatRow.player_name} is the dealer —`].slice(-30),
+          version: table.version + 1,
+          updated_at: heNowIso(),
+        })
+        .eq("id", 1)
+        .eq("version", table.version);
+    }
+
+    async function heAdvanceStreet(table, seats) {
+      let nextStreet;
+      if (table.street === "preflop") nextStreet = "flop";
+      else if (table.street === "flop") nextStreet = "turn";
+      else if (table.street === "turn") nextStreet = "river";
+      else {
+        await supabaseClient
+          .from("holdem_table")
+          .update({ street: "showdown", action_deadline: heFutureIso(HOLDEM_SHOWDOWN_PAUSE_MS), version: table.version + 1 })
+          .eq("id", 1)
+          .eq("version", table.version);
+        return;
+      }
+
+      for (const s of table.hand_seats) {
+        await supabaseClient.from("holdem_seats").update({ bet_this_street: 0 }).eq("seat_number", s);
+      }
+
+      const seatOrder = heHandSeatOrder(table);
+      const activeIds = table.hand_seats.filter((s) => seats[s] && !seats[s].folded);
+      const pendingSeats = activeIds.length <= 1 ? [] : buildStreetOrder(seatOrder, activeIds, false).filter((s) => seats[s] && !seats[s].all_in);
+
+      await supabaseClient
+        .from("holdem_table")
+        .update({
+          street: nextStreet,
+          current_bet: 0,
+          min_raise: HOLDEM_BIG_BLIND,
+          pending_seats: pendingSeats,
+          action_seat: pendingSeats[0] ?? null,
+          action_deadline: pendingSeats.length ? heFutureIso(seats[pendingSeats[0]].is_ai ? HOLDEM_AI_THINK_MS : HOLDEM_ACTION_TIMEOUT_MS) : heFutureIso(HOLDEM_SHOWDOWN_PAUSE_MS),
+          log: [...table.log, `— ${nextStreet.charAt(0).toUpperCase()}${nextStreet.slice(1)} —`].slice(-30),
+          version: table.version + 1,
+          updated_at: heNowIso(),
+        })
+        .eq("id", 1)
+        .eq("version", table.version);
+    }
+
+    async function heWrapUpHand(table, seats) {
+      const contenders = table.hand_seats.filter((s) => seats[s] && !seats[s].folded);
+      if (contenders.length > 1) {
+        const results = contenders.map((s) => ({ id: s, hand: evaluateBestHand([...seats[s].hole_cards, ...table.community_cards]) }));
+        const pots = computeSidePots(table.hand_seats.map((s) => ({ id: s, contributed: seats[s] ? seats[s].total_contributed : 0, folded: seats[s] ? seats[s].folded : true })));
+        const winningsBySeat = {};
+        pots.forEach((pot) => {
+          const eligible = results.filter((r) => pot.eligible.includes(r.id));
+          if (!eligible.length) return;
+          let best = eligible[0].hand;
+          eligible.forEach((r) => {
+            if (compareEvaluatedHands(r.hand, best) < 0) best = r.hand;
+          });
+          const winners = eligible.filter((r) => compareEvaluatedHands(r.hand, best) === 0).map((r) => r.id);
+          const share = Math.floor(pot.amount / winners.length);
+          let remainder = pot.amount - share * winners.length;
+          winners.forEach((id) => {
+            winningsBySeat[id] = (winningsBySeat[id] || 0) + share + (remainder > 0 ? 1 : 0);
+            if (remainder > 0) remainder--;
+          });
+        });
+        for (const [seatStr, amt] of Object.entries(winningsBySeat)) {
+          const s = parseInt(seatStr, 10);
+          await supabaseClient.from("holdem_seats").update({ stack: seats[s].stack + amt, total_contributed: 0 }).eq("seat_number", s);
+        }
+        if (winningsBySeat[heMySeat]) playCoinCascade();
+      }
+
+      // Reset everyone's per-street/contribution fields, and clear out
+      // anyone who busted while we were at it.
+      for (const s of table.hand_seats) {
+        const seat = seats[s];
+        if (!seat) continue;
+        if (seat.stack <= 0) {
+          await supabaseClient
+            .from("holdem_seats")
+            .update({
+              player_id: null,
+              player_name: null,
+              is_ai: false,
+              personality: null,
+              status: "empty",
+              stack: HOLDEM_STARTING_STACK,
+              hole_cards: [],
+              bet_this_street: 0,
+              total_contributed: 0,
+              folded: false,
+              all_in: false,
+              last_seen: null,
+              joined_at: null,
+            })
+            .eq("seat_number", s);
+        } else {
+          await supabaseClient.from("holdem_seats").update({ bet_this_street: 0, total_contributed: 0, folded: false, all_in: false, hole_cards: [] }).eq("seat_number", s);
+        }
+      }
+
+      await supabaseClient
+        .from("holdem_table")
+        .update({ street: "waiting", action_seat: null, pending_seats: [], action_deadline: null, current_bet: 0, version: table.version + 1, updated_at: heNowIso() })
+        .eq("id", 1)
+        .eq("version", table.version);
+    }
+
+    // ---- Tick loop: heartbeats + host duties, driven by every connected browser ----
+    function heStartTickLoop() {
+      if (heTickTimer) return;
+      heTickTimer = setInterval(heTick, HOLDEM_TICK_MS);
+    }
+
+    async function heTick() {
+      if (heMySeat === null) return;
+      if (Date.now() - heLastHeartbeatAt > 10000) {
+        heLastHeartbeatAt = Date.now();
+        supabaseClient.from("holdem_seats").update({ last_seen: heNowIso() }).eq("seat_number", heMySeat).then(() => {});
+      }
+      await heMaybeClaimHost();
+      if (heAmHost) {
+        await heSendHostHeartbeat();
+        if (heAmHost) await heHostTick();
+      }
+    }
+
+    // ---- Rendering ----
+    function heRenderHoldem() {
+      if (!heTableRow) return;
+      const table = heTableRow;
+      const seats = heSeats;
+      const seatedCount = seats.filter((s) => s && s.status === "seated").length;
+
+      heSeatsFilledTextEl.textContent = `${seatedCount} of ${HOLDEM_SEAT_COUNT} seats filled`;
+      heFillAiToggleEl.checked = !!table.fill_empty_with_ai;
+
+      heJoinRowEl.hidden = heMySeat !== null;
+      heYourSeatBarEl.hidden = heMySeat === null;
+      heBustedNoticeEl.hidden = !(heShowBustedNotice && heMySeat === null);
+
+      if (heMySeat !== null && seats[heMySeat]) {
+        const mySeatRow = seats[heMySeat];
+        heYourSeatNameEl.textContent = mySeatRow.player_name || "";
+        heYourSeatStackEl.textContent = `— ${mySeatRow.stack} chips`;
+        heWaitingNoticeEl.hidden = !(heIsStreetActive(table.street) && !table.hand_seats.includes(heMySeat));
+      } else {
+        heWaitingNoticeEl.hidden = true;
+      }
+
+      heTableEl.hidden = false;
+      heRenderHeSeatsList(table, seats);
+      hePotDisplayEl.textContent = `Pot: ${table.hand_seats.reduce((sum, s) => sum + (seats[s] ? seats[s].total_contributed : 0), 0)}`;
+      heRenderHeCommunityCards(table);
+      heStreetLabelEl.textContent = table.street === "waiting" ? "Waiting for players…" : table.street === "showdown" ? "Showdown" : table.street.charAt(0).toUpperCase() + table.street.slice(1);
+      heRenderHeLog(table);
+      heRenderHeActions(table, seats);
+      heRenderHeShowdown(table, seats);
+    }
+
+    function heRenderHeSeatsList(table, seats) {
+      const seatedNums = [];
+      for (let n = 0; n < HOLDEM_SEAT_COUNT; n++) if (seats[n] && seats[n].status === "seated") seatedNums.push(n);
+      const signature = seatedNums.join(",");
+      if (signature !== heSeatsListSignature) {
+        heSeatsListSignature = signature;
+        heSeatsListEl.innerHTML = seatedNums
+          .map(
+            (n) => `
+          <div class="he-seat" id="he-seat-${n}">
+            <div class="he-seat-name">${escapeHtml(seats[n].player_name || "")} <span class="he-seat-stack" id="he-seat-stack-${n}"></span></div>
+            <div class="he-hand he-hand-small" id="he-seat-cards-${n}"></div>
+            <div class="he-seat-bet" id="he-seat-bet-${n}"></div>
+            <div class="he-seat-status" id="he-seat-status-${n}"></div>
+          </div>
+        `
+          )
+          .join("");
+      }
+
+      const handActive = heIsStreetActive(table.street) || table.street === "showdown";
+      const contenders = table.hand_seats.filter((s) => seats[s] && !seats[s].folded);
+      seatedNums.forEach((n) => {
+        const seat = seats[n];
+        const seatEl = document.getElementById(`he-seat-${n}`);
+        if (!seatEl) return;
+        seatEl.classList.toggle("he-active-seat", n === table.action_seat);
+        seatEl.classList.toggle("he-folded-seat", handActive && seat.folded && table.hand_seats.includes(n));
+        seatEl.classList.toggle("he-seat-you", n === heMySeat);
+        seatEl.classList.toggle("he-seat-waiting", heIsStreetActive(table.street) && !table.hand_seats.includes(n));
+
+        document.getElementById(`he-seat-stack-${n}`).textContent = seat.stack;
+        document.getElementById(`he-seat-bet-${n}`).textContent = seat.bet_this_street > 0 ? `Bet: ${seat.bet_this_street}` : "";
+        document.getElementById(`he-seat-status-${n}`).textContent = !table.hand_seats.includes(n) ? "" : seat.folded ? "Folded" : seat.all_in ? "All-In" : "";
+
+        const dealt = table.hand_seats.includes(n) && seat.hole_cards && seat.hole_cards.length > 0;
+        const isShowdownReveal = table.street === "showdown" && contenders.length > 1 && !seat.folded && table.hand_seats.includes(n);
+        const isMine = n === heMySeat;
+        const showFaceUp = isMine || isShowdownReveal;
+        const cardsEl = document.getElementById(`he-seat-cards-${n}`);
+        const sig = !dealt ? "none" : seat.folded ? "folded" : showFaceUp ? `shown:${seat.hole_cards.join(",")}` : `hidden:${seat.hole_cards.length}`;
         renderCardsIfChanged(cardsEl, sig, () =>
-          player.folded ? "" : showCards ? renderRealHandCards(player.holeCards) : player.holeCards.map(() => renderBjFaceDownCard()).join("")
+          !dealt || seat.folded ? "" : showFaceUp ? renderRealHandCards(seat.hole_cards) : seat.hole_cards.map(() => renderBjFaceDownCard()).join("")
         );
       });
     }
 
-    function renderHeYouSeat() {
-      const human = heById("human");
-      if (!human) return;
-      heYouStackEl.textContent = human.stack;
-      const sig = human.folded ? "folded" : human.holeCards.join(",");
-      renderCardsIfChanged(heYouCardsEl, sig, () => (human.folded ? "" : renderRealHandCards(human.holeCards)));
-      heYouBetEl.textContent = human.betThisStreet > 0 ? `Bet: ${human.betThisStreet}` : "";
-      heYouSeatEl.classList.toggle("he-folded-seat", human.folded);
-      heYouSeatEl.classList.toggle("he-active-seat", heToActQueue[0] === "human");
+    function heRenderHeCommunityCards(table) {
+      if (table.hand_number !== heLastHandNumberSeen) {
+        heLastHandNumberSeen = table.hand_number;
+        delete heRenderedSignatures["he-community"];
+        heCommunityCardsEl.innerHTML = "";
+      }
+      const revealCount = heRevealCount(table.street);
+      const sig = `${table.hand_number}:${revealCount}`;
+      if (heRenderedSignatures["he-community"] === sig) return;
+      const prevCount = parseInt((heRenderedSignatures["he-community"] || "0:0").split(":")[1], 10) || 0;
+      if (revealCount < prevCount) heCommunityCardsEl.innerHTML = "";
+      const startAt = revealCount < prevCount ? 0 : prevCount;
+      for (let i = startAt; i < revealCount; i++) {
+        heCommunityCardsEl.insertAdjacentHTML("beforeend", renderRealCard(table.community_cards[i], i));
+      }
+      heRenderedSignatures["he-community"] = sig;
     }
 
-    function renderHeState() {
-      hePotDisplayEl.textContent = `Pot: ${currentHePotTotal()}`;
-      renderHeCommunityCards();
-      heStreetLabelEl.textContent = heStreet === "showdown" ? "Showdown" : heStreet.charAt(0).toUpperCase() + heStreet.slice(1);
+    function heRenderHeLog(table) {
+      const msgs = (table.log || []).slice(-8);
+      heLogEl.innerHTML = msgs.map((m) => `<div>${escapeHtml(m)}</div>`).join("");
+      heLogEl.scrollTop = heLogEl.scrollHeight;
+    }
 
-      const activeTurnId = heToActQueue[0];
-      renderHeOpponentSeats(activeTurnId);
-      renderHeYouSeat();
-
-      const human = heById("human");
-      if (!human) return;
-      const toCall = Math.max(0, heCurrentBet - human.betThisStreet);
-      heCheckCallBtn.textContent = toCall > 0 ? `Call ${Math.min(toCall, human.stack)}` : "Check";
-      const minTotal = heCurrentBet === 0 ? HOLDEM_BIG_BLIND : heCurrentBet + heMinRaise;
-      const maxTotal = human.betThisStreet + human.stack;
+    function heRenderHeActions(table, seats) {
+      const myTurn = heMySeat !== null && table.action_seat === heMySeat && heIsStreetActive(table.street);
+      heActionsEl.hidden = !myTurn;
+      if (!myTurn) return;
+      const me = seats[heMySeat];
+      const toCall = Math.max(0, table.current_bet - me.bet_this_street);
+      heCheckCallBtn.textContent = toCall > 0 ? `Call ${Math.min(toCall, me.stack)}` : "Check";
+      const minTotal = table.current_bet === 0 ? HOLDEM_BIG_BLIND : table.current_bet + table.min_raise;
+      const maxTotal = me.bet_this_street + me.stack;
       const floorTotal = Math.min(minTotal, maxTotal);
       heRaiseInput.min = floorTotal;
       heRaiseInput.max = maxTotal;
-      if (!heRaiseInput.value || parseInt(heRaiseInput.value, 10) < floorTotal) {
-        heRaiseInput.value = floorTotal;
-      }
-      heRaiseBtn.textContent = heCurrentBet === 0 ? "Bet" : "Raise";
-    }
-
-    function setHeActionsEnabled(enabled) {
-      heActionsEl.hidden = !enabled;
-      if (!enabled) return;
-      const human = heById("human");
-      const toCall = Math.max(0, heCurrentBet - human.betThisStreet);
-      const canRaise = human.stack > toCall;
+      if (!heRaiseInput.value || parseInt(heRaiseInput.value, 10) < floorTotal) heRaiseInput.value = floorTotal;
+      heRaiseBtn.textContent = table.current_bet === 0 ? "Bet" : "Raise";
+      const canRaise = me.stack > toCall;
       heRaiseBtn.disabled = !canRaise;
       heRaiseInput.disabled = !canRaise;
       document.querySelectorAll("#he-actions [data-he-quick]").forEach((b) => {
@@ -4806,373 +5461,168 @@
       });
     }
 
-    // Figures out how the hand went for the human specifically, so the UI
-    // can say it plainly instead of making them read a table of everyone's
-    // hands to work it out themselves.
-    function heComputeHumanOutcome(winningsById) {
-      const human = heById("human");
-      const won = winningsById.human || 0;
-      if (won > 0) return { outcome: "win", amount: won };
-      if (human && human.folded) return { outcome: "fold", amount: 0 };
-      return { outcome: "lose", amount: 0 };
-    }
-
-    function renderHeShowdown(results, winningsById, wonByFold) {
+    function heRenderHeShowdown(table, seats) {
+      if (table.street !== "showdown") {
+        heShowdownEl.hidden = true;
+        return;
+      }
       heShowdownEl.hidden = false;
+      const contenders = table.hand_seats.filter((s) => seats[s] && !seats[s].folded);
+      const wonByFold = contenders.length <= 1;
 
-      const { outcome, amount } = heComputeHumanOutcome(winningsById);
-      heOutcomeBannerEl.hidden = false;
-      heOutcomeBannerEl.className = `he-outcome he-${outcome}`;
-      heOutcomeBannerEl.textContent =
-        outcome === "win"
-          ? `🎉 You win ${amount} chip${amount === 1 ? "" : "s"}!`
-          : outcome === "fold"
-            ? "You folded this hand."
-            : "You lose this hand.";
+      if (heMySeat !== null) {
+        const myInHand = table.hand_seats.includes(heMySeat);
+        const mySeatRow = seats[heMySeat];
+        if (!myInHand) {
+          heOutcomeBannerEl.hidden = true;
+        } else {
+          heOutcomeBannerEl.hidden = false;
+          const outcome = mySeatRow.folded ? "fold" : "lose";
+          heOutcomeBannerEl.className = `he-outcome he-${outcome}`;
+          heOutcomeBannerEl.textContent = mySeatRow.folded ? "You folded this hand." : "You lose this hand.";
+        }
+      } else {
+        heOutcomeBannerEl.hidden = true;
+      }
 
       const lines = [];
-      if (wonByFold) {
-        const [winnerId, amt] = Object.entries(winningsById)[0];
-        lines.push(
-          `<div class="he-showdown-line"><strong>${escapeHtml(heById(winnerId).name)}</strong> wins ${amt} chips — everyone else folded.</div>`
-        );
+      if (wonByFold && contenders.length === 1) {
+        const winner = seats[contenders[0]];
+        lines.push(`<div class="he-showdown-line"><strong>${escapeHtml(winner.player_name)}</strong> wins the pot — everyone else folded.</div>`);
+        if (contenders[0] === heMySeat && heOutcomeBannerEl) {
+          heOutcomeBannerEl.hidden = false;
+          heOutcomeBannerEl.className = "he-outcome he-win";
+          heOutcomeBannerEl.textContent = "🎉 You win this hand!";
+        }
       } else {
-        results.forEach((r) => {
-          const won = winningsById[r.id];
-          const player = heById(r.id);
-          lines.push(
-            `<div class="he-showdown-line">${renderRealHandCards(player.holeCards)} <strong>${escapeHtml(player.name)}</strong>: ${escapeHtml(r.hand.description)}${won ? ` — wins ${won}` : ""}</div>`
-          );
+        contenders.forEach((s) => {
+          const seat = seats[s];
+          const hand = evaluateBestHand([...seat.hole_cards, ...table.community_cards]);
+          lines.push(`<div class="he-showdown-line">${renderRealHandCards(seat.hole_cards)} <strong>${escapeHtml(seat.player_name)}</strong>: ${escapeHtml(hand.description)}</div>`);
+          if (s === heMySeat && heOutcomeBannerEl) {
+            heOutcomeBannerEl.hidden = false;
+          }
         });
       }
       heShowdownSummaryEl.innerHTML = lines.join("");
-      renderHeState();
-      heNextHandBtn.hidden = false;
+      heNextHandCountdownEl.textContent = "Next hand starting shortly…";
     }
 
-    function showHeGameOver(message) {
-      heGameOverEl.hidden = false;
-      heGameOverMessageEl.textContent = message;
-      heActionsEl.hidden = true;
-      heNextHandBtn.hidden = true;
-    }
-
-    function goToHeShowdown() {
-      heStreet = "showdown";
-      const contenders = hePlayers.filter((p) => !p.folded);
-      const results = contenders.map((p) => ({ id: p.id, hand: evaluateBestHand([...p.holeCards, ...heCommunity]) }));
-      const pots = computeSidePots(hePlayers.map((p) => ({ id: p.id, contributed: p.totalContributed, folded: p.folded })));
-
-      const winningsById = {};
-      pots.forEach((pot) => {
-        const eligibleResults = results.filter((r) => pot.eligible.includes(r.id));
-        if (eligibleResults.length === 0) return;
-        let best = eligibleResults[0].hand;
-        eligibleResults.forEach((r) => {
-          if (compareEvaluatedHands(r.hand, best) < 0) best = r.hand;
-        });
-        const winners = eligibleResults.filter((r) => compareEvaluatedHands(r.hand, best) === 0).map((r) => r.id);
-        const share = Math.floor(pot.amount / winners.length);
-        let remainder = pot.amount - share * winners.length;
-        winners.forEach((id) => {
-          winningsById[id] = (winningsById[id] || 0) + share + (remainder > 0 ? 1 : 0);
-          if (remainder > 0) remainder--;
-        });
-      });
-
-      Object.entries(winningsById).forEach(([id, amt]) => {
-        heById(id).stack += amt;
-      });
-      // The pot has now been fully paid out to stacks; zero out totalContributed
-      // so the pot display (and any later invariant checks) don't double-count
-      // chips that already moved back into a stack. It gets reset again anyway
-      // at the start of the next hand.
-      hePlayers.forEach((p) => {
-        p.totalContributed = 0;
-      });
-
-      if (winningsById.human) playCoinCascade();
-      renderHeShowdown(results, winningsById, false);
-      finishHeHand();
-    }
-
-    function awardPotUncontested(winner) {
-      const totalPot = currentHePotTotal();
-      winner.stack += totalPot;
-      hePlayers.forEach((p) => {
-        p.totalContributed = 0;
-      });
-      heStreet = "showdown";
-      logHeAction(`${winner.name} wins ${totalPot} chips (everyone else folded).`);
-      if (winner.id === "human") playCoinCascade();
-      renderHeShowdown([], { [winner.id]: totalPot }, true);
-      finishHeHand();
-    }
-
-    function finishHeHand() {
-      setHeActionsEnabled(false);
-      heActionsEl.hidden = true;
-
-      const human = heById("human");
-      if (human.stack <= 0) {
-        showHeGameOver("You're out of chips — game over.");
-        return;
-      }
-
-      const bustedAi = hePlayers.filter((p) => !p.isHuman && p.stack <= 0);
-      bustedAi.forEach((p) => logHeAction(`${p.name} is out of chips and leaves the table.`));
-      hePlayers = hePlayers.filter((p) => p.isHuman || p.stack > 0);
-
-      if (hePlayers.length === 1) {
-        showHeGameOver("You busted every opponent — you win the table! 🏆");
-        return;
-      }
-
-      const priorDealerId = heSeatOrder[0];
-      const priorDealerIdx = hePlayers.findIndex((p) => p.id === priorDealerId);
-      heDealerIndex = priorDealerIdx === -1 ? 0 : (priorDealerIdx + 1) % hePlayers.length;
-      heHandNumber++;
-    }
-
-    function advanceHeStreet() {
-      hePlayers.forEach((p) => {
-        p.betThisStreet = 0;
-      });
-      heCurrentBet = 0;
-      heMinRaise = HOLDEM_BIG_BLIND;
-
-      if (heStreet === "preflop") {
-        dealHeCommunity(3);
-        heStreet = "flop";
-      } else if (heStreet === "flop") {
-        dealHeCommunity(1);
-        heStreet = "turn";
-      } else if (heStreet === "turn") {
-        dealHeCommunity(1);
-        heStreet = "river";
-      } else {
-        goToHeShowdown();
-        return;
-      }
-
-      logHeAction(`— ${heStreet.charAt(0).toUpperCase()}${heStreet.slice(1)} —`);
-      playCardSnap();
-
-      const activeIds = hePlayers.filter((p) => !p.folded).map((p) => p.id);
-      heToActQueue = heCanActCount() <= 1 ? [] : buildStreetOrder(heSeatOrder, activeIds, false).filter((id) => !heById(id).allIn);
-
-      renderHeState();
-      heActionTimer = setTimeout(advanceHeAction, 900);
-    }
-
-    function advanceHeAction() {
-      const stillIn = hePlayers.filter((p) => !p.folded);
-      if (stillIn.length === 1) {
-        awardPotUncontested(stillIn[0]);
-        return;
-      }
-
-      if (heToActQueue.length === 0) {
-        advanceHeStreet();
-        return;
-      }
-
-      const nextId = heToActQueue[0];
-      const nextPlayer = heById(nextId);
-      if (nextPlayer.folded || nextPlayer.allIn || nextPlayer.stack === 0) {
-        heToActQueue.shift();
-        advanceHeAction();
-        return;
-      }
-
-      renderHeState();
-
-      if (nextPlayer.isHuman) {
-        setHeActionsEnabled(true);
-      } else {
-        setHeActionsEnabled(false);
-        heActionTimer = setTimeout(() => performAiAction(nextPlayer), 900 + Math.random() * 500);
-      }
-    }
-
-    function performAiAction(player) {
-      const betToCall = Math.max(0, heCurrentBet - player.betThisStreet);
-      const decision = aiDecideAction({
-        hole: player.holeCards,
-        community: heCommunity,
-        street: heStreet,
-        betToCall: Math.min(betToCall, player.stack),
-        potSize: currentHePotTotal(),
-        stack: player.stack,
-        minRaise: heMinRaise,
-        personality: player.personality,
-      });
-      applyHeAction(player.id, decision.action, decision.amount);
-    }
-
-    function applyHeAction(playerId, action, amount) {
-      const player = heById(playerId);
-      if (!player || heToActQueue[0] !== playerId) return;
-      heToActQueue.shift();
-
-      if (action === "fold") {
-        player.folded = true;
-        logHeAction(`${player.name} folds.`);
-      } else if (action === "check") {
-        logHeAction(`${player.name} checks.`);
-      } else {
-        // call, bet, raise, and allin all funnel through the same "commit
-        // chips, then reopen action if that counts as a raise" path.
-        const chipsIn = action === "call" ? Math.max(0, heCurrentBet - player.betThisStreet) : amount;
-        const wasOpen = heCurrentBet === 0;
-        const committed = moveChipsIn(player, chipsIn);
-        const raised = player.betThisStreet > heCurrentBet;
-        if (raised) {
-          heMinRaise = Math.max(HOLDEM_BIG_BLIND, player.betThisStreet - heCurrentBet);
-          heCurrentBet = player.betThisStreet;
-          heToActQueue = nextActionOrder(heSeatOrder, playerId, heByIdMap());
+    // ---- Wiring ----
+    if (heJoinBtn) {
+      heJoinBtn.addEventListener("click", async () => {
+        const id = hePlayerSelectEl.value;
+        const name = hePlayerSelectEl.selectedOptions[0]?.textContent || "";
+        if (!id) {
+          heErrorEl.textContent = "Add at least one active player in Admin first.";
+          return;
         }
-        let label;
-        if (player.allIn) label = `goes all-in for ${committed}!`;
-        else if (raised && wasOpen) label = `bets ${player.betThisStreet}.`;
-        else if (raised) label = `raises to ${player.betThisStreet}.`;
-        else label = `calls ${committed}.`;
-        logHeAction(`${player.name} ${label}`);
-        playChipClick();
-      }
-
-      renderHeState();
-      heActionTimer = setTimeout(advanceHeAction, 450);
+        heJoinBtn.disabled = true;
+        await heJoinTable(id, name);
+        heJoinBtn.disabled = false;
+      });
     }
 
-    function startHeHand() {
-      heErrorEl.textContent = "";
-      heShowdownEl.hidden = true;
-      heGameOverEl.hidden = true;
-      heNextHandBtn.hidden = true;
-      clearTimeout(heActionTimer);
-      heRenderedSignatures = {}; // fresh hand - let every card animate in again
-      heCommunityRenderedCount = 0;
-      heCommunityCardsEl.innerHTML = "";
-
-      hePlayers.forEach((p) => {
-        p.folded = false;
-        p.allIn = false;
-        p.betThisStreet = 0;
-        p.totalContributed = 0;
-        p.holeCards = [];
+    if (heLeaveBtn) {
+      heLeaveBtn.addEventListener("click", async () => {
+        heLeaveBtn.disabled = true;
+        await heLeaveTable();
+        heLeaveBtn.disabled = false;
       });
-      heCommunity = [];
-      heStreet = "preflop";
-      heDeck = buildShuffledBjDeck();
+    }
 
-      heSeatOrder = [...hePlayers.slice(heDealerIndex), ...hePlayers.slice(0, heDealerIndex)].map((p) => p.id);
-
-      for (let round = 0; round < 2; round++) {
-        heSeatOrder.forEach((id) => heById(id).holeCards.push(heDrawCard()));
-      }
-      playCardSnap();
-
-      if (heSeatOrder.length === 2) {
-        postHeBlind(heSeatOrder[0], HOLDEM_SMALL_BLIND);
-        postHeBlind(heSeatOrder[1], HOLDEM_BIG_BLIND);
-      } else {
-        postHeBlind(heSeatOrder[1], HOLDEM_SMALL_BLIND);
-        postHeBlind(heSeatOrder[2], HOLDEM_BIG_BLIND);
-      }
-
-      heCurrentBet = Math.max(...hePlayers.map((p) => p.betThisStreet));
-      heMinRaise = HOLDEM_BIG_BLIND;
-
-      const activeIds = hePlayers.map((p) => p.id);
-      heToActQueue = heCanActCount() <= 1 ? [] : buildStreetOrder(heSeatOrder, activeIds, true).filter((id) => !heById(id).allIn);
-
-      logHeAction(`— Hand ${heHandNumber + 1}: ${heById(heSeatOrder[0]).name} is the dealer —`);
-      renderHeState();
-      heActionTimer = setTimeout(advanceHeAction, 500);
+    if (heFillAiToggleEl) {
+      heFillAiToggleEl.addEventListener("change", async () => {
+        if (!heTableRow) return;
+        await supabaseClient.from("holdem_table").update({ fill_empty_with_ai: heFillAiToggleEl.checked }).eq("id", 1);
+      });
     }
 
     if (heFoldBtn) {
-      heFoldBtn.addEventListener("click", () => applyHeAction("human", "fold"));
+      heFoldBtn.addEventListener("click", async () => {
+        if (heMySeat === null || heBusyAction || !heTableRow) return;
+        heBusyAction = true;
+        await heCommitAction(heTableRow, heSeats, heMySeat, "fold");
+        heBusyAction = false;
+      });
     }
 
     if (heCheckCallBtn) {
-      heCheckCallBtn.addEventListener("click", () => {
-        const human = heById("human");
-        const toCall = heCurrentBet - human.betThisStreet;
-        applyHeAction("human", toCall > 0 ? "call" : "check");
+      heCheckCallBtn.addEventListener("click", async () => {
+        if (heMySeat === null || heBusyAction || !heTableRow) return;
+        const me = heSeats[heMySeat];
+        const toCall = heTableRow.current_bet - me.bet_this_street;
+        heBusyAction = true;
+        await heCommitAction(heTableRow, heSeats, heMySeat, toCall > 0 ? "call" : "check");
+        heBusyAction = false;
       });
     }
 
     if (heRaiseBtn) {
-      heRaiseBtn.addEventListener("click", () => {
-        const human = heById("human");
+      heRaiseBtn.addEventListener("click", async () => {
+        if (heMySeat === null || heBusyAction || !heTableRow) return;
+        const me = heSeats[heMySeat];
         heErrorEl.textContent = "";
         const targetTotal = parseInt(heRaiseInput.value, 10);
-        const minTotal = heCurrentBet === 0 ? HOLDEM_BIG_BLIND : heCurrentBet + heMinRaise;
-        const maxTotal = human.betThisStreet + human.stack;
+        const minTotal = heTableRow.current_bet === 0 ? HOLDEM_BIG_BLIND : heTableRow.current_bet + heTableRow.min_raise;
+        const maxTotal = me.bet_this_street + me.stack;
         const floorTotal = Math.min(minTotal, maxTotal);
         if (!Number.isFinite(targetTotal) || targetTotal < floorTotal) {
           heErrorEl.textContent = `Minimum is ${floorTotal}.`;
           return;
         }
         const clampedTotal = Math.min(targetTotal, maxTotal);
-        const incremental = clampedTotal - human.betThisStreet;
-        applyHeAction("human", heCurrentBet === 0 ? "bet" : "raise", incremental);
+        const incremental = clampedTotal - me.bet_this_street;
+        heBusyAction = true;
+        await heCommitAction(heTableRow, heSeats, heMySeat, heTableRow.current_bet === 0 ? "bet" : "raise", incremental);
+        heBusyAction = false;
       });
     }
 
     document.querySelectorAll("#he-actions [data-he-quick]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const human = heById("human");
-        const pot = currentHePotTotal();
-        const maxTotal = human.betThisStreet + human.stack;
+        if (heMySeat === null || !heTableRow) return;
+        const me = heSeats[heMySeat];
+        const pot = heTableRow.hand_seats.reduce((sum, s) => sum + (heSeats[s] ? heSeats[s].total_contributed : 0), 0);
+        const maxTotal = me.bet_this_street + me.stack;
         let targetTotal;
         if (btn.dataset.heQuick === "allin") {
           targetTotal = maxTotal;
         } else {
-          const toCall = Math.max(0, heCurrentBet - human.betThisStreet);
+          const toCall = Math.max(0, heTableRow.current_bet - me.bet_this_street);
           const potAfterCall = pot + toCall;
           const raiseSize = btn.dataset.heQuick === "half" ? Math.round(potAfterCall / 2) : potAfterCall;
-          targetTotal = Math.min(maxTotal, heCurrentBet + Math.max(heMinRaise, raiseSize));
+          targetTotal = Math.min(maxTotal, heTableRow.current_bet + Math.max(heTableRow.min_raise, raiseSize));
         }
         heRaiseInput.value = targetTotal;
         playChipClick();
       });
     });
 
-    if (heNextHandBtn) {
-      heNextHandBtn.addEventListener("click", startHeHand);
+    async function initHoldemTable() {
+      await populateHePlayerSelect();
+      await heLoadState();
+      heSubscribeRealtime();
+
+      let rememberedSeat = null;
+      try {
+        const raw = window.localStorage.getItem(HOLDEM_SEAT_STORAGE_KEY);
+        rememberedSeat = raw !== null ? parseInt(raw, 10) : null;
+      } catch (err) {
+        rememberedSeat = null;
+      }
+      if (rememberedSeat !== null && heSeats[rememberedSeat] && heSeats[rememberedSeat].status === "seated" && !heSeats[rememberedSeat].is_ai) {
+        heMySeat = rememberedSeat;
+        heMyPlayerId = heSeats[rememberedSeat].player_id;
+      }
+      heStartTickLoop();
+      heRenderHoldem();
     }
 
-    if (heStartBtn) {
-      heStartBtn.addEventListener("click", async () => {
-        heStartBtn.disabled = true;
-        const aiNames = await pickHoldemOpponentNames();
-        hePlayers = buildHeInitialPlayers(aiNames);
-        heDealerIndex = 0;
-        heHandNumber = 0;
-        heIntroScreen.hidden = true;
-        heTableEl.hidden = false;
-        buildHeOpponentSeatsDom();
-        startHeHand();
-        heStartBtn.disabled = false;
-      });
+    if (heTableEl) {
+      initHoldemTable();
     }
 
-    if (heRestartBtn) {
-      heRestartBtn.addEventListener("click", async () => {
-        heRestartBtn.disabled = true;
-        const aiNames = await pickHoldemOpponentNames();
-        hePlayers = buildHeInitialPlayers(aiNames);
-        heDealerIndex = 0;
-        heHandNumber = 0;
-        heGameOverEl.hidden = true;
-        buildHeOpponentSeatsDom();
-        startHeHand();
-        heRestartBtn.disabled = false;
-      });
-    }
 
     refreshPublicView();
 

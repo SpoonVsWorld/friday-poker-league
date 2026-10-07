@@ -1496,6 +1496,26 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   text-align: left;
 }
 
+/* The felt: a green oval table surface with a wood-and-gold rail. Seats are
+   pinned to fixed positions around its rim (see .he-seat-pos-N below) and the
+   pot/community cards float in a panel at the center, like a real table. */
+.he-felt {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 16 / 10;
+  margin: 4px auto 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(255, 255, 255, 0.09), transparent 55%),
+    radial-gradient(ellipse at 50% 55%, var(--poker-green) 0%, var(--poker-green-dark) 68%, #0e2718 100%);
+  border: 10px solid #4a2f1a;
+  box-shadow:
+    0 0 0 3px rgba(var(--poker-gold-rgb), 0.45),
+    inset 0 0 50px rgba(0, 0, 0, 0.5),
+    0 12px 26px rgba(0, 0, 0, 0.45);
+}
+
 .he-lobby-bar {
   display: flex;
   align-items: center;
@@ -1553,40 +1573,43 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
 
 .he-seats-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 14px;
+  position: absolute;
+  inset: 0;
 }
 
 .he-seat-you {
   border-color: var(--poker-gold) !important;
-  box-shadow: 0 0 0 2px rgba(var(--poker-gold-rgb), 0.3);
+  box-shadow: 0 0 0 3px rgba(var(--poker-gold-rgb), 0.35) !important;
 }
 
 .he-seat-waiting {
   opacity: 0.65;
 }
 
-.he-opponents {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 14px;
-}
-
 .he-seat {
-  background: rgba(16, 26, 36, 0.6);
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  background: rgba(10, 18, 14, 0.82);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 8px 10px;
-  flex: 1 1 100px;
-  min-width: 90px;
+  padding: 6px 7px;
+  width: 92px;
   text-align: center;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, left 0.2s ease, top 0.2s ease;
 }
+
+/* Fixed rim positions by physical seat number (0-7), so a seat stays put
+   regardless of who's currently occupying it. Laid out clockwise starting
+   at the bottom, like seats around an oval table. */
+.he-seat-pos-0 { left: 50%; top: 94%; }
+.he-seat-pos-1 { left: 83%; top: 82%; }
+.he-seat-pos-2 { left: 96%; top: 50%; }
+.he-seat-pos-3 { left: 83%; top: 18%; }
+.he-seat-pos-4 { left: 50%; top: 6%; }
+.he-seat-pos-5 { left: 17%; top: 18%; }
+.he-seat-pos-6 { left: 4%; top: 50%; }
+.he-seat-pos-7 { left: 17%; top: 82%; }
 
 .he-active-seat {
   border-color: var(--poker-gold);
@@ -1633,17 +1656,25 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
 
 .he-board-area {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  width: 64%;
+  max-width: 300px;
   text-align: center;
-  padding: 10px 0;
-  border-top: 1px dashed var(--border);
-  border-bottom: 1px dashed var(--border);
-  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: rgba(6, 14, 10, 0.4);
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.25);
+  border-radius: 16px;
 }
 
 .he-pot-display {
   font-weight: 700;
   color: var(--poker-gold);
   margin-bottom: 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .he-community-cards {
@@ -1655,17 +1686,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.he-you-seat {
-  background: rgba(16, 26, 36, 0.85);
-  margin-bottom: 12px;
-}
-
-.he-you-seat .he-hand .real-card {
-  width: 48px;
-  height: 67px;
+  color: var(--poker-text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .he-actions {
@@ -1761,17 +1783,27 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   color: var(--muted);
 }
 
-.he-next-hand-btn {
-  margin-top: 6px;
-}
+@media (max-width: 480px) {
+  .he-felt {
+    aspect-ratio: 13 / 11;
+  }
 
-.he-game-over {
-  text-align: center;
-  padding: 14px 10px;
-}
+  .he-seat {
+    width: 72px;
+    padding: 5px 6px;
+  }
 
-.he-game-over-message {
-  font-weight: 700;
-  font-size: 1.05rem;
-  margin-bottom: 10px;
+  .he-seat-name {
+    font-size: 0.7rem;
+  }
+
+  .he-hand-small .real-card {
+    width: 22px;
+    height: 31px;
+  }
+
+  .he-board-area {
+    width: 76%;
+    padding: 8px 10px;
+  }
 }

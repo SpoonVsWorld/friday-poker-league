@@ -1573,6 +1573,13 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   color: var(--poker-gold);
 }
 
+.he-seat-bar-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .he-seats-list {
   position: absolute;
   inset: 0;

@@ -43,6 +43,17 @@
 
 * { box-sizing: border-box; }
 
+/* The app toggles visibility everywhere via the plain `hidden` attribute
+   (el.hidden = true/false in app.js — dozens of call sites: join/leave
+   panels, game tables, result banners, admin forms, etc.). The browser's
+   own default rule for that attribute is just `[hidden] { display: none }`,
+   which is easy for any ordinary class rule to quietly out-rank once that
+   class sets its own `display` (flex/grid/block) — the element then stays
+   visibly on screen even though JS marked it hidden, with no error to flag
+   it. Restating it here with !important makes `hidden` always win, so every
+   existing and future hidden toggle behaves the way it reads in the code. */
+[hidden] { display: none !important; }
+
 /* Full-bleed table-felt photo behind the app on every screen size. It's
    most noticeable on desktop (fills the empty gutter around the centered
    content column when the window is maximized), but stays on for phones
@@ -1303,6 +1314,23 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   margin-bottom: 4px;
 }
 
+/* Nudge phone users toward landscape, where the reflowed table (see the
+   orientation:landscape block at the end of this file) has room to
+   breathe. Only worth mentioning on a touchscreen that's currently
+   upright and narrow — on a tablet, desktop, or already-landscape phone
+   it'd just be clutter. */
+.rotate-hint {
+  display: none;
+  font-size: 0.78rem;
+  margin: 2px 0 0;
+}
+
+@media (orientation: portrait) and (pointer: coarse) and (max-width: 520px) {
+  .rotate-hint {
+    display: block;
+  }
+}
+
 .bj-player-picker {
   margin-top: 14px;
   display: flex;
@@ -2017,5 +2045,237 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   .he-raise-slider::-moz-range-thumb {
     width: 26px;
     height: 26px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Phone held sideways (landscape) on Blackjack or Hold'em.
+   Without this, rotating did nothing useful: the app stays in a single
+   centered 480px-wide column no matter which way the phone is held, and
+   the header + tab bar still eat most of a landscape phone's short
+   height. This reflows each game into cards/table beside controls and
+   trims the chrome, so turning the phone actually makes the table and
+   your cards bigger — closer to how the WSOP app uses the width.
+   Scoped to touchscreens (pointer: coarse) and short viewports
+   (max-height) so desktop and tablet landscape are untouched.
+   ------------------------------------------------------------------ */
+@media (orientation: landscape) and (max-height: 560px) and (pointer: coarse) {
+  .app-header {
+    padding: max(6px, env(safe-area-inset-top)) 12px 6px;
+  }
+
+  .app-header h1 {
+    font-size: 1rem;
+  }
+
+  .card-icon {
+    font-size: 1rem;
+  }
+
+  .container {
+    max-width: 100%;
+    padding: 0 10px 10px;
+  }
+
+  #public-view.card {
+    padding: 10px 12px;
+  }
+
+  /* The 9-tab grid is the single biggest height cost on this view —
+     collapse it to one scrollable row instead of several wrapped rows. */
+  .public-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 8px;
+    padding-bottom: 2px;
+  }
+
+  .public-tabs .tab-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  #public-tab-blackjack .bj-cabinet,
+  #public-tab-holdem .he-cabinet {
+    padding: 8px 10px;
+  }
+
+  #public-tab-blackjack .bj-marquee,
+  #public-tab-holdem .he-marquee,
+  #public-tab-blackjack .slot-intro,
+  #public-tab-holdem .slot-intro,
+  #public-tab-blackjack .rotate-hint,
+  #public-tab-holdem .rotate-hint {
+    display: none;
+  }
+
+  /* ---- Blackjack: dealer/your hand on the left, bet & action controls
+     stacked on the right, so both fit without scrolling. ---- */
+  #public-tab-blackjack .bj-player-banner {
+    margin-top: 2px;
+    font-size: 0.8rem;
+  }
+
+  #public-tab-blackjack .stat-grid {
+    max-width: 280px;
+    margin: 6px auto;
+    gap: 6px;
+  }
+
+  #public-tab-blackjack .stat-box {
+    padding: 6px;
+  }
+
+  #public-tab-blackjack .stat-box .value {
+    font-size: 1rem;
+  }
+
+  #public-tab-blackjack .stat-box .label {
+    font-size: 0.6rem;
+  }
+
+  #bj-table {
+    display: grid;
+    grid-template-columns: 1fr 150px;
+    gap: 4px 12px;
+    align-items: start;
+    margin-top: 6px;
+  }
+
+  #bj-table .bj-hand-block {
+    grid-column: 1;
+    margin-bottom: 4px;
+  }
+
+  #bj-table .bj-hand {
+    min-height: 46px;
+  }
+
+  #bj-table .bj-actions {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    align-self: start;
+    margin: 0;
+  }
+
+  #bj-table #bj-result {
+    grid-column: 1 / -1;
+  }
+
+  /* ---- Hold'em: felt on the left, action controls + log stacked on the
+     right, so the table stays big while actions stay reachable. ---- */
+  #he-table {
+    display: grid;
+    grid-template-columns: 1fr 170px;
+    gap: 6px 12px;
+    align-items: start;
+    margin-top: 6px;
+  }
+
+  /* Explicit width/height rather than aspect-ratio: as a grid item the felt
+     is stretched to fill its 1fr track by default, and aspect-ratio doesn't
+     renegotiate that stretched width back down to match a clamped height —
+     it just overflows. Fixed numbers sidestep that entirely. */
+  #he-table .he-felt {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: start;
+    width: min(100%, 460px);
+    height: min(48vh, 215px);
+    max-width: 100%;
+    aspect-ratio: auto;
+    margin: 0;
+  }
+
+  #he-table .he-seat {
+    width: 60px;
+    padding: 4px 3px 3px;
+  }
+
+  #he-table .he-seat-name {
+    font-size: 0.68rem;
+  }
+
+  #he-table .he-avatar-wrap {
+    width: 22px;
+    height: 22px;
+    margin-bottom: 2px;
+  }
+
+  #he-table .he-avatar {
+    font-size: 0.56rem;
+  }
+
+  /* Dealer/blind badges are the least essential info at this size, and
+     freeing the vertical space they'd pin above each seat helps more than
+     keeping them legibly tiny does. */
+  #he-table .he-position-badges {
+    display: none;
+  }
+
+  /* The board (pot/community cards/street) sits centered over the felt —
+     shrink it to match the shorter felt so it doesn't crowd the seats
+     above and below it. */
+  #he-table .he-board-area {
+    width: 60%;
+    max-width: 160px;
+    padding: 3px 6px;
+  }
+
+  #he-table .he-pot-display,
+  #he-table .he-street-label {
+    font-size: 0.6rem;
+  }
+
+  #he-table .he-pot-display {
+    margin-bottom: 2px;
+  }
+
+  #he-table .he-community-cards {
+    min-height: 0;
+    margin-bottom: 2px;
+    gap: 3px;
+  }
+
+  #he-table .he-community-cards .real-card {
+    width: 20px;
+    height: 28px;
+  }
+
+  #he-table #he-actions {
+    grid-column: 2;
+    grid-row: 1;
+    margin-bottom: 0;
+  }
+
+  #he-table .he-action-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #he-table .he-quick-bets {
+    flex-wrap: wrap;
+  }
+
+  #he-table .he-raise-controls input {
+    width: 64px;
+  }
+
+  #he-table #he-log {
+    grid-column: 2;
+    grid-row: 2;
+    max-height: 90px;
+    margin-bottom: 0;
+  }
+
+  #he-table #he-showdown {
+    grid-column: 1 / -1;
   }
 }

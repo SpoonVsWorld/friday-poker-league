@@ -1629,10 +1629,18 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   background: rgba(10, 18, 14, 0.82);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 8px 7px 6px;
-  width: 94px;
+  padding: 6px 5px 4px;
+  width: 78px;
   text-align: center;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, left 0.2s ease, top 0.2s ease;
+}
+
+/* The viewer's own seat gets a bit more breathing room so their hole
+   cards (sized up below) have room to sit comfortably side by side. */
+.he-seat-you {
+  width: 88px;
+  padding: 6px 6px 5px;
+  z-index: 4;
 }
 
 /* Dealer-button / blind badges, pinned above the seat card. */
@@ -1675,9 +1683,9 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
    it is (drawn with a conic-gradient masked into a ring shape). */
 .he-avatar-wrap {
   position: relative;
-  width: 36px;
-  height: 36px;
-  margin: 0 auto 4px;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 3px;
 }
 
 .he-timer-ring {
@@ -1702,7 +1710,7 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.78rem;
+  font-size: 0.64rem;
   font-weight: 800;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -1746,14 +1754,19 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
 
 .he-seat-name {
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .he-seat-stack {
   font-weight: 400;
   color: var(--muted);
+  font-size: 0.72rem;
 }
 
 .he-hand {
@@ -1764,9 +1777,23 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   min-height: 40px;
 }
 
+/* Each seat's hole cards are always exactly two — never let them wrap
+   onto separate lines, whatever the seat's width ends up being. */
+.he-hand-small {
+  flex-wrap: nowrap;
+  min-height: 0;
+}
+
 .he-hand-small .real-card {
-  width: 30px;
-  height: 42px;
+  width: 22px;
+  height: 31px;
+}
+
+/* The viewer's own cards are shown face up and need to be readable, so
+   they're sized noticeably larger than every other seat's card backs. */
+.he-seat-you .he-hand-small .real-card {
+  width: 34px;
+  height: 48px;
 }
 
 .he-seat-bet, .he-seat-status {
@@ -2005,17 +2032,27 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   }
 
   .he-seat {
+    width: 62px;
+    padding: 4px 4px;
+  }
+
+  .he-seat-you {
     width: 72px;
-    padding: 5px 6px;
+    padding: 4px 5px;
   }
 
   .he-seat-name {
-    font-size: 0.7rem;
+    font-size: 0.64rem;
   }
 
   .he-hand-small .real-card {
-    width: 22px;
-    height: 31px;
+    width: 18px;
+    height: 25px;
+  }
+
+  .he-seat-you .he-hand-small .real-card {
+    width: 28px;
+    height: 40px;
   }
 
   .he-board-area {
@@ -2024,12 +2061,12 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   }
 
   .he-avatar-wrap {
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
   }
 
   .he-avatar {
-    font-size: 0.65rem;
+    font-size: 0.56rem;
   }
 
   .he-badge-dealer, .he-badge-sb, .he-badge-bb {
@@ -2195,22 +2232,42 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   }
 
   #he-table .he-seat {
-    width: 60px;
-    padding: 4px 3px 3px;
+    width: 54px;
+    padding: 3px 3px 2px;
+  }
+
+  #he-table .he-seat-you {
+    width: 72px;
+    padding: 3px 4px 3px;
   }
 
   #he-table .he-seat-name {
-    font-size: 0.68rem;
-  }
-
-  #he-table .he-avatar-wrap {
-    width: 22px;
-    height: 22px;
+    font-size: 0.6rem;
     margin-bottom: 2px;
   }
 
+  #he-table .he-avatar-wrap {
+    width: 18px;
+    height: 18px;
+    margin-bottom: 1px;
+  }
+
   #he-table .he-avatar {
-    font-size: 0.56rem;
+    font-size: 0.5rem;
+  }
+
+  /* Missing this override was the direct cause of hole cards stacking
+     vertically in landscape: the shared .he-hand-small size (used
+     elsewhere) is too wide to fit two cards side by side inside a
+     landscape-shrunk seat. Size them to fit here instead. */
+  #he-table .he-hand-small .real-card {
+    width: 16px;
+    height: 23px;
+  }
+
+  #he-table .he-seat-you .he-hand-small .real-card {
+    width: 26px;
+    height: 37px;
   }
 
   /* Dealer/blind badges are the least essential info at this size, and

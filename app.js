@@ -4484,6 +4484,8 @@
     const heYourSeatNameEl = document.getElementById("he-your-seat-name");
     const heYourSeatStackEl = document.getElementById("he-your-seat-stack");
     const heLeaveBtn = document.getElementById("he-leave-btn");
+    const heSitOutBtn = document.getElementById("he-sit-out-btn");
+    const heReturnBtn = document.getElementById("he-return-btn");
     const heWaitingNoticeEl = document.getElementById("he-waiting-notice");
     const heBustedNoticeEl = document.getElementById("he-busted-notice");
     const heTableEl = document.getElementById("he-table");
@@ -4846,6 +4848,18 @@
         heMySeat = already.seat_number;
         heMyPlayerId = playerId;
         heRememberSeat(already.seat_number);
+        // Picking your own name again while sitting out (e.g. from another
+        // device, or after local storage forgot you) should bring you back
+        // to the action, same as the "I'm Back" button.
+        if (already.status === "sitting_out") {
+          const { data } = await supabaseClient
+            .from("holdem_seats")
+            .update({ status: "seated", last_seen: heNowIso() })
+            .eq("seat_number", already.seat_number)
+            .eq("player_id", playerId)
+            .select();
+          if (data && data.length) heSeats[already.seat_number] = data[0];
+        }
         heRenderHoldem();
         heStartTickLoop();
         return;
@@ -4953,6 +4967,48 @@
         await supabaseClient.from("holdem_table").update({ host_seat: null, version: heTableRow.version + 1 }).eq("id", 1).eq("version", heTableRow.version);
       }
       heAmHost = false;
+      heRenderHoldem();
+    }
+
+    // Sitting out keeps your seat and chips reserved — unlike Leave, nobody
+    // (not even an AI) can take your spot, and new hands skip you until you
+    // come back. If a hand's already live, fold out of just that one hand
+    // first so the pot math stays correct.
+    async function heSitOut() {
+      if (heMySeat === null) return;
+      const seatNum = heMySeat;
+      const seat = heSeats[seatNum];
+      if (!seat) return;
+
+      const midHandLive = heTableRow && heIsStreetActive(heTableRow.street) && heTableRow.hand_seats.includes(seatNum) && !seat.folded;
+
+      if (midHandLive) {
+        await supabaseClient
+          .from("holdem_seats")
+          .update({ folded: true, status: "sitting_out", last_seen: heNowIso() })
+          .eq("seat_number", seatNum);
+        if (heTableRow.action_seat === seatNum) {
+          await heCommitAction(heTableRow, heSeats, seatNum, "fold");
+        }
+      } else {
+        await supabaseClient.from("holdem_seats").update({ status: "sitting_out", last_seen: heNowIso() }).eq("seat_number", seatNum);
+      }
+      // Reflect it locally right away rather than waiting on the realtime
+      // round-trip, so the buttons/notice swap instantly.
+      if (heSeats[seatNum]) heSeats[seatNum] = { ...heSeats[seatNum], status: "sitting_out", folded: midHandLive ? true : heSeats[seatNum].folded };
+      heRenderHoldem();
+    }
+
+    // The companion to Sit Out — same seat, same chips, just marked active
+    // again so you're dealt into the next hand.
+    async function heReturnFromSitOut() {
+      if (heMySeat === null) return;
+      await supabaseClient
+        .from("holdem_seats")
+        .update({ status: "seated", last_seen: heNowIso() })
+        .eq("seat_number", heMySeat)
+        .eq("player_id", heMyPlayerId);
+      if (heSeats[heMySeat]) heSeats[heMySeat] = { ...heSeats[heMySeat], status: "seated" };
       heRenderHoldem();
     }
 
@@ -5412,8 +5468,9 @@
       const table = heTableRow;
       const seats = heSeats;
       const seatedCount = seats.filter((s) => s && s.status === "seated").length;
+      const sittingOutCount = seats.filter((s) => s && s.status === "sitting_out").length;
 
-      heSeatsFilledTextEl.textContent = `${seatedCount} of ${HOLDEM_SEAT_COUNT} seats filled`;
+      heSeatsFilledTextEl.textContent = `${seatedCount} of ${HOLDEM_SEAT_COUNT} seats filled` + (sittingOutCount ? ` (${sittingOutCount} sitting out)` : "");
       heFillAiToggleEl.checked = !!table.fill_empty_with_ai;
 
       heJoinRowEl.hidden = heMySeat !== null;
@@ -5422,9 +5479,12 @@
 
       if (heMySeat !== null && seats[heMySeat]) {
         const mySeatRow = seats[heMySeat];
+        const sittingOut = mySeatRow.status === "sitting_out";
         heYourSeatNameEl.textContent = mySeatRow.player_name || "";
-        heYourSeatStackEl.textContent = `— ${mySeatRow.stack} chips`;
-        heWaitingNoticeEl.hidden = !(heIsStreetActive(table.street) && !table.hand_seats.includes(heMySeat));
+        heYourSeatStackEl.textContent = sittingOut ? `— ${mySeatRow.stack} chips reserved, sitting out` : `— ${mySeatRow.stack} chips`;
+        heWaitingNoticeEl.hidden = sittingOut || !(heIsStreetActive(table.street) && !table.hand_seats.includes(heMySeat));
+        if (heSitOutBtn) heSitOutBtn.hidden = sittingOut;
+        if (heReturnBtn) heReturnBtn.hidden = !sittingOut;
       } else {
         heWaitingNoticeEl.hidden = true;
       }
@@ -5680,9 +5740,51 @@
 
     if (heLeaveBtn) {
       heLeaveBtn.addEventListener("click", async () => {
+        const mySeatRow = heMySeat !== null ? heSeats[heMySeat] : null;
+        const stackNote = mySeatRow ? ` and your ${mySeatRow.stack} chips` : "";
+        const confirmed = window.confirm(
+          `Leave the table for good? You'll give up your seat${stackNote} — next time you join, you'll start over with a fresh ${HOLDEM_STARTING_STACK}. Just need a break? Use "Sit Out" instead to keep your seat and chips reserved.`
+        );
+        if (!confirmed) return;
         heLeaveBtn.disabled = true;
-        await heLeaveTable();
-        heLeaveBtn.disabled = false;
+        try {
+          await heLeaveTable();
+        } catch (err) {
+          console.error("Leave table failed:", err);
+          heErrorEl.textContent = "Couldn't leave the table: " + (err?.message || "unknown error");
+        } finally {
+          heLeaveBtn.disabled = false;
+        }
+      });
+    }
+
+    if (heSitOutBtn) {
+      heSitOutBtn.addEventListener("click", async () => {
+        heSitOutBtn.disabled = true;
+        try {
+          await heSitOut();
+          heErrorEl.textContent = 'You\'re sitting out — your seat and chips are reserved. Click "I\'m Back" when you want in again.';
+        } catch (err) {
+          console.error("Sit out failed:", err);
+          heErrorEl.textContent = "Couldn't sit out: " + (err?.message || "unknown error");
+        } finally {
+          heSitOutBtn.disabled = false;
+        }
+      });
+    }
+
+    if (heReturnBtn) {
+      heReturnBtn.addEventListener("click", async () => {
+        heReturnBtn.disabled = true;
+        try {
+          await heReturnFromSitOut();
+          heErrorEl.textContent = "";
+        } catch (err) {
+          console.error("Return to table failed:", err);
+          heErrorEl.textContent = "Couldn't return to the table: " + (err?.message || "unknown error");
+        } finally {
+          heReturnBtn.disabled = false;
+        }
       });
     }
 
@@ -5815,7 +5917,12 @@
       } catch (err) {
         rememberedSeat = null;
       }
-      if (rememberedSeat !== null && heSeats[rememberedSeat] && heSeats[rememberedSeat].status === "seated" && !heSeats[rememberedSeat].is_ai) {
+      if (
+        rememberedSeat !== null &&
+        heSeats[rememberedSeat] &&
+        (heSeats[rememberedSeat].status === "seated" || heSeats[rememberedSeat].status === "sitting_out") &&
+        !heSeats[rememberedSeat].is_ai
+      ) {
         heMySeat = rememberedSeat;
         heMyPlayerId = heSeats[rememberedSeat].player_id;
       }

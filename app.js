@@ -261,10 +261,12 @@
             <button class="btn btn-small ${p.is_active ? "btn-danger" : ""}" data-action="toggle">
               ${p.is_active ? "Deactivate" : "Reactivate"}
             </button>
+            <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
           </div>
         `;
         li.querySelector('[data-action="rename"]').addEventListener("click", () => renamePlayer(p));
         li.querySelector('[data-action="toggle"]').addEventListener("click", () => togglePlayerActive(p));
+        li.querySelector('[data-action="delete"]').addEventListener("click", () => deletePlayer(p));
         playerList.appendChild(li);
       }
     }
@@ -276,6 +278,21 @@
       const nickname = document.getElementById("new-player-nickname").value.trim();
 
       if (!name) return;
+
+      // Catch the "I forgot I already added her" mistake before it
+      // happens — a duplicate player splits their points/chips across two
+      // records with no easy way to tell which one is "real" afterward.
+      const { data: existingMatches, error: dupeCheckErr } = await supabaseClient
+        .from("players")
+        .select("id, name, is_active")
+        .ilike("name", name);
+      if (!dupeCheckErr && existingMatches && existingMatches.length) {
+        const match = existingMatches[0];
+        const proceed = window.confirm(
+          `A player named "${match.name}" already exists${match.is_active ? "" : " (currently deactivated)"}. Add another player with the same name anyway?`
+        );
+        if (!proceed) return;
+      }
 
       const { error } = await supabaseClient
         .from("players")
@@ -324,6 +341,59 @@
 
       if (error) {
         playerError.textContent = "Could not update player: " + error.message;
+        return;
+      }
+      loadPlayers();
+      if (activeSeason) loadActivePlayersForResults().then(loadResultsForSelectedDate);
+      loadPlayersForHighHand();
+      refreshPublicView();
+    }
+
+    async function deletePlayer(player) {
+      playerError.textContent = "";
+
+      // Check what's actually attached to this player first, so the confirm
+      // message tells the truth about what's at stake — rather than finding
+      // out only after a foreign-key error (or, worse, silently losing data).
+      const [resultsCount, highHandsCount, chipsRow, seatRow] = await Promise.all([
+        supabaseClient.from("results").select("id", { count: "exact", head: true }).eq("player_id", player.id),
+        supabaseClient.from("high_hands").select("id", { count: "exact", head: true }).eq("player_id", player.id),
+        supabaseClient.from("blackjack_chips").select("balance").eq("player_id", player.id).maybeSingle(),
+        supabaseClient.from("holdem_seats").select("seat_number").eq("player_id", player.id).maybeSingle(),
+      ]);
+
+      const fridaysPlayed = resultsCount.count || 0;
+      const highHands = highHandsCount.count || 0;
+      const chipBalance = chipsRow.data ? chipsRow.data.balance : null;
+      const seated = !!seatRow.data;
+
+      const hasHistory = fridaysPlayed > 0 || highHands > 0 || chipBalance !== null || seated;
+      const detail = [];
+      if (fridaysPlayed > 0) detail.push(`${fridaysPlayed} Friday result${fridaysPlayed === 1 ? "" : "s"}`);
+      if (highHands > 0) detail.push(`${highHands} High Hand ${highHands === 1 ? "entry" : "entries"}`);
+      if (chipBalance !== null) detail.push(`a Blackjack balance of ${chipBalance} chips`);
+      if (seated) detail.push(`a live seat at the Hold'em table`);
+
+      if (hasHistory) {
+        window.alert(
+          `${player.name} has ${detail.join(", ")}. Deleting a player with recorded history isn't offered here — ` +
+            `it would either fail (results/high hands are protected from accidental deletion) or quietly erase real ` +
+            `standings history. If this is genuinely the player to remove (e.g. a duplicate), ask me and I'll give you ` +
+            `the merge-and-delete SQL instead, or use Deactivate to just hide them from new results without losing history.`
+        );
+        return;
+      }
+
+      if (
+        !window.confirm(
+          `Delete ${player.name}? This player has no recorded results, high hands, or chip balance, so deleting them is safe — but it can't be undone.`
+        )
+      )
+        return;
+
+      const { error } = await supabaseClient.from("players").delete().eq("id", player.id);
+      if (error) {
+        playerError.textContent = "Could not delete player: " + error.message;
         return;
       }
       loadPlayers();

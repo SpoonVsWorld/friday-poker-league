@@ -272,7 +272,11 @@
 
             <div id="he-your-seat-bar" class="he-your-seat-bar" hidden>
               <span>You're seated as <strong id="he-your-seat-name"></strong> <span id="he-your-seat-stack" class="muted"></span></span>
-              <button id="he-leave-btn" class="btn btn-small btn-secondary" type="button">Leave Table</button>
+              <div class="he-seat-bar-actions">
+                <button id="he-sit-out-btn" class="btn btn-small btn-secondary" type="button">Sit Out</button>
+                <button id="he-return-btn" class="btn btn-small" type="button" hidden>I'm Back</button>
+                <button id="he-leave-btn" class="btn btn-small btn-danger" type="button">Leave &amp; Give Up Seat</button>
+              </div>
             </div>
 
             <p id="he-waiting-notice" class="muted" hidden>You're seated for the next hand — the current hand is still playing.</p>

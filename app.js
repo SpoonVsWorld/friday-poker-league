@@ -4705,6 +4705,7 @@
     let heChannel = null;
     let heTickTimer = null;
     let heLastHeartbeatAt = 0;
+    let heLastResyncAt = 0;
     let heBusyAction = false; // guards against double-submitting while a write is in flight
     let heShowBustedNotice = false;
     let heRenderedSignatures = {};
@@ -5455,6 +5456,17 @@
         heLastHeartbeatAt = Date.now();
         supabaseClient.from("holdem_seats").update({ last_seen: heNowIso() }).eq("seat_number", heMySeat).then(() => {});
       }
+      // Realtime websockets can silently drop — a backgrounded phone tab,
+      // the screen locking, a flaky connection — with nothing on screen to
+      // show it. Without this, a dead subscription means this browser just
+      // stops getting updates, including "it's your turn now" ones, and the
+      // only sign is getting auto-folded for a turn you never saw. A
+      // periodic authoritative refetch caps how long that can go unnoticed
+      // to a few seconds, well inside the action timeout.
+      if (Date.now() - heLastResyncAt > 8000) {
+        heLastResyncAt = Date.now();
+        heLoadState();
+      }
       await heMaybeClaimHost();
       if (heAmHost) {
         await heSendHostHeartbeat();
@@ -5490,13 +5502,33 @@
       }
 
       heTableEl.hidden = false;
-      heRenderHeSeatsList(table, seats);
-      hePotDisplayEl.innerHTML = `${heChipIconSvg()} Pot: ${table.hand_seats.reduce((sum, s) => sum + (seats[s] ? seats[s].total_contributed : 0), 0).toLocaleString()}`;
-      heRenderHeCommunityCards(table);
-      heStreetLabelEl.textContent = table.street === "waiting" ? "Waiting for players…" : table.street === "showdown" ? "Showdown" : table.street.charAt(0).toUpperCase() + table.street.slice(1);
-      heRenderHeLog(table);
-      heRenderHeActions(table, seats);
-      heRenderHeShowdown(table, seats);
+
+      // The action buttons are the one thing on this screen with a clock
+      // attached — if it's your turn and they don't show, you get
+      // auto-folded with no way to stop it. Render them FIRST, before
+      // anything riskier (seat avatars, community cards, the log), and give
+      // every piece its own try/catch so a problem in one can't cascade and
+      // leave the buttons stuck hidden — the previous all-or-nothing call
+      // chain meant one bad render anywhere upstream silently blocked them.
+      heSafeRender("actions", () => heRenderHeActions(table, seats));
+      heSafeRender("seats", () => heRenderHeSeatsList(table, seats));
+      heSafeRender("pot", () => {
+        hePotDisplayEl.innerHTML = `${heChipIconSvg()} Pot: ${table.hand_seats.reduce((sum, s) => sum + (seats[s] ? seats[s].total_contributed : 0), 0).toLocaleString()}`;
+      });
+      heSafeRender("community", () => heRenderHeCommunityCards(table));
+      heSafeRender("street-label", () => {
+        heStreetLabelEl.textContent = table.street === "waiting" ? "Waiting for players…" : table.street === "showdown" ? "Showdown" : table.street.charAt(0).toUpperCase() + table.street.slice(1);
+      });
+      heSafeRender("log", () => heRenderHeLog(table));
+      heSafeRender("showdown", () => heRenderHeShowdown(table, seats));
+    }
+
+    function heSafeRender(label, fn) {
+      try {
+        fn();
+      } catch (err) {
+        console.error(`Hold'em render (${label}) failed:`, err);
+      }
     }
 
     // Initials for a round avatar badge — "Duke" -> "DU", "Matt Smith" -> "MS".
@@ -5651,6 +5683,11 @@
       heActionsEl.hidden = !myTurn;
       if (!myTurn) return;
       const me = seats[heMySeat];
+      // Guard against the table and seats realtime feeds momentarily
+      // disagreeing (table says it's your turn, but this browser's local
+      // seat data hasn't caught up yet) — bail out quietly rather than
+      // throwing; the next realtime update retries this within a second.
+      if (!me) return;
       const toCall = Math.max(0, table.current_bet - me.bet_this_street);
       heCheckCallBtn.textContent = toCall > 0 ? `Call ${Math.min(toCall, me.stack)}` : "Check";
       const minTotal = table.current_bet === 0 ? HOLDEM_BIG_BLIND : table.current_bet + table.min_raise;
@@ -5934,6 +5971,18 @@
     if (heTableEl) {
       initHoldemTable();
     }
+
+    // Catch up immediately when the tab comes back to the foreground —
+    // locking the phone or switching apps is exactly when a realtime
+    // subscription is most likely to have silently dropped, and the
+    // periodic resync in heTick() could otherwise take a few seconds to
+    // notice. This fires the moment the player actually looks at the
+    // screen again, instead of making them wait for the next tick.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && heMySeat !== null) {
+        heLoadState();
+      }
+    });
 
 
     refreshPublicView();

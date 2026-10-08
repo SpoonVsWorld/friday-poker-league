@@ -5024,26 +5024,24 @@
         )
       );
 
-      await supabaseClient
-        .from("holdem_table")
-        .update({
-          street: "waiting",
-          community_cards: [],
-          current_bet: 0,
-          min_raise: HOLDEM_BIG_BLIND,
-          dealer_seat: null,
-          action_seat: null,
-          host_seat: null,
-          host_last_beat: null,
-          action_deadline: null,
-          pending_seats: [],
-          hand_seats: [],
-          log: [...(freshTable.log || []), "Table cleared — everyone left."].slice(-30),
-          version: freshTable.version + 1,
-          updated_at: heNowIso(),
-        })
-        .eq("id", 1)
-        .eq("version", freshTable.version);
+      const resetTablePatch = {
+        street: "waiting",
+        community_cards: [],
+        current_bet: 0,
+        min_raise: HOLDEM_BIG_BLIND,
+        dealer_seat: null,
+        action_seat: null,
+        host_seat: null,
+        host_last_beat: null,
+        action_deadline: null,
+        pending_seats: [],
+        hand_seats: [],
+        log: [...(freshTable.log || []), "Table cleared — everyone left."].slice(-30),
+        version: freshTable.version + 1,
+        updated_at: heNowIso(),
+      };
+
+      await supabaseClient.from("holdem_table").update(resetTablePatch).eq("id", 1).eq("version", freshTable.version);
 
       for (let n = 0; n < HOLDEM_SEAT_COUNT; n++) {
         heSeats[n] = {
@@ -5061,6 +5059,14 @@
           all_in: false,
         };
       }
+
+      // Update the locally-cached table row too, not just the DB — whoever
+      // called us is about to re-render right after this returns, and
+      // without this it would render from the stale pre-clear row (for
+      // example still showing "showdown" with the last hand's revealed
+      // cards) until the next realtime update or periodic resync caught up.
+      if (heTableRow) heTableRow = { ...heTableRow, ...resetTablePatch };
+
       return true;
     }
 

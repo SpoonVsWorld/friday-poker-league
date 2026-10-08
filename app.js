@@ -4968,7 +4968,100 @@
         await supabaseClient.from("holdem_table").update({ host_seat: null, version: heTableRow.version + 1 }).eq("id", 1).eq("version", heTableRow.version);
       }
       heAmHost = false;
+
+      // If that was the last human at the table, clear the AI seats out
+      // too — otherwise they'd just sit there dangling with no one left to
+      // run their turns, and the next visitor would find a table that
+      // LOOKS full but isn't actually being played.
+      await heClearTableIfNoHumansLeft(seatNum);
+
       heRenderHoldem();
+    }
+
+    // Shared by Leave and by busting out: if no human is left seated (or
+    // sitting out) anywhere at the table, wipe every seat — including any
+    // AI — and reset the table row to a clean waiting state. Without this,
+    // AI seats a solo player leaves behind just sit there indefinitely:
+    // nothing's left to drive their turns (host duties require a seated
+    // human browser), so the table freezes mid-game instead of actually
+    // clearing, and the next person to look finds seats "filled" by a game
+    // that isn't really happening.
+    async function heClearTableIfNoHumansLeft(excludeSeat) {
+      const anyHumanLeft = heSeats.some(
+        (s, n) => n !== excludeSeat && s && !s.is_ai && s.player_id && (s.status === "seated" || s.status === "sitting_out")
+      );
+      if (anyHumanLeft) return false;
+      const anySeatOccupied = heSeats.some((s, n) => n !== excludeSeat && s && s.status !== "empty");
+      if (!anySeatOccupied) return false;
+
+      // Re-fetch the current row rather than trusting a locally-tracked
+      // version number — a fold or a host-seat clear may have just
+      // happened above, so we need whatever version is actually in the
+      // database right now, not a stale guess.
+      const { data: freshTable, error: fetchErr } = await supabaseClient.from("holdem_table").select("version, log").eq("id", 1).single();
+      if (fetchErr || !freshTable) return false;
+
+      await Promise.all(
+        Array.from({ length: HOLDEM_SEAT_COUNT }, (_, n) =>
+          supabaseClient
+            .from("holdem_seats")
+            .update({
+              player_id: null,
+              player_name: null,
+              is_ai: false,
+              personality: null,
+              status: "empty",
+              stack: HOLDEM_STARTING_STACK,
+              hole_cards: [],
+              bet_this_street: 0,
+              total_contributed: 0,
+              folded: false,
+              all_in: false,
+              last_seen: null,
+              joined_at: null,
+            })
+            .eq("seat_number", n)
+        )
+      );
+
+      await supabaseClient
+        .from("holdem_table")
+        .update({
+          street: "waiting",
+          community_cards: [],
+          current_bet: 0,
+          min_raise: HOLDEM_BIG_BLIND,
+          dealer_seat: null,
+          action_seat: null,
+          host_seat: null,
+          host_last_beat: null,
+          action_deadline: null,
+          pending_seats: [],
+          hand_seats: [],
+          log: [...(freshTable.log || []), "Table cleared — everyone left."].slice(-30),
+          version: freshTable.version + 1,
+          updated_at: heNowIso(),
+        })
+        .eq("id", 1)
+        .eq("version", freshTable.version);
+
+      for (let n = 0; n < HOLDEM_SEAT_COUNT; n++) {
+        heSeats[n] = {
+          ...(heSeats[n] || { seat_number: n }),
+          player_id: null,
+          player_name: null,
+          is_ai: false,
+          personality: null,
+          status: "empty",
+          stack: HOLDEM_STARTING_STACK,
+          hole_cards: [],
+          bet_this_street: 0,
+          total_contributed: 0,
+          folded: false,
+          all_in: false,
+        };
+      }
+      return true;
     }
 
     // Sitting out keeps your seat and chips reserved — unlike Leave, nobody
@@ -5410,38 +5503,46 @@
 
       // Reset everyone's per-street/contribution fields, and clear out
       // anyone who busted while we were at it.
+      const bustedSeatPatch = {
+        player_id: null,
+        player_name: null,
+        is_ai: false,
+        personality: null,
+        status: "empty",
+        stack: HOLDEM_STARTING_STACK,
+        hole_cards: [],
+        bet_this_street: 0,
+        total_contributed: 0,
+        folded: false,
+        all_in: false,
+        last_seen: null,
+        joined_at: null,
+      };
       for (const s of table.hand_seats) {
         const seat = seats[s];
         if (!seat) continue;
         if (seat.stack <= 0) {
-          await supabaseClient
-            .from("holdem_seats")
-            .update({
-              player_id: null,
-              player_name: null,
-              is_ai: false,
-              personality: null,
-              status: "empty",
-              stack: HOLDEM_STARTING_STACK,
-              hole_cards: [],
-              bet_this_street: 0,
-              total_contributed: 0,
-              folded: false,
-              all_in: false,
-              last_seen: null,
-              joined_at: null,
-            })
-            .eq("seat_number", s);
+          await supabaseClient.from("holdem_seats").update(bustedSeatPatch).eq("seat_number", s);
+          // Reflect it locally right away rather than waiting on the
+          // realtime round-trip — heClearTableIfNoHumansLeft (below) needs
+          // an up-to-date view of who's actually still seated.
+          seats[s] = { ...seat, ...bustedSeatPatch };
         } else {
           await supabaseClient.from("holdem_seats").update({ bet_this_street: 0, total_contributed: 0, folded: false, all_in: false, hole_cards: [] }).eq("seat_number", s);
         }
       }
 
-      await supabaseClient
-        .from("holdem_table")
-        .update({ street: "waiting", action_seat: null, pending_seats: [], action_deadline: null, current_bet: 0, version: table.version + 1, updated_at: heNowIso() })
-        .eq("id", 1)
-        .eq("version", table.version);
+      // If everyone human just busted out (solo vs. AI is the common case),
+      // clear the AI seats too instead of leaving them playing to an empty
+      // room — see heClearTableIfNoHumansLeft for why.
+      const cleared = await heClearTableIfNoHumansLeft();
+      if (!cleared) {
+        await supabaseClient
+          .from("holdem_table")
+          .update({ street: "waiting", action_seat: null, pending_seats: [], action_deadline: null, current_bet: 0, version: table.version + 1, updated_at: heNowIso() })
+          .eq("id", 1)
+          .eq("version", table.version);
+      }
     }
 
     // ---- Tick loop: heartbeats + host duties, driven by every connected browser ----

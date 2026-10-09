@@ -12,6 +12,10 @@
     // ------------------------------------------------------------------
     // Elements
     // ------------------------------------------------------------------
+    const whatsNewBanner = document.getElementById("whats-new-banner");
+    const whatsNewText = document.getElementById("whats-new-text");
+    const whatsNewDismiss = document.getElementById("whats-new-dismiss");
+
     const adminToggle = document.getElementById("admin-toggle");
     const publicView = document.getElementById("public-view");
     const adminView = document.getElementById("admin-view");
@@ -6190,6 +6194,53 @@
 
 
     refreshPublicView();
+
+    // ------------------------------------------------------------------
+    // "What's new" banner — a dismissible announcement pulled from a
+    // single-row Supabase table (see supabase_announcements.sql). Posting
+    // a new message (and bumping its updated_at) makes the banner
+    // reappear for everyone, even players who dismissed an earlier one;
+    // each browser just remembers locally which updated_at it last
+    // dismissed, so re-dismissing is a one-tap no-op once they've seen it.
+    // ------------------------------------------------------------------
+    const WHATS_NEW_SEEN_KEY = "pokerWhatsNewSeenAt";
+
+    async function initWhatsNewBanner() {
+      if (!whatsNewBanner) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from("announcements")
+          .select("message, updated_at")
+          .eq("id", 1)
+          .maybeSingle();
+        if (error || !data || !data.message) return;
+
+        let seenAt = null;
+        try {
+          seenAt = window.localStorage.getItem(WHATS_NEW_SEEN_KEY);
+        } catch (err) {
+          seenAt = null;
+        }
+        if (seenAt === data.updated_at) return;
+
+        whatsNewText.textContent = data.message;
+        whatsNewBanner.hidden = false;
+
+        whatsNewDismiss.addEventListener("click", () => {
+          whatsNewBanner.hidden = true;
+          try {
+            window.localStorage.setItem(WHATS_NEW_SEEN_KEY, data.updated_at);
+          } catch (err) {
+            // localStorage unavailable (private browsing, etc.) — the
+            // banner will just show again next visit, harmless.
+          }
+        });
+      } catch (err) {
+        console.error("What's new banner failed to load:", err);
+      }
+    }
+
+    initWhatsNewBanner();
 
     // ------------------------------------------------------------------
     // Utility

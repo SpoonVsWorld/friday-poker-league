@@ -1251,43 +1251,75 @@
       ],
     };
 
-    // A stylized court-card portrait for J/Q/K - a face with rank-specific
-    // headwear so they read as an actual face rather than a big suit
-    // symbol, mirrored top/bottom the way a real deck's face cards are
-    // drawn as two half-length figures back to back. A faint diamond
-    // pattern on the collar and a bit more line detail on the headwear
-    // give it a slightly more "illustrated court card" feel than a plain
-    // cartoon face, while staying simple enough to read clearly at the
-    // small sizes hole cards render at.
+    // A stylized court-card portrait for J/Q/K: a robed royal figure with
+    // rank-specific crown, hair, and a held emblem (scepter / flower /
+    // halberd) - the actual markers that make a real deck's King, Queen,
+    // and Jack instantly tell apart at a glance, not just a face with a
+    // different hat. Suit pips flank the shoulders the way a real deck
+    // prints them. Mirrored top/bottom the way a real deck's face cards
+    // are drawn as two half-length figures back to back, meeting at the
+    // card's center.
     function courtPortraitGroup(rank, suit, color) {
-      const headwear =
+      const crown =
         rank === "K"
-          ? // three-point crown with jewel tips, plus a base band
-            `<path d="M36 29 L40 16 L45 25 L50 13 L55 25 L60 16 L64 29 Z" fill="${color}" stroke="none"/>
-             <rect x="36" y="29" width="28" height="4" fill="${color}" stroke="none"/>
-             <circle cx="40" cy="16" r="1.6" fill="#fdfdfd" stroke="none"/>
-             <circle cx="50" cy="13" r="1.8" fill="#fdfdfd" stroke="none"/>
-             <circle cx="60" cy="16" r="1.6" fill="#fdfdfd" stroke="none"/>
-             <path d="M42 46 Q50 50 58 46" fill="none" stroke="${color}" stroke-width="1.1" stroke-linecap="round"/>`
+          ? // three-point crown with jewel tips, base band, and a short
+            // pointed beard - the clearest "this is the king" markers
+            `<path d="M35 25 L39 12 L44 21 L50 9 L56 21 L61 12 L65 25 Z" fill="${color}"/>
+             <rect x="35" y="25" width="30" height="4" fill="${color}"/>
+             <circle cx="39" cy="12" r="1.5" fill="#fdfdfd"/>
+             <circle cx="50" cy="9" r="1.7" fill="#fdfdfd"/>
+             <circle cx="61" cy="12" r="1.5" fill="#fdfdfd"/>`
           : rank === "Q"
             ? // tall, narrow pointed tiara with a single jewel at the peak
-              `<path d="M37 29 Q50 11 63 29 Z" fill="${color}" stroke="none"/>
-               <circle cx="50" cy="14" r="2.2" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
-               <path d="M39 34 Q50 39 61 34" fill="none" stroke="#fdfdfd" stroke-width="1" stroke-linecap="round" opacity="0.8"/>`
-            : // Jack: a flatter, wider soft cap with a small side plume - no jewels or points
-              `<path d="M36 30 Q50 18 64 30 Z" fill="${color}" stroke="none"/>
-               <path d="M60 22 L68 13" stroke="${color}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-               <path d="M39 29 Q50 25 61 29" fill="none" stroke="#fdfdfd" stroke-width="1" stroke-linecap="round" opacity="0.7"/>`;
+              `<path d="M36 25 Q50 7 64 25 Z" fill="${color}"/>
+               <rect x="36" y="24" width="28" height="3" fill="${color}"/>
+               <circle cx="50" cy="10" r="2.1" fill="#fdfdfd" stroke="${color}" stroke-width="1"/>`
+            : // Jack: a flat soft cap with a side plume - no crown or jewels,
+              // the youngest and plainest of the three
+              `<path d="M35 26 Q50 14 65 26 L65 23 Q50 18 35 23 Z" fill="${color}"/>
+               <path d="M62 19 L69 8" stroke="${color}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`;
+
+      // Hair: a short beard for the King, loose flowing locks for the
+      // Queen and Jack - this alone does a lot to separate the three at
+      // small sizes, before you even read the crown shape.
+      const hair =
+        rank === "K"
+          ? `<path d="M43 39 Q50 44 57 39 L55 43 Q50 46.5 45 43 Z" fill="${color}"/>`
+          : `<path d="M39 23 Q34 30 36 39 Q37 42 39 40" fill="${color}"/>
+             <path d="M61 23 Q66 30 64 39 Q63 42 61 40" fill="${color}"/>`;
+
+      // Each rank holds a different emblem to its side - a scepter for
+      // the King, a flower for the Queen, a halberd for the Jack - mostly
+      // along the card's outer edge so it doesn't crowd the face.
+      const emblem =
+        rank === "K"
+          ? // a rod topped with an orb-and-cross - the classic royal
+            // scepter silhouette, kept chunky so it doesn't read as a
+            // barbell at small sizes
+            `<line x1="28" y1="51" x2="28" y2="68" stroke="${color}" stroke-width="1.8" stroke-linecap="round"/>
+             <circle cx="28" cy="46.5" r="3" fill="${color}"/>
+             <path d="M28 43.3 L28 49.7 M25.3 46.5 L30.7 46.5" stroke="#fdfdfd" stroke-width="1" stroke-linecap="round"/>`
+          : rank === "Q"
+            ? `<line x1="72" y1="54" x2="72" y2="68" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+               <circle cx="72" cy="48" r="2.1" fill="${color}"/>
+               <circle cx="68.3" cy="50.3" r="1.7" fill="${color}"/>
+               <circle cx="75.7" cy="50.3" r="1.7" fill="${color}"/>
+               <circle cx="72" cy="52.2" r="1.7" fill="${color}"/>`
+            : `<line x1="72" y1="46" x2="72" y2="68" stroke="${color}" stroke-width="1.7" stroke-linecap="round"/>
+               <path d="M67.5 48.5 L76.5 48.5 L72 42 Z" fill="${color}"/>`;
 
       return `
-        <path d="M35 68 Q34 50 50 48 Q66 50 65 68 Z" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
-        <path d="M40 57 L42 59 L44 57 M48 57 L50 59 L52 57 M56 57 L58 59 L60 57" stroke="${color}" stroke-width="0.9" fill="none" opacity="0.55"/>
-        ${suitIconMarkup(suit, color, 50, 60, 11)}
-        ${headwear}
-        <ellipse cx="50" cy="39" rx="9.5" ry="11.5" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
-        <circle cx="45.5" cy="37" r="1.1" fill="${color}"/>
-        <circle cx="54.5" cy="37" r="1.1" fill="${color}"/>
-        <path d="M46 44 Q50 46.5 54 44" fill="none" stroke="${color}" stroke-width="1.1" stroke-linecap="round"/>
+        <path d="M38 70 L34.5 54 Q34 45 42 42 L58 42 Q66 45 65.5 54 L62 70 Z" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
+        <path d="M44 42 L50 48 L56 42" fill="none" stroke="${color}" stroke-width="1.1"/>
+        ${emblem}
+        ${suitIconMarkup(suit, color, 28, 36, 8)}
+        ${suitIconMarkup(suit, color, 72, 36, 8)}
+        ${hair}
+        ${crown}
+        <ellipse cx="50" cy="30" rx="9" ry="10.5" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
+        <circle cx="46" cy="29" r="1.1" fill="${color}"/>
+        <circle cx="54" cy="29" r="1.1" fill="${color}"/>
+        <path d="M46.5 35 Q50 37.2 53.5 35" fill="none" stroke="${color}" stroke-width="1.1" stroke-linecap="round"/>
       `;
     }
 

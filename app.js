@@ -5036,7 +5036,7 @@
         action_deadline: null,
         pending_seats: [],
         hand_seats: [],
-        log: [...(freshTable.log || []), "Table cleared — everyone left."].slice(-30),
+        log: ["Table cleared — everyone left."],
         version: freshTable.version + 1,
         updated_at: heNowIso(),
       };

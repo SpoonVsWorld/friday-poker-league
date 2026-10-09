@@ -1298,7 +1298,10 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
    Blackjack
    ------------------------------------------------------------------ */
 .bj-cabinet {
-  background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
+  background:
+    radial-gradient(ellipse 140% 70% at 50% -10%, rgba(255, 255, 255, 0.05), transparent 60%),
+    radial-gradient(ellipse 130% 90% at 50% 115%, rgba(0, 0, 0, 0.55), transparent 60%),
+    linear-gradient(160deg, #10181f 0%, #0a0f14 75%);
   border: 2px solid var(--poker-gold);
   border-radius: var(--radius);
   padding: 18px 16px;
@@ -1401,6 +1404,18 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 .bj-table {
   margin-top: 18px;
   text-align: left;
+  padding: 16px 14px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1.3px) 0 0 / 15px 15px,
+    radial-gradient(ellipse at 50% 25%, rgba(255, 255, 255, 0.08), transparent 55%),
+    radial-gradient(ellipse at 50% 65%, var(--poker-green) 0%, var(--poker-green-dark) 72%, #0e2718 100%);
+  border: 8px solid #4a2f1a;
+  box-shadow:
+    inset 0 0 0 3px rgba(var(--poker-gold-rgb), 0.5),
+    0 0 0 2px rgba(var(--poker-gold-rgb), 0.35),
+    inset 0 0 40px rgba(0, 0, 0, 0.5),
+    0 10px 20px rgba(0, 0, 0, 0.4);
 }
 
 .bj-hand-block {
@@ -1410,8 +1425,9 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 .bj-hand-label {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--text);
+  color: var(--poker-gold-highlight);
   margin-bottom: 6px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .bj-hand-total {
@@ -1447,21 +1463,22 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   padding: 10px;
   border-radius: 10px;
   margin-top: 6px;
+  background: rgba(6, 12, 9, 0.55);
 }
 
 .bj-result.bj-win {
-  background: rgba(var(--poker-green-rgb), 0.18);
-  color: var(--accent);
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.5);
+  color: var(--poker-gold-highlight);
 }
 
 .bj-result.bj-lose {
-  background: rgba(var(--poker-red-rgb), 0.18);
-  color: var(--accent-2);
+  border: 1px solid rgba(var(--poker-red-rgb), 0.5);
+  color: #ff9b9b;
 }
 
 .bj-result.bj-push {
-  background: rgba(154, 169, 184, 0.18);
-  color: var(--muted);
+  border: 1px solid rgba(154, 169, 184, 0.4);
+  color: var(--text);
 }
 
 .bj-reset-btn {
@@ -1495,7 +1512,10 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
    Texas Hold'em
    ------------------------------------------------------------------ */
 .he-cabinet {
-  background: linear-gradient(160deg, #1c2b1f 0%, #182430 60%);
+  background:
+    radial-gradient(ellipse 140% 70% at 50% -10%, rgba(255, 255, 255, 0.05), transparent 60%),
+    radial-gradient(ellipse 130% 90% at 50% 115%, rgba(0, 0, 0, 0.55), transparent 60%),
+    linear-gradient(160deg, #10181f 0%, #0a0f14 75%);
   border: 2px solid var(--poker-gold);
   border-radius: var(--radius);
   padding: 18px 16px;
@@ -1536,10 +1556,12 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   margin: 4px auto 18px;
   border-radius: 50%;
   background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1.3px) 0 0 / 15px 15px,
     radial-gradient(ellipse at 50% 38%, rgba(255, 255, 255, 0.09), transparent 55%),
     radial-gradient(ellipse at 50% 55%, var(--poker-green) 0%, var(--poker-green-dark) 68%, #0e2718 100%);
   border: 10px solid #4a2f1a;
   box-shadow:
+    inset 0 0 0 4px rgba(var(--poker-gold-rgb), 0.5),
     0 0 0 3px rgba(var(--poker-gold-rgb), 0.45),
     inset 0 0 50px rgba(0, 0, 0, 0.5),
     0 12px 26px rgba(0, 0, 0, 0.45);
@@ -1622,16 +1644,31 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   opacity: 0.65;
 }
 
+/* Each physical seat (0-7) gets a fixed accent color, matching its avatar's
+   color (.he-avatar-cN below) so the seat frame itself reads as
+   color-coded, WSOP-style, rather than a plain gray box. Pure CSS — the
+   seat IDs are stable per physical position, so no JS/markup change
+   needed to wire this up. */
+#he-seat-0 { --seat-accent: #5b7c99; }
+#he-seat-1 { --seat-accent: #9c5b8c; }
+#he-seat-2 { --seat-accent: #4e9c6e; }
+#he-seat-3 { --seat-accent: #a1792f; }
+#he-seat-4 { --seat-accent: #6a5b9c; }
+#he-seat-5 { --seat-accent: #a15050; }
+#he-seat-6 { --seat-accent: #3a85a3; }
+#he-seat-7 { --seat-accent: #7c9c3a; }
+
 .he-seat {
   position: absolute;
   transform: translate(-50%, -50%);
   z-index: 2;
-  background: rgba(10, 18, 14, 0.82);
-  border: 1px solid var(--border);
+  background: rgba(10, 18, 14, 0.88);
+  border: 1.5px solid var(--seat-accent, var(--border));
   border-radius: 10px;
   padding: 6px 5px 4px;
   width: 78px;
   text-align: center;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, left 0.2s ease, top 0.2s ease;
 }
 
@@ -1656,12 +1693,17 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
 
 .he-badge-dealer, .he-badge-sb, .he-badge-bb {
-  font-size: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  font-size: 0.56rem;
   font-weight: 800;
-  padding: 1px 5px;
-  border-radius: 8px;
-  line-height: 1.4;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 
 .he-badge-dealer {
@@ -1714,7 +1756,7 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   font-weight: 800;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border: 2px solid var(--seat-accent, rgba(255, 255, 255, 0.25));
 }
 
 .he-avatar-c0 { background: #5b7c99; }
@@ -1757,6 +1799,9 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   font-size: 0.7rem;
   font-weight: 700;
   margin-bottom: 3px;
+  padding: 1px 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1764,8 +1809,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 }
 
 .he-seat-stack {
-  font-weight: 400;
-  color: var(--muted);
+  font-weight: 700;
+  color: var(--poker-gold-highlight);
   font-size: 0.72rem;
 }
 
@@ -1796,7 +1841,23 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   height: 48px;
 }
 
-.he-seat-bet, .he-seat-status {
+.he-seat-bet:empty, .he-seat-status:empty {
+  margin-top: 0;
+}
+
+.he-seat-bet {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--poker-gold-highlight);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.35);
+  border-radius: 999px;
+}
+
+.he-seat-status {
   font-size: 0.72rem;
   color: var(--muted);
   margin-top: 4px;
@@ -1832,12 +1893,14 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   max-width: 300px;
   text-align: center;
   padding: 10px 12px;
-  background: rgba(6, 14, 10, 0.4);
-  border: 1px solid rgba(var(--poker-gold-rgb), 0.25);
+  background: linear-gradient(180deg, rgba(10, 18, 14, 0.6), rgba(6, 12, 9, 0.7));
+  border: 1px solid rgba(var(--poker-gold-rgb), 0.4);
   border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
 .he-pot-display {
+  font-size: 1.02rem;
   font-weight: 700;
   color: var(--poker-gold);
   margin-bottom: 8px;

@@ -1113,11 +1113,22 @@ ul#highhand-list, ul#public-highhand-list {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  /* The banner sits above .app-header, as the very first thing in
+     <body> - on an installed/standalone PWA that's right where the
+     phone's status bar (clock, battery, etc.) lives, so it needs its
+     own safe-area bumper the same way .app-header already has one.
+     Pairs with the ".app-header" override below, which backs off its
+     own top padding when the banner is visible so the two don't stack
+     into double the safe-area gap. */
+  padding: max(10px, env(safe-area-inset-top)) 14px 10px;
   background: linear-gradient(135deg, var(--poker-green-dark) 0%, var(--poker-green) 100%);
   border-bottom: 1px solid rgba(var(--poker-gold-rgb), 0.55);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   animation: whats-new-in 0.35s ease-out;
+}
+
+.whats-new-banner:not([hidden]) + .app-header {
+  padding-top: 12px;
 }
 
 .whats-new-banner[hidden] {
@@ -2281,6 +2292,14 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 @media (orientation: landscape) and (max-height: 560px) and (pointer: coarse) {
   .app-header {
     padding: max(6px, env(safe-area-inset-top)) 12px 6px;
+  }
+
+  .whats-new-banner {
+    padding: max(6px, env(safe-area-inset-top)) 12px 6px;
+  }
+
+  .whats-new-banner:not([hidden]) + .app-header {
+    padding-top: 6px;
   }
 
   .app-header h1 {

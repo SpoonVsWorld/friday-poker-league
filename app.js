@@ -1152,13 +1152,49 @@
         .join(" ");
     }
 
+    // Bold, hand-drawn suit shapes instead of the Unicode ♠♥♦♣ characters.
+    // Rendering suits as plain <text> glyphs leaves them at the mercy of
+    // whatever font/emoji set the device substitutes - on a lot of phones
+    // that swaps them for mismatched, thin, or cartoonish color-emoji
+    // glyphs instead of a clean card suit, which is exactly what reads as
+    // "generic" and hard to read at a glance. Drawing them as plain vector
+    // shapes renders identically (crisp, bold, correctly colored) on every
+    // device, including scaled down to the tiny hole-card sizes. Each
+    // shape is authored in a local 0-24 box; suitIconMarkup() below scales
+    // and centers it wherever it's needed on the card.
+    function suitShapeMarkup(suit, color) {
+      switch (suit) {
+        case "S":
+          return `<path d="M12 1.5 C7 7 1.5 11.5 1.5 16.3 C1.5 19.9 4.4 22.3 7.7 22.3 C9.3 22.3 10.7 21.7 11.6 20.6 C11.2 24 9.3 26 5.8 27.5 L18.2 27.5 C14.7 26 12.8 24 12.4 20.6 C13.3 21.7 14.7 22.3 16.3 22.3 C19.6 22.3 22.5 19.9 22.5 16.3 C22.5 11.5 17 7 12 1.5 Z" fill="${color}"/>`;
+        case "H":
+          return `<path d="M12 25 C12 25 1.5 17.8 1.5 10 C1.5 5.6 5 2.8 8.4 2.8 C10.4 2.8 11.6 4 12 5.4 C12.4 4 13.6 2.8 15.6 2.8 C19 2.8 22.5 5.6 22.5 10 C22.5 17.8 12 25 12 25 Z" fill="${color}"/>`;
+        case "D":
+          return `<path d="M12 1 L22.5 13.5 L12 26 L1.5 13.5 Z" fill="${color}"/>`;
+        case "C":
+          return `<circle cx="7.7" cy="10.2" r="5.6" fill="${color}"/><circle cx="16.3" cy="10.2" r="5.6" fill="${color}"/><circle cx="12" cy="16.6" r="5.6" fill="${color}"/><path d="M10.1 18.8 L13.9 18.8 L16.6 27.5 L7.4 27.5 Z" fill="${color}"/>`;
+        default:
+          return "";
+      }
+    }
+
+    // Centers a suit shape at (cx, cy) scaled to roughly `size` units wide.
+    // Pass flip:true to render it upside-down (the bottom half of a pip
+    // layout, exactly like a real deck's mirrored lower pips).
+    function suitIconMarkup(suit, color, cx, cy, size, flip) {
+      const scale = size / 24;
+      const tx = cx - 12 * scale;
+      const ty = cy - 14 * scale;
+      const inner = `<g transform="translate(${tx} ${ty}) scale(${scale})">${suitShapeMarkup(suit, color)}</g>`;
+      return flip ? `<g transform="rotate(180 ${cx} ${cy})">${inner}</g>` : inner;
+    }
+
     // Realistic flipping card graphics, used just for the featured
     // "Season Best" high hand callout.
     const REAL_CARD_BACK_SVG = `
       <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
         <rect x="2" y="2" width="96" height="136" rx="10" fill="#123626" stroke="#d4af37" stroke-width="3"/>
         <rect x="10" y="10" width="80" height="120" rx="6" fill="none" stroke="#d4af37" stroke-width="1.5" stroke-dasharray="2 3"/>
-        <text x="50" y="82" font-size="42" text-anchor="middle" fill="#d4af37">♠</text>
+        ${suitIconMarkup("S", "#d4af37", 50, 70, 46)}
       </svg>
     `;
 
@@ -1215,30 +1251,38 @@
       ],
     };
 
-    // A simple stylized court-card portrait for J/Q/K - a face with
-    // rank-specific headwear so they read as an actual face rather than a
-    // big suit symbol, mirrored top/bottom the way a real deck's face
-    // cards are drawn as two half-length figures back to back.
-    function courtPortraitGroup(rank, symbol, color) {
+    // A stylized court-card portrait for J/Q/K - a face with rank-specific
+    // headwear so they read as an actual face rather than a big suit
+    // symbol, mirrored top/bottom the way a real deck's face cards are
+    // drawn as two half-length figures back to back. A faint diamond
+    // pattern on the collar and a bit more line detail on the headwear
+    // give it a slightly more "illustrated court card" feel than a plain
+    // cartoon face, while staying simple enough to read clearly at the
+    // small sizes hole cards render at.
+    function courtPortraitGroup(rank, suit, color) {
       const headwear =
         rank === "K"
           ? // three-point crown with jewel tips, plus a base band
             `<path d="M36 29 L40 16 L45 25 L50 13 L55 25 L60 16 L64 29 Z" fill="${color}" stroke="none"/>
              <rect x="36" y="29" width="28" height="4" fill="${color}" stroke="none"/>
-             <circle cx="40" cy="16" r="1.6" fill="${color}" stroke="none"/>
-             <circle cx="50" cy="13" r="1.8" fill="${color}" stroke="none"/>
-             <circle cx="60" cy="16" r="1.6" fill="${color}" stroke="none"/>`
+             <circle cx="40" cy="16" r="1.6" fill="#fdfdfd" stroke="none"/>
+             <circle cx="50" cy="13" r="1.8" fill="#fdfdfd" stroke="none"/>
+             <circle cx="60" cy="16" r="1.6" fill="#fdfdfd" stroke="none"/>
+             <path d="M42 46 Q50 50 58 46" fill="none" stroke="${color}" stroke-width="1.1" stroke-linecap="round"/>`
           : rank === "Q"
             ? // tall, narrow pointed tiara with a single jewel at the peak
               `<path d="M37 29 Q50 11 63 29 Z" fill="${color}" stroke="none"/>
-               <circle cx="50" cy="14" r="2.2" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>`
+               <circle cx="50" cy="14" r="2.2" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
+               <path d="M39 34 Q50 39 61 34" fill="none" stroke="#fdfdfd" stroke-width="1" stroke-linecap="round" opacity="0.8"/>`
             : // Jack: a flatter, wider soft cap with a small side plume - no jewels or points
               `<path d="M36 30 Q50 18 64 30 Z" fill="${color}" stroke="none"/>
-               <path d="M60 22 L68 13" stroke="${color}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`;
+               <path d="M60 22 L68 13" stroke="${color}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+               <path d="M39 29 Q50 25 61 29" fill="none" stroke="#fdfdfd" stroke-width="1" stroke-linecap="round" opacity="0.7"/>`;
 
       return `
         <path d="M35 68 Q34 50 50 48 Q66 50 65 68 Z" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
-        <text x="50" y="63" font-size="9" text-anchor="middle" fill="${color}">${symbol}</text>
+        <path d="M40 57 L42 59 L44 57 M48 57 L50 59 L52 57 M56 57 L58 59 L60 57" stroke="${color}" stroke-width="0.9" fill="none" opacity="0.55"/>
+        ${suitIconMarkup(suit, color, 50, 60, 11)}
         ${headwear}
         <ellipse cx="50" cy="39" rx="9.5" ry="11.5" fill="#fdfdfd" stroke="${color}" stroke-width="1.3"/>
         <circle cx="45.5" cy="37" r="1.1" fill="${color}"/>
@@ -1247,33 +1291,38 @@
       `;
     }
 
-    function courtCardSvg(rank, symbol, color) {
-      const portrait = courtPortraitGroup(rank, symbol, color);
+    function courtCardSvg(rank, suit, color) {
+      const portrait = courtPortraitGroup(rank, suit, color);
       return `<g>${portrait}</g><g transform="rotate(180 50 70)">${portrait}</g>`;
+    }
+
+    // One corner index - a bold rank label plus a crisp vector suit icon
+    // (see suitIconMarkup above). realCardFrontSvg stamps this at the
+    // top-left and, rotated 180°, again at the bottom-right, the way a
+    // real deck's cards read correctly from either end of a fanned hand.
+    function cornerIndexMarkup(rankLabel, suit, color, rankFontSize) {
+      return `
+        <text x="12" y="26" font-family="Georgia, 'Times New Roman', serif" font-size="${rankFontSize}" font-weight="700" text-anchor="middle" fill="${color}">${escapeHtml(rankLabel)}</text>
+        ${suitIconMarkup(suit, color, 12, 42, 17)}
+      `;
     }
 
     function realCardFrontSvg(rank, suit) {
       const rankLabel = rank === "T" ? "10" : rank;
-      const symbol = SUIT_SYMBOL[suit] || suit;
       const color = SUIT_COLOR[suit] === "red" ? "#c0392b" : "#1a1a1a";
-      const rankFontSize = rankLabel.length > 1 ? 16 : 21;
+      const rankFontSize = rankLabel.length > 1 ? 19 : 24;
       const pips = PIP_LAYOUTS[RANK_NUMERIC[rank]];
       const isCourtCard = rank === "J" || rank === "Q" || rank === "K";
       const faceMarkup = pips
-        ? pips
-            .map(
-              (p) =>
-                `<text x="${p.x}" y="${p.y}" font-size="16" text-anchor="middle" fill="${color}"${p.flip ? ` transform="rotate(180 ${p.x} ${p.y})"` : ""}>${symbol}</text>`
-            )
-            .join("")
+        ? pips.map((p) => suitIconMarkup(suit, color, p.x, p.y, 17, p.flip)).join("")
         : isCourtCard
-          ? courtCardSvg(rank, symbol, color)
-          : `<text x="50" y="94" font-size="56" text-anchor="middle" fill="${color}">${symbol}</text>`;
+          ? courtCardSvg(rank, suit, color)
+          : suitIconMarkup(suit, color, 50, 74, 62);
       return `
         <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
           <rect x="2" y="2" width="96" height="136" rx="10" fill="#fdfdfd" stroke="#1a1a1a" stroke-width="3"/>
-          <text x="11" y="27" font-family="Georgia, 'Times New Roman', serif" font-size="${rankFontSize}" font-weight="700" fill="${color}">${escapeHtml(rankLabel)}</text>
-          <text x="10.5" y="44" font-size="16" fill="${color}">${symbol}</text>
+          ${cornerIndexMarkup(rankLabel, suit, color, rankFontSize)}
+          <g transform="rotate(180 50 70)">${cornerIndexMarkup(rankLabel, suit, color, rankFontSize)}</g>
           ${faceMarkup}
         </svg>
       `;

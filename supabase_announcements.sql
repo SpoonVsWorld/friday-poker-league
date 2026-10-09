@@ -3,22 +3,25 @@
 --
 -- One singleton row (id = 1) holding whatever announcement you want
 -- players to see right now. The app shows it as a dismissible banner
--- at the top of the page. Each visitor's browser remembers (locally,
--- not in this table) the `updated_at` value it last dismissed, so
--- changing the message - even to the exact same text - makes the
--- banner reappear for everyone until they dismiss it again.
+-- at the top of the page, and it's editable from the Admin screen
+-- ("Announcement Banner" section) - no SQL needed day to day. Each
+-- visitor's browser remembers (locally, not in this table) the
+-- `updated_at` value it last dismissed, so saving a new message - even
+-- the exact same text - makes the banner reappear for everyone until
+-- they dismiss it again.
 --
--- To post a new announcement, update the message and bump updated_at:
+-- Unlike most tables in this app, this one IS gated by login: anyone
+-- can read it (so the banner shows), but only an authenticated admin
+-- session can write to it, matching how the Admin screen itself is
+-- already protected by Supabase auth.
+--
+-- You normally won't need to touch SQL for this at all - the Admin
+-- screen handles it. These are here only as a manual fallback:
 --   update announcements
 --   set message = 'New: real card deck added to the tables!', updated_at = now()
 --   where id = 1;
 --
--- To hide the banner again (without deleting the row):
 --   update announcements set message = null, updated_at = now() where id = 1;
---
--- Same trust model as the rest of this app: there's no login, so this
--- is read-only through the public anon key the app uses. You post
--- updates yourself from here, the SQL editor - not from inside the app.
 
 create table if not exists announcements (
   id integer primary key default 1,
@@ -31,4 +34,7 @@ insert into announcements (id, message) values (1, null) on conflict (id) do not
 
 alter table announcements enable row level security;
 
+drop policy if exists "announcements_public_select" on announcements;
+drop policy if exists "announcements_authenticated_update" on announcements;
 create policy "announcements_public_select" on announcements for select using (true);
+create policy "announcements_authenticated_update" on announcements for update using (auth.role() = 'authenticated');

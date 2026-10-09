@@ -415,6 +415,18 @@
           </div>
         </details>
 
+        <h2 style="margin-top:24px;">Announcement Banner</h2>
+        <p class="muted" style="margin:0 0 8px;">Shows as a dismissible banner at the top of the app for every player. Leave it blank to hide it. Saving — even with the same text — makes it reappear for players who already dismissed an earlier one.</p>
+        <label>Message
+          <textarea id="announcement-input" rows="2" placeholder="e.g. New: real card deck added to the tables!"></textarea>
+        </label>
+        <div style="display:flex; gap:8px;">
+          <button id="save-announcement-btn" class="btn btn-small" type="button">Save &amp; Show to Players</button>
+          <button id="clear-announcement-btn" class="btn btn-small btn-secondary" type="button">Clear</button>
+        </div>
+        <p id="announcement-status" class="muted" style="margin-top:4px;"></p>
+        <p id="announcement-error" class="error"></p>
+
         <h2 style="margin-top:24px;">Seasons</h2>
         <form id="add-season-form">
           <label>Season name

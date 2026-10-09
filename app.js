@@ -26,6 +26,12 @@
     const adminEmailEl = document.getElementById("admin-email");
     const logoutBtn = document.getElementById("logout-btn");
 
+    const announcementInput = document.getElementById("announcement-input");
+    const saveAnnouncementBtn = document.getElementById("save-announcement-btn");
+    const clearAnnouncementBtn = document.getElementById("clear-announcement-btn");
+    const announcementStatus = document.getElementById("announcement-status");
+    const announcementError = document.getElementById("announcement-error");
+
     const addPlayerForm = document.getElementById("add-player-form");
     const playerError = document.getElementById("player-error");
     const playerList = document.getElementById("player-list");
@@ -185,7 +191,7 @@
       adminLogin.hidden = true;
       adminDashboard.hidden = false;
       adminEmailEl.textContent = session.user.email;
-      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin()]);
+      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin(), loadAnnouncementAdmin()]);
     }
 
     function showLoggedOut() {
@@ -6203,6 +6209,46 @@
     // each browser just remembers locally which updated_at it last
     // dismissed, so re-dismissing is a one-tap no-op once they've seen it.
     // ------------------------------------------------------------------
+    // Admin screen editor for the same `announcements` row. Loaded into
+    // the textarea whenever the admin dashboard opens; saving here is
+    // what players actually see in the banner above.
+    async function loadAnnouncementAdmin() {
+      if (!announcementInput) return;
+      announcementError.textContent = "";
+      const { data, error } = await supabaseClient
+        .from("announcements")
+        .select("message")
+        .eq("id", 1)
+        .maybeSingle();
+      if (error) {
+        announcementError.textContent = "Could not load current announcement: " + error.message;
+        return;
+      }
+      announcementInput.value = (data && data.message) || "";
+    }
+
+    saveAnnouncementBtn?.addEventListener("click", async () => {
+      announcementError.textContent = "";
+      announcementStatus.textContent = "";
+      const message = announcementInput.value.trim() || null;
+      const { error } = await supabaseClient
+        .from("announcements")
+        .update({ message, updated_at: new Date().toISOString() })
+        .eq("id", 1);
+      if (error) {
+        announcementError.textContent = "Could not save: " + error.message;
+        return;
+      }
+      announcementStatus.textContent = message
+        ? "Saved — players will see this next time they open the app."
+        : "Saved — banner cleared.";
+    });
+
+    clearAnnouncementBtn?.addEventListener("click", async () => {
+      announcementInput.value = "";
+      saveAnnouncementBtn.click();
+    });
+
     const WHATS_NEW_SEEN_KEY = "pokerWhatsNewSeenAt";
 
     async function initWhatsNewBanner() {

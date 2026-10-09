@@ -1339,6 +1339,22 @@
       `;
     }
 
+    // Real scanned card faces (cards/<rank><suit>.png - a classic bicycle-style
+    // deck the user picked out) instead of the hand-drawn SVG. If an image
+    // ever fails to load (renamed/missing file), the onerror handler hides
+    // the broken <img> and reveals a sibling span holding the original
+    // vector card as a fallback, so it degrades gracefully instead of
+    // leaving a blank card.
+    function realCardFrontImg(rank, suit) {
+      const rankLabel = rank === "T" ? "10" : rank;
+      const suitWord = { S: "Spades", H: "Hearts", D: "Diamonds", C: "Clubs" }[suit] || suit;
+      return `
+        <img class="real-card-img" src="cards/${rank}${suit}.png" alt="${rankLabel} of ${suitWord}" draggable="false"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+        <span class="real-card-fallback" style="display:none">${realCardFrontSvg(rank, suit)}</span>
+      `;
+    }
+
     function realCardFrontSvg(rank, suit) {
       const rankLabel = rank === "T" ? "10" : rank;
       const color = SUIT_COLOR[suit] === "red" ? "#c0392b" : "#1a1a1a";
@@ -1366,7 +1382,7 @@
       return `
         <span class="real-card">
           <span class="real-card-flip" style="animation-delay:${(index * 0.12).toFixed(2)}s">
-            <span class="card-face card-front">${realCardFrontSvg(rank, suit)}</span>
+            <span class="card-face card-front">${realCardFrontImg(rank, suit)}</span>
             <span class="card-face card-back">${REAL_CARD_BACK_SVG}</span>
           </span>
         </span>

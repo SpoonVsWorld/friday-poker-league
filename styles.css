@@ -157,10 +157,6 @@ body {
   88%, 100% { transform: rotateY(360deg); }
 }
 
-.card-icon-end .card-flip {
-  animation-delay: -3.5s;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .card-flip { animation: none; }
 }

@@ -1150,6 +1150,17 @@ ul#highhand-list, ul#public-highhand-list {
   letter-spacing: 0.06em;
   padding: 2px 8px;
   border-radius: 999px;
+  /* A slow, gentle "notification ring" pulsing outward from the badge -
+     the same attention pattern as a chat app's unread dot - so the
+     banner reads as "something new" at a glance without being a
+     distracting, seizure-risk strobe. */
+  animation: whats-new-pulse 1.8s ease-out infinite;
+}
+
+@keyframes whats-new-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(var(--poker-gold-rgb), 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(var(--poker-gold-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--poker-gold-rgb), 0); }
 }
 
 .whats-new-text {
@@ -1181,6 +1192,7 @@ ul#highhand-list, ul#public-highhand-list {
 
 @media (prefers-reduced-motion: reduce) {
   .whats-new-banner { animation: none; }
+  .whats-new-badge { animation: none; }
 }
 
 .feedback-type-row {

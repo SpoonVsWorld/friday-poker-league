@@ -1131,7 +1131,12 @@ ul#highhand-list, ul#public-highhand-list {
   background: linear-gradient(135deg, var(--poker-green-dark) 0%, var(--poker-green) 100%);
   border-bottom: 1px solid rgba(var(--poker-gold-rgb), 0.55);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  animation: whats-new-in 0.35s ease-out;
+  /* Entrance slide-down, plus a slow gold glow that breathes around the
+     whole banner's edge for as long as it's shown - same gentle
+     "notification ring" idea as .whats-new-badge below, just sized up
+     to the full bar so the banner itself reads as the attention-grabber,
+     not just the small badge. */
+  animation: whats-new-in 0.35s ease-out, whats-new-glow 1.8s ease-out infinite;
 }
 
 .whats-new-banner:not([hidden]) + .app-header {
@@ -1145,6 +1150,12 @@ ul#highhand-list, ul#public-highhand-list {
 @keyframes whats-new-in {
   from { transform: translateY(-100%); }
   to { transform: translateY(0); }
+}
+
+@keyframes whats-new-glow {
+  0% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 0 0 rgba(var(--poker-gold-rgb), 0.45); }
+  70% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 16px 3px rgba(var(--poker-gold-rgb), 0); }
+  100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 0 0 rgba(var(--poker-gold-rgb), 0); }
 }
 
 .whats-new-badge {

@@ -5083,7 +5083,8 @@
         heErrorEl.textContent = "Could not load players: " + (error?.message || "unknown error");
         return [];
       }
-      hePlayerSelectEl.innerHTML = data.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+      const placeholder = data.length ? `<option value="" disabled selected>Pick who you are…</option>` : "";
+      hePlayerSelectEl.innerHTML = placeholder + data.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
       return data;
     }
 
@@ -6246,7 +6247,9 @@
         const id = hePlayerSelectEl.value;
         const name = hePlayerSelectEl.selectedOptions[0]?.textContent || "";
         if (!id) {
-          heErrorEl.textContent = "Add at least one active player in Admin first.";
+          heErrorEl.textContent = hePlayerSelectEl.options.length
+            ? "Pick who you are first."
+            : "Add at least one active player in Admin first.";
           return;
         }
         heJoinBtn.disabled = true;

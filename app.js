@@ -4763,6 +4763,7 @@
     const HOLDEM_SHOWDOWN_PAUSE_MS = 6000; // pause after a hand ends before the next one is dealt
     const HOLDEM_HOST_STALE_MS = 8000; // how long before another seated browser can take over as host
     const HOLDEM_DISCONNECT_MS = 90000; // seated-but-quiet humans get freed up after ~90s between hands
+    const HOLDEM_IDLE_HAND_LIMIT = 5; // auto-folded (never acted) this many hands in a row -> seat is freed up
     const HOLDEM_TICK_MS = 1000;
     const HOLDEM_SEAT_STORAGE_KEY = "pokerLeagueHoldemSeat";
 
@@ -5103,7 +5104,7 @@
         if (already.status === "sitting_out") {
           const { data } = await supabaseClient
             .from("holdem_seats")
-            .update({ status: "seated", last_seen: heNowIso() })
+            .update({ status: "seated", idle_hands: 0, last_seen: heNowIso() })
             .eq("seat_number", already.seat_number)
             .eq("player_id", playerId)
             .select();
@@ -5142,6 +5143,7 @@
           total_contributed: 0,
           folded: false,
           all_in: false,
+          idle_hands: 0,
           last_seen: heNowIso(),
           joined_at: heNowIso(),
           updated_at: heNowIso(),
@@ -5333,13 +5335,13 @@
       if (midHandLive) {
         await supabaseClient
           .from("holdem_seats")
-          .update({ folded: true, status: "sitting_out", last_seen: heNowIso() })
+          .update({ folded: true, status: "sitting_out", idle_hands: 0, last_seen: heNowIso() })
           .eq("seat_number", seatNum);
         if (heTableRow.action_seat === seatNum) {
           await heCommitAction(heTableRow, heSeats, seatNum, "fold");
         }
       } else {
-        await supabaseClient.from("holdem_seats").update({ status: "sitting_out", last_seen: heNowIso() }).eq("seat_number", seatNum);
+        await supabaseClient.from("holdem_seats").update({ status: "sitting_out", idle_hands: 0, last_seen: heNowIso() }).eq("seat_number", seatNum);
       }
       // Reflect it locally right away rather than waiting on the realtime
       // round-trip, so the buttons/notice swap instantly.
@@ -5353,7 +5355,7 @@
       if (heMySeat === null) return;
       await supabaseClient
         .from("holdem_seats")
-        .update({ status: "seated", last_seen: heNowIso() })
+        .update({ status: "seated", idle_hands: 0, last_seen: heNowIso() })
         .eq("seat_number", heMySeat)
         .eq("player_id", heMyPlayerId);
       if (heSeats[heMySeat]) heSeats[heMySeat] = { ...heSeats[heMySeat], status: "seated" };
@@ -5404,13 +5406,20 @@
     // acting on behalf of an AI seat or auto-folding someone who's gone
     // quiet. Always writes the table row (with a version guard) before
     // touching the seat row, so a race between a human's click and a
-    // host-driven timeout can never both land.
-    async function heCommitAction(table, seatsArr, seatNum, action, amount) {
+    // host-driven timeout can never both land. `opts.auto` marks the
+    // host's timeout fold specifically (as opposed to a human's own
+    // click, or the fold a human triggers by leaving/sitting out) - that's
+    // what idle_hands counts, so heHostPruneIdleSeats can free up a seat
+    // that's gone quiet for HOLDEM_IDLE_HAND_LIMIT hands in a row.
+    async function heCommitAction(table, seatsArr, seatNum, action, amount, opts) {
       if (table.action_seat !== seatNum) return false;
       const seat = seatsArr[seatNum];
       if (!seat) return false;
 
       const seatPatch = { last_seen: heNowIso() };
+      if (!seat.is_ai) {
+        seatPatch.idle_hands = opts && opts.auto ? (seat.idle_hands || 0) + 1 : 0;
+      }
       let newCurrentBet = table.current_bet;
       let newMinRaise = table.min_raise;
       let newPendingSeats = table.pending_seats.slice(1);
@@ -5493,6 +5502,7 @@
 
       await heSyncAiSeats(table, seats);
       await heHostPruneStaleSeats(table, seats);
+      await heHostPruneIdleSeats(table, seats);
 
       if (table.street === "waiting") {
         const seated = seats.filter((s) => s && s.status === "seated").length;
@@ -5534,7 +5544,7 @@
           await heCommitAction(table, seats, actingSeatNum, decision.action, decision.amount);
         } else {
           const name = actingSeat.player_name;
-          const ok = await heCommitAction(table, seats, actingSeatNum, "fold");
+          const ok = await heCommitAction(table, seats, actingSeatNum, "fold", undefined, { auto: true });
           if (ok) {
             const { data } = await supabaseClient.from("holdem_table").select("log").eq("id", 1).single();
             if (data) await supabaseClient.from("holdem_table").update({ log: [...data.log, `${name} was auto-folded (inactive).`].slice(-30) }).eq("id", 1);
@@ -5615,11 +5625,54 @@
             total_contributed: 0,
             folded: false,
             all_in: false,
+            idle_hands: 0,
             last_seen: null,
             joined_at: null,
           })
           .eq("seat_number", n)
           .eq("player_id", seat.player_id);
+      }
+    }
+
+    // A seat that's seated (not sitting out - that's a deliberate, exempt
+    // break) but gets auto-folded HOLDEM_IDLE_HAND_LIMIT hands in a row
+    // without ever acting is someone who forgot to leave, not someone
+    // mid-hand or mid-thought - free the seat so the table doesn't stay
+    // propped open indefinitely. Any real action (fold/check/call/raise,
+    // or returning from sitting out) resets idle_hands to 0, so a player
+    // who's actually around never gets caught by this.
+    async function heHostPruneIdleSeats(table, seats) {
+      for (let n = 0; n < HOLDEM_SEAT_COUNT; n++) {
+        const seat = seats[n];
+        if (!seat || seat.is_ai || seat.status !== "seated" || !seat.player_id) continue;
+        if (table.hand_seats.includes(n)) continue; // don't yank someone out from under a live hand
+        if ((seat.idle_hands || 0) < HOLDEM_IDLE_HAND_LIMIT) continue;
+        const name = seat.player_name;
+        await supabaseClient
+          .from("holdem_seats")
+          .update({
+            player_id: null,
+            player_name: null,
+            status: "empty",
+            stack: HOLDEM_STARTING_STACK,
+            hole_cards: [],
+            bet_this_street: 0,
+            total_contributed: 0,
+            folded: false,
+            all_in: false,
+            idle_hands: 0,
+            last_seen: null,
+            joined_at: null,
+          })
+          .eq("seat_number", n)
+          .eq("player_id", seat.player_id);
+        const { data } = await supabaseClient.from("holdem_table").select("log").eq("id", 1).single();
+        if (data) {
+          await supabaseClient
+            .from("holdem_table")
+            .update({ log: [...data.log, `${name} was removed from the table after sitting idle for ${HOLDEM_IDLE_HAND_LIMIT} hands.`].slice(-30) })
+            .eq("id", 1);
+        }
       }
     }
 

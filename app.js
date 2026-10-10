@@ -4764,6 +4764,7 @@
     const HOLDEM_HOST_STALE_MS = 8000; // how long before another seated browser can take over as host
     const HOLDEM_DISCONNECT_MS = 90000; // seated-but-quiet humans get freed up after ~90s between hands
     const HOLDEM_IDLE_HAND_LIMIT = 5; // auto-folded (never acted) this many hands in a row -> seat is freed up
+    const HOLDEM_LONE_WAIT_MS = 15 * 60 * 1000; // sitting alone (no hand can start) this long -> seat is freed up
     const HOLDEM_TICK_MS = 1000;
     const HOLDEM_SEAT_STORAGE_KEY = "pokerLeagueHoldemSeat";
 
@@ -5505,8 +5506,13 @@
       await heHostPruneIdleSeats(table, seats);
 
       if (table.street === "waiting") {
-        const seated = seats.filter((s) => s && s.status === "seated").length;
-        if (seated >= 2) await heStartHand(table, seats);
+        const seated = seats.filter((s) => s && s.status === "seated");
+        if (seated.length >= 2) {
+          if (table.alone_since) await supabaseClient.from("holdem_table").update({ alone_since: null }).eq("id", 1);
+          await heStartHand(table, seats);
+        } else {
+          await heHostPruneLoneSeat(table, seated);
+        }
         return;
       }
 
@@ -5674,6 +5680,56 @@
             .eq("id", 1);
         }
       }
+    }
+
+    // heHostPruneIdleSeats only catches someone who gets auto-folded hand
+    // after hand - but a hand needs 2+ seated players to even start, so a
+    // single human sitting alone (everyone else left, and fill_empty_with_ai
+    // is off) never gets auto-folded at all and would otherwise sit there
+    // forever. table.alone_since marks when the table first had exactly one
+    // seated player with no one to play against; once that's been true for
+    // HOLDEM_LONE_WAIT_MS straight, free the seat. Any second player sitting
+    // down resets alone_since back to null (handled by the caller), so this
+    // never fires on someone who's just waiting a normal minute or two for
+    // an opponent.
+    async function heHostPruneLoneSeat(table, seated) {
+      if (seated.length !== 1 || seated[0].is_ai) {
+        if (table.alone_since) await supabaseClient.from("holdem_table").update({ alone_since: null }).eq("id", 1);
+        return;
+      }
+      const seat = seated[0];
+      if (!table.alone_since) {
+        await supabaseClient.from("holdem_table").update({ alone_since: heNowIso() }).eq("id", 1);
+        return;
+      }
+      if (Date.now() - new Date(table.alone_since).getTime() < HOLDEM_LONE_WAIT_MS) return;
+      const name = seat.player_name;
+      await supabaseClient
+        .from("holdem_seats")
+        .update({
+          player_id: null,
+          player_name: null,
+          status: "empty",
+          stack: HOLDEM_STARTING_STACK,
+          hole_cards: [],
+          bet_this_street: 0,
+          total_contributed: 0,
+          folded: false,
+          all_in: false,
+          idle_hands: 0,
+          last_seen: null,
+          joined_at: null,
+        })
+        .eq("seat_number", seat.seat_number)
+        .eq("player_id", seat.player_id);
+      const { data } = await supabaseClient.from("holdem_table").select("log").eq("id", 1).single();
+      await supabaseClient
+        .from("holdem_table")
+        .update({
+          alone_since: null,
+          ...(data ? { log: [...data.log, `${name} left the table after waiting alone with no other players.`].slice(-30) } : {}),
+        })
+        .eq("id", 1);
     }
 
     async function heStartHand(table, seats) {

@@ -34,11 +34,18 @@ create table if not exists holdem_table (
   hand_seats jsonb not null default '[]'::jsonb,     -- seat_numbers dealt into the current hand (fixed at deal time)
   log jsonb not null default '[]'::jsonb,
   version integer not null default 0,
+  alone_since timestamptz,                          -- when the table first had exactly 1 seated player and no
+                                                       -- one to play against; past HOLDEM_LONE_WAIT_MS that lone
+                                                       -- seat is freed up (see heHostPruneLoneSeat in app.js)
   updated_at timestamptz not null default now(),
   constraint holdem_table_singleton check (id = 1)
 );
 
 insert into holdem_table (id) values (1) on conflict (id) do nothing;
+
+-- Re-running this file on a database that already has holdem_table from
+-- before alone_since existed (no-op if the column's already there).
+alter table holdem_table add column if not exists alone_since timestamptz;
 
 -- ------------------------------------------------------------------
 -- holdem_seats — 8 fixed seats. Empty seats have player_id null and

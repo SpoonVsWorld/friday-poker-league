@@ -1131,12 +1131,13 @@ ul#highhand-list, ul#public-highhand-list {
   background: linear-gradient(135deg, var(--poker-green-dark) 0%, var(--poker-green) 100%);
   border-bottom: 1px solid rgba(var(--poker-gold-rgb), 0.55);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  /* Entrance slide-down, plus a slow gold glow that breathes around the
-     whole banner's edge for as long as it's shown - same gentle
-     "notification ring" idea as .whats-new-badge below, just sized up
-     to the full bar so the banner itself reads as the attention-grabber,
-     not just the small badge. */
-  animation: whats-new-in 0.35s ease-out, whats-new-glow 1.8s ease-out infinite;
+  /* Entrance drops the banner in with a little overshoot/bounce (the
+     "back ease-out" curve below) instead of a flat slide, plus a slow
+     gold glow that breathes around the whole banner's edge for as long
+     as it's shown - same gentle "notification ring" idea as
+     .whats-new-badge below, just sized up to the full bar so the banner
+     itself reads as the attention-grabber, not just the small badge. */
+  animation: whats-new-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), whats-new-glow 1.8s ease-out infinite;
 }
 
 .whats-new-banner:not([hidden]) + .app-header {

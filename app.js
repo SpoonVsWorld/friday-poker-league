@@ -5495,12 +5495,28 @@
       if (winnerSeatNum === heMySeat) playCoinCascade();
     }
 
+    // A completely empty table (every seat freed - no one seated, no one
+    // even sitting out on a break) has no reason to keep showing the last
+    // session's hand-by-hand history, especially after a long stretch of
+    // "X was auto-folded (inactive)" spam from a table that sat idle. Once
+    // the last seat clears, wipe the log so the next game starts clean.
+    // Checked at the top of every tick using the latest synced seat state,
+    // so it fires exactly once per empty-out (log is already [] after
+    // that, so this is a no-op on every following tick).
+    async function heMaybeClearStaleLog(table, seats) {
+      if (!table.log.length) return;
+      const allEmpty = seats.every((s) => !s || s.status === "empty");
+      if (!allEmpty) return;
+      await supabaseClient.from("holdem_table").update({ log: [] }).eq("id", 1);
+    }
+
     // ---- Host-only duties: AI fill, dealing, advancing streets, timeouts ----
     async function heHostTick() {
       if (!heAmHost || !heTableRow) return;
       const table = heTableRow;
       const seats = heSeats;
 
+      await heMaybeClearStaleLog(table, seats);
       await heSyncAiSeats(table, seats);
       await heHostPruneStaleSeats(table, seats);
       await heHostPruneIdleSeats(table, seats);

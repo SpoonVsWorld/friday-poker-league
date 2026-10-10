@@ -2576,6 +2576,15 @@
       return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
     }
 
+    // Joins 1+ player names into a readable list ("Greg", "Greg & Don",
+    // "Greg, Don & Ray") - used so a tied award can credit everyone who
+    // qualifies instead of arbitrarily picking just one of them.
+    function formatNameList(names) {
+      if (names.length === 1) return names[0];
+      if (names.length === 2) return `${names[0]} & ${names[1]}`;
+      return `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+    }
+
     async function loadAwards() {
       if (!awardsSection || !awardsGrid) return;
 
@@ -2633,22 +2642,24 @@
         list.sort((a, b) => (fridayDateById.get(a.friday_id) || "").localeCompare(fridayDateById.get(b.friday_id) || ""));
       }
 
-      // Picks the leader for a "most X" style award. `countFor` returns
-      // the qualifying events for a player, oldest-first; the award goes
-      // to whoever has the most, and ties go to whoever reached that
-      // count earliest (the date of their Nth qualifying event).
+      // Picks every player tied for the lead in a "most X" style award.
+      // `countFor` returns the qualifying events for a player; the award
+      // goes to whoever has the most, and anyone tied for that same
+      // count is credited together instead of arbitrarily picking one.
       function pickMostAward(countFor) {
-        let best = null;
+        let bestCount = 0;
+        let leaders = [];
         for (const [playerId, list] of byPlayer) {
-          const qualifying = countFor(list);
-          const count = qualifying.length;
+          const count = countFor(list).length;
           if (count === 0) continue;
-          const hitDate = fridayDateById.get(qualifying[count - 1].friday_id) || "";
-          if (!best || count > best.count || (count === best.count && hitDate < best.hitDate)) {
-            best = { playerId, count, hitDate };
+          if (count > bestCount) {
+            bestCount = count;
+            leaders = [playerId];
+          } else if (count === bestCount) {
+            leaders.push(playerId);
           }
         }
-        return best;
+        return leaders.length ? { playerIds: leaders, count: bestCount } : null;
       }
 
       const cards = [];
@@ -2660,7 +2671,7 @@
           cards.push({
             icon: "🎯",
             title: "Iron Man",
-            player: playerMap.get(best.playerId)?.name || "Unknown",
+            player: formatNameList(best.playerIds.map((id) => playerMap.get(id)?.name || "Unknown")),
             stat: `${best.count} of ${fridayIds.length} Friday${fridayIds.length === 1 ? "" : "s"} played`,
           });
         }
@@ -2673,7 +2684,7 @@
           cards.push({
             icon: "💰",
             title: "Bounty King",
-            player: playerMap.get(best.playerId)?.name || "Unknown",
+            player: formatNameList(best.playerIds.map((id) => playerMap.get(id)?.name || "Unknown")),
             stat: `${best.count} bount${best.count === 1 ? "y" : "ies"} won`,
           });
         }
@@ -2682,46 +2693,52 @@
       // ---- Hot Streak / Cold Streak: current trailing streak, walking
       // backward from each player's most recent game this season ----
       {
-        let bestHot = null;
-        let bestCold = null;
+        let bestHotCount = 0;
+        let hotLeaders = [];
+        let bestColdCount = 0;
+        let coldLeaders = [];
         for (const [playerId, list] of byPlayer) {
           let hotCount = 0;
-          let hotStartDate = "";
           for (let i = list.length - 1; i >= 0; i--) {
-            if (list[i].placement != null && list[i].placement <= 3) {
-              hotCount++;
-              hotStartDate = fridayDateById.get(list[i].friday_id) || "";
-            } else break;
+            if (list[i].placement != null && list[i].placement <= 3) hotCount++;
+            else break;
           }
           let coldCount = 0;
-          let coldStartDate = "";
           for (let i = list.length - 1; i >= 0; i--) {
-            if (list[i].placement == null || list[i].placement > 3) {
-              coldCount++;
-              coldStartDate = fridayDateById.get(list[i].friday_id) || "";
-            } else break;
+            if (list[i].placement == null || list[i].placement > 3) coldCount++;
+            else break;
           }
-          if (hotCount >= 2 && (!bestHot || hotCount > bestHot.count || (hotCount === bestHot.count && hotStartDate < bestHot.hitDate))) {
-            bestHot = { playerId, count: hotCount, hitDate: hotStartDate };
+          if (hotCount >= 2) {
+            if (hotCount > bestHotCount) {
+              bestHotCount = hotCount;
+              hotLeaders = [playerId];
+            } else if (hotCount === bestHotCount) {
+              hotLeaders.push(playerId);
+            }
           }
-          if (coldCount >= 2 && (!bestCold || coldCount > bestCold.count || (coldCount === bestCold.count && coldStartDate < bestCold.hitDate))) {
-            bestCold = { playerId, count: coldCount, hitDate: coldStartDate };
+          if (coldCount >= 2) {
+            if (coldCount > bestColdCount) {
+              bestColdCount = coldCount;
+              coldLeaders = [playerId];
+            } else if (coldCount === bestColdCount) {
+              coldLeaders.push(playerId);
+            }
           }
         }
-        if (bestHot) {
+        if (hotLeaders.length) {
           cards.push({
             icon: "🔥",
             title: "Hot Streak",
-            player: playerMap.get(bestHot.playerId)?.name || "Unknown",
-            stat: `${bestHot.count} straight top-3 finishes`,
+            player: formatNameList(hotLeaders.map((id) => playerMap.get(id)?.name || "Unknown")),
+            stat: `${bestHotCount} straight top-3 finishes`,
           });
         }
-        if (bestCold) {
+        if (coldLeaders.length) {
           cards.push({
             icon: "🧊",
             title: "Cold Streak",
-            player: playerMap.get(bestCold.playerId)?.name || "Unknown",
-            stat: `${bestCold.count} games since a top-3`,
+            player: formatNameList(coldLeaders.map((id) => playerMap.get(id)?.name || "Unknown")),
+            stat: `${bestColdCount} games since a top-3`,
           });
         }
       }
@@ -2734,11 +2751,14 @@
           if (!best || compareHandStrength(hh, best) < 0) best = hh;
         }
         if (best) {
+          const tiedPlayerIds = [
+            ...new Set(handsRes.data.filter((hh) => compareHandStrength(hh, best) === 0).map((hh) => hh.player_id)),
+          ];
           const dateLabel = formatAwardDate(fridayDateById.get(best.friday_id));
           cards.push({
             icon: "🃏",
             title: "Best Hand of the Season",
-            player: playerMap.get(best.player_id)?.name || "Unknown",
+            player: formatNameList(tiedPlayerIds.map((id) => playerMap.get(id)?.name || "Unknown")),
             stat: `${best.description}${dateLabel ? " — " + dateLabel : ""}`,
           });
         }
@@ -2754,8 +2774,129 @@
           cards.push({
             icon: "🥈",
             title: "The Bridesmaid",
-            player: playerMap.get(best.playerId)?.name || "Unknown",
+            player: formatNameList(best.playerIds.map((id) => playerMap.get(id)?.name || "Unknown")),
             stat: `${best.count} second-place finish${best.count === 1 ? "" : "es"}, still no win`,
+          });
+        }
+      }
+
+      // ---- The Bubble: most 4th-place finishes, just missing the top 3 ----
+      {
+        const best = pickMostAward((list) => list.filter((r) => r.placement === 4));
+        if (best) {
+          cards.push({
+            icon: "😬",
+            title: "The Bubble",
+            player: formatNameList(best.playerIds.map((id) => playerMap.get(id)?.name || "Unknown")),
+            stat: `${best.count} fourth-place finish${best.count === 1 ? "" : "es"}, so close`,
+          });
+        }
+      }
+
+      // ---- Comeback Player: biggest improvement in average placement
+      // from the first half of a player's season to the second half.
+      // Needs at least 4 recorded placements so each half is a real
+      // sample, not noise from one or two games. ----
+      {
+        let bestImprovement = 0;
+        let leaders = [];
+        for (const [playerId, list] of byPlayer) {
+          const placements = list.map((r) => r.placement).filter((p) => p != null);
+          if (placements.length < 4) continue;
+          const mid = Math.floor(placements.length / 2);
+          const avg = (arr) => arr.reduce((sum, p) => sum + p, 0) / arr.length;
+          const improvement = avg(placements.slice(0, mid)) - avg(placements.slice(mid));
+          if (improvement <= 0) continue;
+          if (improvement > bestImprovement + 0.0001) {
+            bestImprovement = improvement;
+            leaders = [playerId];
+          } else if (Math.abs(improvement - bestImprovement) < 0.0001) {
+            leaders.push(playerId);
+          }
+        }
+        if (leaders.length) {
+          cards.push({
+            icon: "📈",
+            title: "Comeback Player",
+            player: formatNameList(leaders.map((id) => playerMap.get(id)?.name || "Unknown")),
+            stat: `Average finish improved by ${bestImprovement.toFixed(1)} spots this season`,
+          });
+        }
+      }
+
+      // ---- The Wall: longest streak of consecutive Fridays attended
+      // this season, anywhere in the season (not just the current run -
+      // that's what Iron Man and the trailing streaks above are for) ----
+      {
+        let bestStreak = 0;
+        let leaders = [];
+        for (const [playerId, list] of byPlayer) {
+          const attended = new Set(list.map((r) => r.friday_id));
+          let current = 0;
+          let longest = 0;
+          for (const fridayId of fridayIds) {
+            if (attended.has(fridayId)) {
+              current++;
+              longest = Math.max(longest, current);
+            } else {
+              current = 0;
+            }
+          }
+          if (longest >= 2) {
+            if (longest > bestStreak) {
+              bestStreak = longest;
+              leaders = [playerId];
+            } else if (longest === bestStreak) {
+              leaders.push(playerId);
+            }
+          }
+        }
+        if (leaders.length) {
+          cards.push({
+            icon: "🧱",
+            title: "The Wall",
+            player: formatNameList(leaders.map((id) => playerMap.get(id)?.name || "Unknown")),
+            stat: `${bestStreak} Fridays in a row, never missed one`,
+          });
+        }
+      }
+
+      // ---- Final Table Fixture: most total top-3 finishes this season,
+      // cumulative - unlike Hot Streak above, which only looks at the
+      // current trailing run ----
+      {
+        const best = pickMostAward((list) => list.filter((r) => r.placement != null && r.placement <= 3));
+        if (best) {
+          cards.push({
+            icon: "🪑",
+            title: "Final Table Fixture",
+            player: formatNameList(best.playerIds.map((id) => playerMap.get(id)?.name || "Unknown")),
+            stat: `${best.count} top-3 finish${best.count === 1 ? "" : "es"} this season`,
+          });
+        }
+      }
+
+      // ---- Last Call: most last-place finishes this season. "Last
+      // place" is whoever had the highest placement number recorded
+      // that particular Friday, since the field size (and so what
+      // counts as last) varies week to week. A fun, self-roasting one -
+      // intentionally has no minimum count to qualify. ----
+      {
+        const maxPlacementByFriday = new Map();
+        for (const r of resultsRes.data) {
+          if (r.placement == null) continue;
+          const current = maxPlacementByFriday.get(r.friday_id) || 0;
+          if (r.placement > current) maxPlacementByFriday.set(r.friday_id, r.placement);
+        }
+        const best = pickMostAward((list) =>
+          list.filter((r) => r.placement != null && r.placement === maxPlacementByFriday.get(r.friday_id))
+        );
+        if (best) {
+          cards.push({
+            icon: "🪦",
+            title: "Last Call",
+            player: formatNameList(best.playerIds.map((id) => playerMap.get(id)?.name || "Unknown")),
+            stat: `Last out the door ${best.count} time${best.count === 1 ? "" : "s"} this season`,
           });
         }
       }

@@ -2456,8 +2456,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
     grid-column: 1;
     grid-row: 1 / 3;
     align-self: start;
-    width: min(100%, 460px);
-    height: min(64vh, 260px);
+    width: min(100%, 490px);
+    height: min(72vh, 290px);
     max-width: 100%;
     aspect-ratio: auto;
     margin: 0;
@@ -2468,9 +2468,12 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
     padding: 3px 3px 2px;
   }
 
+  /* Wide enough for the bigger 38px-wide hole cards below to sit side by
+     side without wrapping - see the "you only play this hand" sizing note
+     on .he-seat-you .he-hand-small .real-card. */
   #he-table .he-seat-you {
-    width: 72px;
-    padding: 3px 4px 3px;
+    width: 98px;
+    padding: 4px 5px 4px;
   }
 
   #he-table .he-seat-name {
@@ -2497,9 +2500,13 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
     height: 23px;
   }
 
+  /* Your own hole cards are the one thing you actually need to read at a
+     glance mid-hand, so they get a much bigger size than everyone else's
+     (who are usually face-down anyway) - comparable to the community cards
+     below, not just a slightly-larger version of the tiny opponent cards. */
   #he-table .he-seat-you .he-hand-small .real-card {
-    width: 26px;
-    height: 37px;
+    width: 38px;
+    height: 53px;
   }
 
   /* Dealer/blind badges are the least essential info at this size, and
@@ -2517,8 +2524,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
      felt itself had room to spare. */
   #he-table .he-board-area {
     top: 45%;
-    width: 62%;
-    max-width: 270px;
+    width: 66%;
+    max-width: 300px;
     padding: 3px 8px;
   }
 
@@ -2538,8 +2545,8 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   }
 
   #he-table .he-community-cards .real-card {
-    width: 40px;
-    height: 56px;
+    width: 46px;
+    height: 64px;
   }
 
   #he-table #he-actions {

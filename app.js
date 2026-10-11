@@ -2278,6 +2278,13 @@
       document.querySelectorAll(".public-tab").forEach((el) => {
         el.hidden = el.id !== `public-tab-${tab}`;
       });
+      // Best-effort landscape lock on phones - see heEnterLandscapeMode's
+      // comment for what this can and can't actually do per platform.
+      // Called directly from this click handler (not awaited first) so it
+      // still runs inside the tap's "user activation" window, which both
+      // Fullscreen and Screen Orientation lock require.
+      if (tab === "holdem") heEnterLandscapeMode();
+      else heExitLandscapeMode();
       showPublicList();
     }
 
@@ -4767,6 +4774,60 @@
     const HOLDEM_LONE_WAIT_MS = 15 * 60 * 1000; // sitting alone (no hand can start) this long -> seat is freed up
     const HOLDEM_TICK_MS = 1000;
     const HOLDEM_SEAT_STORAGE_KEY = "pokerLeagueHoldemSeat";
+
+    // ---- Landscape lock on phones ----
+    // The felt, your own cards, and the action buttons all genuinely need
+    // landscape to be readable on a phone - see the orientation:landscape
+    // block in styles.css. Two browser APIs can make landscape "stick"
+    // instead of just hoping the player rotates and stays that way:
+    // Fullscreen (reclaims the browser chrome for more vertical room) and
+    // Screen Orientation lock (actually pins the orientation). Both are
+    // best-effort only:
+    //   - Screen Orientation lock only works on Android Chrome, and only
+    //     once this page is fullscreen or running "installed" (manifest
+    //     display: standalone, i.e. added to the home screen).
+    //   - iOS Safari has no orientation-lock API at all, full stop - there,
+    //     the CSS landscape layout (plus the "turn your phone sideways"
+    //     hint) is what actually does the work; the player still has to
+    //     rotate manually and nothing can force that from script.
+    // So every call here is wrapped in try/catch and never surfaces an
+    // error to the player - on a phone where it works, the table just
+    // stays landscape; everywhere else, it's silently a no-op and the CSS
+    // breakpoint still does its job.
+    const heIsCoarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+
+    async function heEnterLandscapeMode() {
+      if (!heIsCoarsePointer) return;
+      try {
+        if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (err) {
+        // ignore - fullscreen just reclaims extra space, it isn't required
+      }
+      try {
+        if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+          await window.screen.orientation.lock("landscape");
+        }
+      } catch (err) {
+        // ignore - most commonly unsupported (iOS) or not eligible yet (not fullscreen/installed)
+      }
+    }
+
+    function heExitLandscapeMode() {
+      try {
+        if (window.screen && window.screen.orientation && window.screen.orientation.unlock) {
+          window.screen.orientation.unlock();
+        }
+      } catch (err) {
+        // ignore
+      }
+      try {
+        if (document.fullscreenElement) document.exitFullscreen();
+      } catch (err) {
+        // ignore
+      }
+    }
 
     // Fallback names/personalities for AI-filled seats. Assigned deterministically
     // by seat number (seat 0 -> pool[0], etc.) so every browser agrees on who's

@@ -4760,6 +4760,8 @@
     const heShowdownSummaryEl = document.getElementById("he-showdown-summary");
     const heNextHandCountdownEl = document.getElementById("he-next-hand-countdown");
     const heErrorEl = document.getElementById("he-error");
+    const heWinnerBannerEl = document.getElementById("he-winner-banner");
+    const heWinnerContentEl = document.getElementById("he-winner-content");
 
     const HOLDEM_SEAT_COUNT = 8;
     const HOLDEM_STARTING_STACK = 1000;
@@ -5553,7 +5555,13 @@
       }, 0);
       const winnerSeat = seatsArr[winnerSeatNum];
       const baseStack = winnerSeatNum === patchSeatNum ? patch.stack ?? winnerSeat.stack : winnerSeat.stack;
-      await supabaseClient.from("holdem_seats").update({ stack: baseStack + total, total_contributed: 0 }).eq("seat_number", winnerSeatNum);
+      // Deliberately NOT zeroing total_contributed here (unlike the showdown
+      // payout path) - heWrapUpHand already resets it for every hand_seats
+      // member once the showdown pause ends, and leaving it alone until then
+      // means the pot math during that pause (both the "Pot: N" display and
+      // the winner banner's amount-won figure) still adds up to the real
+      // pot instead of silently dropping by the winner's own contribution.
+      await supabaseClient.from("holdem_seats").update({ stack: baseStack + total }).eq("seat_number", winnerSeatNum);
       if (winnerSeatNum === heMySeat) playCoinCascade();
     }
 
@@ -5914,27 +5922,52 @@
         .eq("version", table.version);
     }
 
-    async function heWrapUpHand(table, seats) {
+    // Works out exactly who won a hand that reached showdown (2+ players
+    // still in when the betting ended), how much each of them gets, and
+    // what they won it with. Shared by heWrapUpHand (which needs
+    // winningsBySeat to actually pay people) and the winner banner (which
+    // needs the same numbers, plus the hand itself, to show on screen) -
+    // having both read from one place means the amount flashed on screen
+    // always matches the amount that actually lands in someone's stack,
+    // side pots and split pots included.
+    function heComputeShowdownResult(table, seats) {
       const contenders = table.hand_seats.filter((s) => seats[s] && !seats[s].folded);
-      if (contenders.length > 1) {
-        const results = contenders.map((s) => ({ id: s, hand: evaluateBestHand([...seats[s].hole_cards, ...table.community_cards]) }));
-        const pots = computeSidePots(table.hand_seats.map((s) => ({ id: s, contributed: seats[s] ? seats[s].total_contributed : 0, folded: seats[s] ? seats[s].folded : true })));
-        const winningsBySeat = {};
-        pots.forEach((pot) => {
-          const eligible = results.filter((r) => pot.eligible.includes(r.id));
-          if (!eligible.length) return;
-          let best = eligible[0].hand;
-          eligible.forEach((r) => {
-            if (compareEvaluatedHands(r.hand, best) < 0) best = r.hand;
-          });
-          const winners = eligible.filter((r) => compareEvaluatedHands(r.hand, best) === 0).map((r) => r.id);
-          const share = Math.floor(pot.amount / winners.length);
-          let remainder = pot.amount - share * winners.length;
-          winners.forEach((id) => {
-            winningsBySeat[id] = (winningsBySeat[id] || 0) + share + (remainder > 0 ? 1 : 0);
-            if (remainder > 0) remainder--;
-          });
+      if (contenders.length <= 1) {
+        const potTotal = table.hand_seats.reduce((sum, s) => sum + (seats[s] ? seats[s].total_contributed : 0), 0);
+        const winners = contenders.length === 1 && potTotal > 0 ? [{ seat: contenders[0], amount: potTotal, hand: null }] : [];
+        return { contenders, wonByFold: true, results: [], winningsBySeat: {}, winners };
+      }
+      const results = contenders.map((s) => ({ id: s, hand: evaluateBestHand([...seats[s].hole_cards, ...table.community_cards]) }));
+      const pots = computeSidePots(table.hand_seats.map((s) => ({ id: s, contributed: seats[s] ? seats[s].total_contributed : 0, folded: seats[s] ? seats[s].folded : true })));
+      const winningsBySeat = {};
+      pots.forEach((pot) => {
+        const eligible = results.filter((r) => pot.eligible.includes(r.id));
+        if (!eligible.length) return;
+        let best = eligible[0].hand;
+        eligible.forEach((r) => {
+          if (compareEvaluatedHands(r.hand, best) < 0) best = r.hand;
         });
+        const winners = eligible.filter((r) => compareEvaluatedHands(r.hand, best) === 0).map((r) => r.id);
+        const share = Math.floor(pot.amount / winners.length);
+        let remainder = pot.amount - share * winners.length;
+        winners.forEach((id) => {
+          winningsBySeat[id] = (winningsBySeat[id] || 0) + share + (remainder > 0 ? 1 : 0);
+          if (remainder > 0) remainder--;
+        });
+      });
+      const winners = Object.entries(winningsBySeat)
+        .filter(([, amt]) => amt > 0)
+        .map(([seatStr, amt]) => {
+          const seatNum = parseInt(seatStr, 10);
+          const r = results.find((x) => x.id === seatNum);
+          return { seat: seatNum, amount: amt, hand: r ? r.hand : null };
+        });
+      return { contenders, wonByFold: false, results, winningsBySeat, winners };
+    }
+
+    async function heWrapUpHand(table, seats) {
+      const { contenders, winningsBySeat } = heComputeShowdownResult(table, seats);
+      if (contenders.length > 1) {
         for (const [seatStr, amt] of Object.entries(winningsBySeat)) {
           const s = parseInt(seatStr, 10);
           await supabaseClient.from("holdem_seats").update({ stack: seats[s].stack + amt, total_contributed: 0 }).eq("seat_number", s);
@@ -6063,6 +6096,7 @@
       });
       heSafeRender("log", () => heRenderHeLog(table));
       heSafeRender("showdown", () => heRenderHeShowdown(table, seats));
+      heSafeRender("winner-banner", () => heRenderWinnerBanner(table, seats));
     }
 
     function heSafeRender(label, fn) {
@@ -6261,14 +6295,19 @@
         return;
       }
       heShowdownEl.hidden = false;
-      const contenders = table.hand_seats.filter((s) => seats[s] && !seats[s].folded);
-      const wonByFold = contenders.length <= 1;
+      const result = heComputeShowdownResult(table, seats);
+      const contenders = result.contenders;
+      const winningSeats = new Set(result.winners.map((w) => w.seat));
 
       if (heMySeat !== null) {
         const myInHand = table.hand_seats.includes(heMySeat);
         const mySeatRow = seats[heMySeat];
         if (!myInHand) {
           heOutcomeBannerEl.hidden = true;
+        } else if (winningSeats.has(heMySeat)) {
+          heOutcomeBannerEl.hidden = false;
+          heOutcomeBannerEl.className = "he-outcome he-win";
+          heOutcomeBannerEl.textContent = "🎉 You win this hand!";
         } else {
           heOutcomeBannerEl.hidden = false;
           const outcome = mySeatRow.folded ? "fold" : "lose";
@@ -6280,26 +6319,62 @@
       }
 
       const lines = [];
-      if (wonByFold && contenders.length === 1) {
+      if (result.wonByFold && contenders.length === 1) {
         const winner = seats[contenders[0]];
         lines.push(`<div class="he-showdown-line"><strong>${escapeHtml(winner.player_name)}</strong> wins the pot — everyone else folded.</div>`);
-        if (contenders[0] === heMySeat && heOutcomeBannerEl) {
-          heOutcomeBannerEl.hidden = false;
-          heOutcomeBannerEl.className = "he-outcome he-win";
-          heOutcomeBannerEl.textContent = "🎉 You win this hand!";
-        }
       } else {
         contenders.forEach((s) => {
           const seat = seats[s];
           const hand = evaluateBestHand([...seat.hole_cards, ...table.community_cards]);
           lines.push(`<div class="he-showdown-line">${renderRealHandCards(seat.hole_cards)} <strong>${escapeHtml(seat.player_name)}</strong>: ${escapeHtml(hand.description)}</div>`);
-          if (s === heMySeat && heOutcomeBannerEl) {
-            heOutcomeBannerEl.hidden = false;
-          }
         });
       }
       heShowdownSummaryEl.innerHTML = lines.join("");
       heNextHandCountdownEl.textContent = "Next hand starting shortly…";
+    }
+
+    // The sidebar showdown panel above is easy to miss - in the landscape
+    // phone layout especially, it lands in its own row below the felt and
+    // can need a scroll to even see. This banner instead overlays the felt
+    // itself (seats and all) the moment a hand is won, so who-won-with-what
+    // is impossible to miss regardless of layout, then clears the instant
+    // the next hand starts dealing (street moves off "showdown").
+    function heRenderWinnerBanner(table, seats) {
+      if (!heWinnerBannerEl) return;
+      if (table.street !== "showdown") {
+        heWinnerBannerEl.hidden = true;
+        heWinnerBannerEl.dataset.sig = "";
+        return;
+      }
+      const result = heComputeShowdownResult(table, seats);
+      if (!result.winners.length) {
+        heWinnerBannerEl.hidden = true;
+        return;
+      }
+      heWinnerBannerEl.hidden = false;
+
+      // Re-render only when the actual winner(s)/amounts change, not on
+      // every tick - avoids restarting the pop-in animation and any
+      // in-progress card-flip needlessly while the banner just sits there.
+      const sig = result.winners.map((w) => `${w.seat}:${w.amount}:${w.hand ? w.hand.description : ""}`).join("|");
+      if (heWinnerBannerEl.dataset.sig === sig) return;
+      heWinnerBannerEl.dataset.sig = sig;
+
+      const rows = result.winners
+        .map((w) => {
+          const seat = seats[w.seat];
+          if (!seat) return "";
+          const name = escapeHtml(seat.player_name || "");
+          const amountLine = `<div class="he-winner-amount">${heChipIconSvg()} ${name} wins ${w.amount.toLocaleString()}</div>`;
+          if (result.wonByFold) {
+            return `<div class="he-winner-row"><div class="he-winner-desc">Everyone else folded</div>${amountLine}</div>`;
+          }
+          const cardsHtml = seat.hole_cards && seat.hole_cards.length ? renderRealHandCards(seat.hole_cards) : "";
+          const desc = w.hand ? escapeHtml(w.hand.description) : "";
+          return `<div class="he-winner-row">${cardsHtml ? `<div class="he-winner-cards">${cardsHtml}</div>` : ""}${amountLine}<div class="he-winner-desc">${desc}</div></div>`;
+        })
+        .join("");
+      heWinnerContentEl.innerHTML = `<div class="he-winner-trophy">🏆</div>${rows}`;
     }
 
     // ---- Wiring ----

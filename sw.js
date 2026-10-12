@@ -1,14 +1,15 @@
 // Bump this version string whenever the app's files change, so returning
 // visitors' phones clear out the old cached copy instead of getting stuck
 // on stale code.
-const CACHE_NAME = "poker-league-v4";
- 
+const CACHE_NAME = "poker-league-v5";
+
 const APP_SHELL = [
   "/",
   "/app.html",
   "/styles.css",
   "/app.js",
   "/manifest.json",
+  "/favicon.ico",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];

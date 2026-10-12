@@ -17,7 +17,14 @@
 <!-- PWA: lets Android/Chrome offer "Install app" and iPhone "Add to Home Screen" -->
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0f1720" />
-<link rel="icon" href="icons/icon-192.png" />
+<!-- favicon.ico first: browsers/OS still request this exact path directly
+     (independent of the <link> tags below) for things like a desktop
+     "internet shortcut" icon - without it, Windows falls back to a generic
+     star/blank icon for a shortcut even though the PWA install icon below
+     is fine. Keep both so every surface (browser tab, Windows shortcut,
+     Android/desktop PWA install, iOS home screen) gets a real icon. -->
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="icon" href="icons/icon-192.png" type="image/png" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

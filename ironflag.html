@@ -1574,11 +1574,19 @@ $('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dat
 // the bottom-left corner (exactly where a thumb naturally rests in
 // landscape) pushed half the circle past the left/bottom edge, out of
 // frame and impossible to see while actually playing.
+// innerWidth/innerHeight report the layout viewport, which on iOS Safari
+// can be taller than what's actually visible (the bottom toolbar can
+// overlap part of it) - clamping against those still let the ring's
+// bottom edge land under the browser chrome on a real iPhone. visualViewport
+// reflects the true visible area, so use that (with offsetLeft/offsetTop in
+// case it's shifted) and fall back to innerWidth/innerHeight when absent.
 {const zone=$('#tzone'),base=$('#sbase'),knob=$('#sknob');const R=56,PAD=74;
+ const vv=()=>{const v=window.visualViewport;return v?{l:v.offsetLeft,t:v.offsetTop,w:v.width,h:v.height}:{l:0,t:0,w:innerWidth,h:innerHeight};};
  zone.addEventListener('pointerdown',e=>{audioInit();if(TOUCH.id!==null)return;TOUCH.id=e.pointerId;zone.setPointerCapture(e.pointerId);TOUCH.ox=e.clientX;TOUCH.oy=e.clientY;TOUCH.active=true;TOUCH.ax=TOUCH.ay=0;
    base.hidden=false;
-   base.style.left=Math.min(Math.max(e.clientX,PAD),innerWidth-PAD)+'px';
-   base.style.top=Math.min(Math.max(e.clientY,PAD),innerHeight-PAD)+'px';
+   const b=vv();
+   base.style.left=Math.min(Math.max(e.clientX,b.l+PAD),b.l+b.w-PAD)+'px';
+   base.style.top=Math.min(Math.max(e.clientY,b.t+PAD),b.t+b.h-PAD)+'px';
    knob.style.transform='';e.preventDefault();});
  zone.addEventListener('pointermove',e=>{if(e.pointerId!==TOUCH.id)return;let dx=e.clientX-TOUCH.ox,dy=e.clientY-TOUCH.oy;const l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
    TOUCH.ax=dx/R;TOUCH.ay=dy/R;knob.style.transform=`translate(${dx}px,${dy}px)`;});

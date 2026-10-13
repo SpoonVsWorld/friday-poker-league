@@ -432,7 +432,8 @@ ul#player-list, ul#season-list {
   margin-bottom: 16px;
 }
 
-.tab-btn {
+.tab-btn,
+.games-tab-link {
   flex: 1;
   background: var(--field-bg);
   border: 1px solid var(--border);
@@ -446,7 +447,21 @@ ul#player-list, ul#season-list {
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
-.tab-btn:hover {
+/* .games-tab-link is a plain <a> (opens Iron Flag in a new tab) styled to
+   match .tab-btn, but deliberately NOT given the .tab-btn class itself -
+   app.js does document.querySelectorAll(".tab-btn") to wire up the in-page
+   tab-switcher, and this link isn't one of those tabs (there's no matching
+   public-tab-games panel), so it needs to stay out of that selector or
+   clicking it would hide every real tab panel. */
+.games-tab-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.tab-btn:hover,
+.games-tab-link:hover {
   border-color: rgba(var(--poker-green-rgb), 0.6);
   color: var(--text);
 }
@@ -473,7 +488,8 @@ ul#player-list, ul#season-list {
   .public-tabs {
     flex-wrap: wrap;
   }
-  .tab-btn {
+  .tab-btn,
+  .games-tab-link {
     flex: 1 1 calc(50% - 4px);
   }
 }
@@ -489,7 +505,8 @@ ul#player-list, ul#season-list {
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     gap: 8px;
   }
-  .tab-btn {
+  .tab-btn,
+  .games-tab-link {
     white-space: normal;
     text-align: center;
   }

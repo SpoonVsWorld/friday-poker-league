@@ -606,6 +606,23 @@ ul#player-list, ul#season-list {
   margin-top: 10px;
 }
 
+.tab-visibility-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.tab-visibility-list label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.tab-visibility-list input {
+  width: auto;
+}
+
 .stat-box {
   background: var(--field-bg);
   border: 1px solid var(--border);

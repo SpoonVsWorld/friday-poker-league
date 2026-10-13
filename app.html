@@ -101,7 +101,7 @@
           <button class="tab-btn" data-tab="slots" type="button">🎰 Slots</button>
           <button class="tab-btn" data-tab="blackjack" type="button">🃏 Blackjack</button>
           <button class="tab-btn" data-tab="holdem" type="button">♠️ Hold'em</button>
-          <a class="games-tab-link" href="ironflag.html" target="_blank" rel="noopener">🎮 Iron Flag</a>
+          <a class="games-tab-link" data-tab="ironflag" href="ironflag.html" target="_blank" rel="noopener">🎮 Iron Flag</a>
         </nav>
 
         <div id="public-tab-standings" class="public-tab">
@@ -457,6 +457,13 @@
         </div>
         <p id="announcement-status" class="muted" style="margin-top:4px;"></p>
         <p id="announcement-error" class="error"></p>
+
+        <h2 style="margin-top:24px;">Visible Tabs</h2>
+        <p class="muted" style="margin:0 0 8px;">Uncheck a tab to hide it from players. The tab bar updates for everyone the next time they load the app.</p>
+        <div id="tab-visibility-list" class="tab-visibility-list"></div>
+        <button id="save-tab-visibility-btn" class="btn btn-small" type="button" style="margin-top:8px;">Save</button>
+        <p id="tab-visibility-status" class="muted" style="margin-top:4px;"></p>
+        <p id="tab-visibility-error" class="error"></p>
 
         <h2 style="margin-top:24px;">Seasons</h2>
         <form id="add-season-form">

@@ -32,6 +32,11 @@
     const announcementStatus = document.getElementById("announcement-status");
     const announcementError = document.getElementById("announcement-error");
 
+    const tabVisibilityList = document.getElementById("tab-visibility-list");
+    const saveTabVisibilityBtn = document.getElementById("save-tab-visibility-btn");
+    const tabVisibilityStatus = document.getElementById("tab-visibility-status");
+    const tabVisibilityError = document.getElementById("tab-visibility-error");
+
     const addPlayerForm = document.getElementById("add-player-form");
     const playerError = document.getElementById("player-error");
     const playerList = document.getElementById("player-list");
@@ -191,7 +196,7 @@
       adminLogin.hidden = true;
       adminDashboard.hidden = false;
       adminEmailEl.textContent = session.user.email;
-      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin(), loadAnnouncementAdmin()]);
+      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin(), loadAnnouncementAdmin(), loadTabVisibilityAdmin()]);
     }
 
     function showLoggedOut() {
@@ -2286,6 +2291,43 @@
       if (tab === "holdem") heEnterLandscapeMode();
       else heExitLandscapeMode();
       showPublicList();
+    }
+
+    // ------------------------------------------------------------------
+    // Visible Tabs — which tabs in the public tab bar (Standings, Slots,
+    // Iron Flag, etc.) an admin has chosen to hide from players, stored
+    // as a JSON array of tab keys in a single-row Supabase table (see
+    // supabase_tab_visibility.sql). The tab keys themselves come from
+    // each element's own data-tab attribute, so this stays in sync with
+    // the tab bar in app.html without needing a separate list here.
+    // ------------------------------------------------------------------
+    function allTabEls() {
+      return Array.from(document.querySelectorAll(".public-tabs [data-tab]"));
+    }
+
+    function applyHiddenTabs(hiddenKeys) {
+      const hidden = new Set(hiddenKeys || []);
+      allTabEls().forEach((el) => {
+        el.hidden = hidden.has(el.dataset.tab);
+      });
+      // If the tab currently showing just got hidden, fall back to the
+      // first still-visible switchable tab (skip the Iron Flag link —
+      // it opens a separate page rather than a tab panel).
+      const activeBtn = document.querySelector(".tab-btn.active");
+      if (activeBtn && activeBtn.hidden) {
+        const fallback = document.querySelector(".tab-btn:not([hidden])");
+        if (fallback) switchPublicTab(fallback.dataset.tab);
+      }
+    }
+
+    async function loadTabVisibility() {
+      const { data, error } = await supabaseClient
+        .from("tab_visibility")
+        .select("hidden_tabs")
+        .eq("id", 1)
+        .maybeSingle();
+      if (error || !data) return;
+      applyHiddenTabs(data.hidden_tabs || []);
     }
 
     // ------------------------------------------------------------------
@@ -6605,6 +6647,7 @@
 
 
     refreshPublicView();
+    loadTabVisibility();
 
     // ------------------------------------------------------------------
     // "What's new" banner — a dismissible announcement pulled from a
@@ -6652,6 +6695,60 @@
     clearAnnouncementBtn?.addEventListener("click", async () => {
       announcementInput.value = "";
       saveAnnouncementBtn.click();
+    });
+
+    // Admin screen editor for the `tab_visibility` row (see
+    // supabase_tab_visibility.sql and applyHiddenTabs above). One checkbox
+    // per tab in the public tab bar, built from the tab bar's own
+    // data-tab elements so a new tab just shows up here automatically.
+    function renderTabVisibilityCheckboxes(hiddenKeys) {
+      if (!tabVisibilityList) return;
+      const hidden = new Set(hiddenKeys || []);
+      tabVisibilityList.innerHTML = "";
+      allTabEls().forEach((el) => {
+        const key = el.dataset.tab;
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.dataset.tabKey = key;
+        checkbox.checked = !hidden.has(key);
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(el.textContent.trim()));
+        tabVisibilityList.appendChild(label);
+      });
+    }
+
+    async function loadTabVisibilityAdmin() {
+      if (!tabVisibilityList) return;
+      tabVisibilityError.textContent = "";
+      const { data, error } = await supabaseClient
+        .from("tab_visibility")
+        .select("hidden_tabs")
+        .eq("id", 1)
+        .maybeSingle();
+      if (error) {
+        tabVisibilityError.textContent = "Could not load tab visibility: " + error.message;
+        return;
+      }
+      renderTabVisibilityCheckboxes((data && data.hidden_tabs) || []);
+    }
+
+    saveTabVisibilityBtn?.addEventListener("click", async () => {
+      tabVisibilityError.textContent = "";
+      tabVisibilityStatus.textContent = "";
+      const hiddenKeys = Array.from(tabVisibilityList.querySelectorAll("input[data-tab-key]"))
+        .filter((cb) => !cb.checked)
+        .map((cb) => cb.dataset.tabKey);
+      const { error } = await supabaseClient
+        .from("tab_visibility")
+        .update({ hidden_tabs: hiddenKeys, updated_at: new Date().toISOString() })
+        .eq("id", 1);
+      if (error) {
+        tabVisibilityError.textContent = "Could not save: " + error.message;
+        return;
+      }
+      applyHiddenTabs(hiddenKeys);
+      tabVisibilityStatus.textContent = "Saved.";
     });
 
     const WHATS_NEW_SEEN_KEY = "pokerWhatsNewSeenAt";

@@ -130,10 +130,6 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .tbtn.on{filter:brightness(1.5);transform:scale(.95)}
 .tpause{position:absolute;right:12px;top:calc(206px + env(safe-area-inset-top,0px));pointer-events:auto;width:44px;height:36px;border-radius:3px;background:var(--panel);border:1px solid var(--line);color:var(--sand);font:700 14px var(--ui)}
 .touchnote{margin:0;font-size:12px;color:var(--khaki);line-height:1.45}
-#rotatePrompt{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(8,10,8,.97);color:var(--sand);text-align:center;padding:24px}
-#rotatePrompt .ricon{font-size:52px;line-height:1;animation:rotatespin 1.6s ease-in-out infinite}
-#rotatePrompt p{margin:0;font:400 16px var(--display);letter-spacing:.06em;max-width:280px}
-@keyframes rotatespin{0%,45%{transform:rotate(0deg)}65%,100%{transform:rotate(-90deg)}}
 body.touchui .hud .stock{bottom:auto;top:118px;left:12px;gap:4px}body.touchui .stock div{padding:3px 6px;font-size:10px}
 body.touchui .hud .flagbox{bottom:auto;top:150px;font-size:10px;padding:5px 8px}
 body.touchui .hud canvas.mini{width:76px;height:auto}
@@ -188,7 +184,6 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <div id="over" class="screen" hidden><canvas id="confetti"></canvas><div class="box"><h2 id="oTitle">Victory</h2><p id="oText"></p><div class="btns"><button id="oNext" hidden>Next operation</button><button id="oAgain">Rematch</button><button id="oNew">New map</button><button id="oOps" hidden>Operations</button><button id="oQuit">Title screen</button></div></div></div>
 <div id="touch" hidden><div class="tzone" id="tzone"><div class="sbase" id="sbase" hidden><div class="sknob" id="sknob"></div></div></div>
   <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button></div>
-<div id="rotatePrompt" hidden><div class="ricon">⟳</div><p>Rotate your device to landscape to play</p></div>
 <div id="loading">LOADING ARMOR…</div>
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -1500,7 +1495,7 @@ function confetti(){const cv=$('#confetti');const W=cv.width=innerWidth,H=cv.hei
     x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.w/2,-p.h/2,p.w,p.h*Math.abs(Math.cos(p.r*2)));x.restore();}
     if(!reduce&&now-t0<14000&&!$('#over').hidden)requestAnimationFrame(f);else x.clearRect(0,0,W,H);})(last);}
 function startDemo(){const keep=MUS.track;newGame('1p',(Math.random()*99999|0)+1,true);state='title';if(keep&&AU.ctx)musicPlay(keep);}
-function startMatch(mode,seed){tryLockLandscape();$('#title').hidden=true;$('#ops').hidden=true;musicStop();$('#over').hidden=true;$('#pause').hidden=true;paused=false;audioInit();newGame(mode,seed);state='play';G.lastMode=mode;}
+function startMatch(mode,seed){$('#title').hidden=true;$('#ops').hidden=true;musicStop();$('#over').hidden=true;$('#pause').hidden=true;paused=false;audioInit();newGame(mode,seed);state='play';G.lastMode=mode;}
 function togglePause(){paused=!paused;$('#pause').hidden=!paused;if(paused)musicStop();else{const v=G.views[0]?.team.vehicle;if(v)musicPlay(v.carrying?'tell':VEH_MUSIC[v.type]);}}
 
 // ============================================================ main loop
@@ -1565,36 +1560,26 @@ try{const sd=localStorage.getItem('ironflag.diff');if(sd!==null){opts.diff=+sd;$
 $('#tShadow').onclick=e=>{opts.shadows=!opts.shadows;e.currentTarget.setAttribute('aria-pressed',opts.shadows);sun.castShadow=opts.shadows;};
 $('#tMusic').onclick=()=>{setMusic(!AU.music);};
 $('#tMouse').onclick=e=>{opts.mouse=!opts.mouse;e.currentTarget.setAttribute('aria-pressed',opts.mouse);};
-// Mobile touch players need the game in landscape - the dual-joystick/fire/
-// special layout assumes a wide viewport. Try the real orientation-lock API
-// (needs fullscreen on most browsers, and a direct user-gesture call) and,
-// since that API doesn't exist at all on iOS Safari, also show a blocking
-// "rotate your device" overlay whenever we're in touch mode and still
-// portrait - belt and suspenders so every device ends up landscape one way
-// or another.
-function updateRotatePrompt(){const show=opts.touch&&matchMedia('(orientation: portrait)').matches;$('#rotatePrompt').hidden=!show;}
-async function tryLockLandscape(){
-  if(!opts.touch)return;
-  try{
-    if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen().catch(()=>{});
-    if(screen.orientation&&screen.orientation.lock)await screen.orientation.lock('landscape').catch(()=>{});
-  }catch(e){}
-}
 function setControls(touch,save){opts.touch=touch;document.body.classList.toggle('touchui',touch);$('#ctl').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.v==='touch')===touch));
   $('#touchNote').hidden=!touch;$('#tMouse').hidden=touch;$('#b2p').hidden=touch;
   renderer.setPixelRatio(touch?Math.min(devicePixelRatio,1.25):Math.min(devicePixelRatio,1.5));layoutViews();
-  if(save)try{localStorage.setItem('ironflag.controls',touch?'touch':'kb');}catch(e){}
-  updateRotatePrompt();}
-$('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dataset.v==='touch',true);if(opts.touch&&opts.shadows&&innerWidth<900)$('#tShadow').click();tryLockLandscape();});
+  if(save)try{localStorage.setItem('ironflag.controls',touch?'touch':'kb');}catch(e){}}
+$('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dataset.v==='touch',true);if(opts.touch&&opts.shadows&&innerWidth<900)$('#tShadow').click();});
 {let saved=null;try{saved=localStorage.getItem('ironflag.controls');}catch(e){}
  const auto=matchMedia('(pointer: coarse)').matches&&!matchMedia('(hover: hover)').matches;setControls(saved?saved==='touch':auto,false);
  if(opts.touch&&!saved&&opts.shadows)$('#tShadow').click();}
-addEventListener('resize',updateRotatePrompt);addEventListener('orientationchange',updateRotatePrompt);
-if(screen.orientation)screen.orientation.addEventListener('change',updateRotatePrompt);
-// touch joystick: appears where the thumb lands
-{const zone=$('#tzone'),base=$('#sbase'),knob=$('#sknob');const R=56;
+// touch joystick: appears where the thumb lands. Clamp its on-screen
+// position so the ring (132px wide, plus a few px of outer glow) never
+// renders partly off the edge of the screen - without this, touching near
+// the bottom-left corner (exactly where a thumb naturally rests in
+// landscape) pushed half the circle past the left/bottom edge, out of
+// frame and impossible to see while actually playing.
+{const zone=$('#tzone'),base=$('#sbase'),knob=$('#sknob');const R=56,PAD=74;
  zone.addEventListener('pointerdown',e=>{audioInit();if(TOUCH.id!==null)return;TOUCH.id=e.pointerId;zone.setPointerCapture(e.pointerId);TOUCH.ox=e.clientX;TOUCH.oy=e.clientY;TOUCH.active=true;TOUCH.ax=TOUCH.ay=0;
-   base.hidden=false;base.style.left=e.clientX+'px';base.style.top=e.clientY+'px';knob.style.transform='';e.preventDefault();});
+   base.hidden=false;
+   base.style.left=Math.min(Math.max(e.clientX,PAD),innerWidth-PAD)+'px';
+   base.style.top=Math.min(Math.max(e.clientY,PAD),innerHeight-PAD)+'px';
+   knob.style.transform='';e.preventDefault();});
  zone.addEventListener('pointermove',e=>{if(e.pointerId!==TOUCH.id)return;let dx=e.clientX-TOUCH.ox,dy=e.clientY-TOUCH.oy;const l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
    TOUCH.ax=dx/R;TOUCH.ay=dy/R;knob.style.transform=`translate(${dx}px,${dy}px)`;});
  const end=e=>{if(e.pointerId!==TOUCH.id)return;TOUCH.id=null;TOUCH.active=false;TOUCH.ax=TOUCH.ay=0;base.hidden=true;};

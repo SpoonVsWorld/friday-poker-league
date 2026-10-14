@@ -328,6 +328,29 @@ function audioInit(){
   loadAudio();
   if(state==='title'||state==='ops')musicPlay('diesirae');
 }
+// ---- iOS / Safari unlock. Two things silence the game on an iPhone otherwise:
+// 1) Safari creates the AudioContext suspended and only lets it start inside a
+//    "real" activation gesture - touchend/click/keydown, NOT touchstart/pointerdown
+//    (which is where audioInit was first being called from). It also drops to
+//    'interrupted'/'suspended' after a phone call, Siri, lock screen or app switch,
+//    so resume() has to be retried on every gesture, not just the first.
+// 2) Web Audio obeys the ringer/mute switch. Playing a (silent) HTML <audio>
+//    element switches the page's iOS audio session to "playback", which makes
+//    Web Audio play through the mute switch like any other game/media app.
+let unmuteEl=null;
+function silentWavURL(){const sr=8000,n=1600;const b=new ArrayBuffer(44+n*2),v=new DataView(b);const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  return URL.createObjectURL(new Blob([b],{type:'audio/wav'}));}
+function audioUnlock(){
+  audioInit();const c=AU.ctx;if(!c)return;
+  if(c.state!=='running'){try{c.resume().catch(()=>{});}catch(e){}}
+  try{
+    if(!unmuteEl){unmuteEl=document.createElement('audio');unmuteEl.src=silentWavURL();unmuteEl.loop=true;unmuteEl.preload='auto';unmuteEl.setAttribute('playsinline','');unmuteEl.setAttribute('webkit-playsinline','');unmuteEl.style.display='none';document.body.appendChild(unmuteEl);}
+    if(unmuteEl.paused){const p=unmuteEl.play();if(p&&p.catch)p.catch(()=>{});}
+  }catch(e){}
+}
+for(const ev of ['touchend','click','keydown','pointerup'])document.addEventListener(ev,audioUnlock,{capture:true,passive:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AU.ctx&&AU.ctx.state!=='running'){try{AU.ctx.resume().catch(()=>{});}catch(e){}}});
 async function loadAudio(){ // recorded sounds embedded as base64 Ogg Vorbis; synth stays as fallback until decoded
   let map={};try{map=JSON.parse(document.getElementById('audio').textContent);}catch(e){return;}
   await Promise.all(Object.entries(map).map(async([k,b64])=>{try{const bin=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)).buffer;AU.buf[k]=await AU.ctx.decodeAudioData(bin);}catch(e){console.warn('audio',k,e);}}));

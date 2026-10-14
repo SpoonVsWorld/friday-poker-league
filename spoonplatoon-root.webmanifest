@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Spoon Platoon",
+  "short_name": "Spoon Platoon",
+  "description": "Capture-the-flag tank, helicopter and jeep battles against fortified island bases. By Spoon Lab Creations.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d120e",
+  "theme_color": "#0d120e",
+  "icons": [
+    { "src": "icons/spoonplatoon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/spoonplatoon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/spoonplatoon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -5,7 +5,26 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Spoon Platoon</title>
 <link rel="icon" type="image/png" href="icons/spoonlab-logo.png">
-<link rel="apple-touch-icon" href="icons/spoonlab-logo.png">
+<link rel="apple-touch-icon" href="icons/spoonplatoon-180.png">
+<link rel="manifest" href="spoonplatoon.webmanifest">
+<script>
+// Installable-app setup. The game lives at two addresses: the root of
+// spoonplatoon.vercel.app (its own home) and /ironflag.html inside the poker
+// site. The poker site already has its own installable app covering scope "/",
+// so there the game's manifest and service worker are scoped to just
+// /ironflag.html; on its own domain they can own the root.
+(function(){
+  var own=/^spoonplatoon\./i.test(location.hostname);
+  if(own){var m=document.querySelector('link[rel="manifest"]');if(m)m.href='spoonplatoon-root.webmanifest';}
+  if('serviceWorker' in navigator)addEventListener('load',function(){
+    navigator.serviceWorker.register('sw-spoonplatoon.js',{scope:own?'/':'/ironflag.html'}).catch(function(){});
+  });
+})();
+</script>
+<meta name="theme-color" content="#0d120e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Spoon Platoon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Chakra+Petch:wght@400;600;700&display=swap">

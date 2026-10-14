@@ -900,7 +900,11 @@ function splashDamage(x,y,z,R,dmg,team,skip){
     if(sp.segs.some(q=>Math.hypot(q.cx-x,q.cz-z)<R+5)){sp.hp-=dmg;if(sp.hp<=0)collapseSpan(sp,team);}}
 }
 function collapseSpan(sp,byTeam){
-  if(G.net&&G.net.host)G.net.dirtyBridges.add(sp.netIdx);
+  // Online: bridge deadness is re-derived fresh from G.bridgeSpans in every snapshot
+  // (netBuildSnapshot), not tracked as a one-shot diff - Realtime Broadcast is
+  // fire-and-forget (no delivery guarantee/retry), so a diff cleared the instant
+  // it's built can be silently lost forever if that one packet drops. Re-sending
+  // the full dead-span list each tick is cheap (~20 small ints) and self-healing.
   sp.alive=false;for(const m of sp.meshes)m.visible=false;for(const p of sp.pillars||[])p.scale.y=.45;
   for(const q of sp.segs){explosion(q.cx,BRIDGE_Y,q.cz,1.4);explosion(q.cx,0,q.cz,1.2,true);debris(q.cx,BRIDGE_Y,q.cz,4,8);}
   sfx('bigboom',sp.x,sp.z);sfx('waterboom',sp.x,sp.z);
@@ -1625,7 +1629,7 @@ const NET={
   client:null,clientId:null,lobbyCh:null,matchCh:null,lobbyReady:false,
   host:false,myTeam:0,matchId:null,seed:null,name:'',started:false,
   peers:{},
-  events:[],dirty:new Set(),dirtyBridges:new Set(),
+  events:[],dirty:new Set(),
   localInp:{thr:0,turn:0,tur:0,strafe:0,fire:false,special:false,abandon:false,aimYaw:null},
   remoteInp:{thr:0,turn:0,tur:0,strafe:0,fire:false,special:false,abandon:false,aimYaw:null},
   lastSnap:null,sendAcc:0,lastRecv:0,
@@ -1701,7 +1705,7 @@ function netBeginHost(){
     if(!G||!G.net)return;const t=G.teams[1-NET.myTeam];const k=payload&&payload.k;
     if(t&&k&&!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){spawnVehicle(t.team,k);sfx('click');}
   });
-  NET.events=[];NET.dirty=new Set();NET.dirtyBridges=new Set();NET.sendAcc=0;NET.lastRecv=performance.now();
+  NET.events=[];NET.dirty=new Set();NET.sendAcc=0;NET.lastRecv=performance.now();
   Object.assign(NET.remoteInp,{thr:0,turn:0,tur:0,strafe:0,fire:false,special:false,abandon:false,aimYaw:null});
   startMatch('online',NET.seed);
 }
@@ -1713,7 +1717,7 @@ function netBeginGuest(){
 function netEndMatch(){
   if(NET.matchCh){try{NET.matchCh.unsubscribe();}catch(e){}NET.matchCh=null;}
   netLeaveLobby();
-  NET.host=false;NET.started=false;NET.matchId=null;NET.events=[];NET.dirty=new Set();NET.dirtyBridges=new Set();NET.lastSnap=null;
+  NET.host=false;NET.started=false;NET.matchId=null;NET.events=[];NET.dirty=new Set();NET.lastSnap=null;
 }
 function netHostTick(dt){
   if(NET.lastRecv&&performance.now()-NET.lastRecv>12000){note(NET.myTeam,'Connection to the other player was lost.','bad',true);NET.lastRecv=performance.now()+1e9;}
@@ -1748,7 +1752,7 @@ function netBuildSnapshot(){
   const soldiers=G.soldiers.filter(s=>s.alive).map(s=>({id:s.netId,team:s.team,x:r1(s.x),z:r1(s.z),h:r2(s.heading)}));
   const turrets=G.statics.filter(s=>s.kind==='turret'&&s.alive).map(s=>({i:s.netIdx,yaw:r2(s.yaw||0)}));
   const dirty=[];NET.dirty.forEach(i=>{const s=G.statics[i];if(s)dirty.push({i,alive:s.alive,hp:r1(s.hp)});});NET.dirty.clear();
-  const bridges=[...NET.dirtyBridges];NET.dirtyBridges.clear();
+  const bridges=G.bridgeSpans.filter(s=>!s.alive).map(s=>s.netIdx); // full list every tick - see note in collapseSpan
   const proj=G.proj.map(p=>({k:p.kind,x:r1(p.x),y:r1(p.y),z:r1(p.z)}));
   const flags=G.flags.map(f=>({s:f.state,x:r1(f.x),z:r1(f.z),c:f.carrier?f.carrier.team:null}));
   const fx=NET.events;NET.events=[];

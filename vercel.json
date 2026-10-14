@@ -1,5 +1,10 @@
 {
   "rewrites": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "spoonplatoon.vercel.app" }],
+      "destination": "/ironflag.html"
+    },
     { "source": "/", "destination": "/api/index" },
     { "source": "/index.html", "destination": "/api/index" }
   ]

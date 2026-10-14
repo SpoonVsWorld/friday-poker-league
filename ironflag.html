@@ -581,6 +581,7 @@ function generate(seed){
     const sg={ax:a[0],az:a[1],ux:dx/len,uz:dz/len,len,cx:(a[0]+b[0])/2,cz:(a[1]+b[1])/2,reach:len/2+5,span,pillar:(i-r.a)%3===0};span.segs.push(sg);segs.push(sg);}}
   for(const sp of spans){sp.x=sp.segs.reduce((a,q)=>a+q.cx,0)/sp.segs.length;sp.z=sp.segs.reduce((a,q)=>a+q.cz,0)/sp.segs.length;}
   G.bridgeSegs=segs;G.bridgeRuns=runs;G.bridgeSpans=spans;G.corrBroken=corr.map(()=>false);
+  G.bridgeSpans.forEach((sp,i)=>sp.netIdx=i); // stable id for online sync - spans are built identically from the shared seed on both clients
   return bases;
 }
 
@@ -899,6 +900,7 @@ function splashDamage(x,y,z,R,dmg,team,skip){
     if(sp.segs.some(q=>Math.hypot(q.cx-x,q.cz-z)<R+5)){sp.hp-=dmg;if(sp.hp<=0)collapseSpan(sp,team);}}
 }
 function collapseSpan(sp,byTeam){
+  if(G.net&&G.net.host)G.net.dirtyBridges.add(sp.netIdx);
   sp.alive=false;for(const m of sp.meshes)m.visible=false;for(const p of sp.pillars||[])p.scale.y=.45;
   for(const q of sp.segs){explosion(q.cx,BRIDGE_Y,q.cz,1.4);explosion(q.cx,0,q.cz,1.2,true);debris(q.cx,BRIDGE_Y,q.cz,4,8);}
   sfx('bigboom',sp.x,sp.z);sfx('waterboom',sp.x,sp.z);
@@ -1623,7 +1625,7 @@ const NET={
   client:null,clientId:null,lobbyCh:null,matchCh:null,lobbyReady:false,
   host:false,myTeam:0,matchId:null,seed:null,name:'',started:false,
   peers:{},
-  events:[],dirty:new Set(),
+  events:[],dirty:new Set(),dirtyBridges:new Set(),
   localInp:{thr:0,turn:0,tur:0,strafe:0,fire:false,special:false,abandon:false,aimYaw:null},
   remoteInp:{thr:0,turn:0,tur:0,strafe:0,fire:false,special:false,abandon:false,aimYaw:null},
   lastSnap:null,sendAcc:0,lastRecv:0,
@@ -1699,7 +1701,7 @@ function netBeginHost(){
     if(!G||!G.net)return;const t=G.teams[1-NET.myTeam];const k=payload&&payload.k;
     if(t&&k&&!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){spawnVehicle(t.team,k);sfx('click');}
   });
-  NET.events=[];NET.dirty=new Set();NET.sendAcc=0;NET.lastRecv=performance.now();
+  NET.events=[];NET.dirty=new Set();NET.dirtyBridges=new Set();NET.sendAcc=0;NET.lastRecv=performance.now();
   Object.assign(NET.remoteInp,{thr:0,turn:0,tur:0,strafe:0,fire:false,special:false,abandon:false,aimYaw:null});
   startMatch('online',NET.seed);
 }
@@ -1711,7 +1713,7 @@ function netBeginGuest(){
 function netEndMatch(){
   if(NET.matchCh){try{NET.matchCh.unsubscribe();}catch(e){}NET.matchCh=null;}
   netLeaveLobby();
-  NET.host=false;NET.started=false;NET.matchId=null;NET.events=[];NET.dirty=new Set();NET.lastSnap=null;
+  NET.host=false;NET.started=false;NET.matchId=null;NET.events=[];NET.dirty=new Set();NET.dirtyBridges=new Set();NET.lastSnap=null;
 }
 function netHostTick(dt){
   if(NET.lastRecv&&performance.now()-NET.lastRecv>12000){note(NET.myTeam,'Connection to the other player was lost.','bad',true);NET.lastRecv=performance.now()+1e9;}
@@ -1723,29 +1725,44 @@ function netGuestTick(dt){
   NET.sendAcc+=dt;
   if(NET.sendAcc>=.08){NET.sendAcc=0;if(NET.matchCh)NET.matchCh.send({type:'broadcast',event:'input',payload:{thr:NET.localInp.thr,turn:NET.localInp.turn,tur:NET.localInp.tur,strafe:NET.localInp.strafe,fire:NET.localInp.fire,special:NET.localInp.special,abandon:NET.localInp.abandon,aimYaw:NET.localInp.aimYaw}});}
   if(NET.lastSnap){const s=NET.lastSnap;NET.lastSnap=null;netApplySnapshot(s);}
+  netCosmeticTick(dt); // wheel spin, rotor spin etc. - purely visual, so it runs locally every frame
+  // rather than waiting on the network, instead of trying to sync an ever-growing spin angle
   if(NET.lastRecv&&performance.now()-NET.lastRecv>12000&&!G.over){note(NET.myTeam,'Connection to the host was lost.','bad',true);NET.lastRecv=performance.now()+1e9;}
+}
+function netCosmeticTick(dt){
+  for(const v of G.vehicles){
+    if(v.type==='heli'){
+      if(v.state==='active'){v.parts.rotor.rotation.y+=dt*28;v.parts.tail.rotation.x+=dt*40;}
+      else{v.parts.rotor.rotation.y+=dt*18;}
+    }else if(v.parts.wheels){
+      v.wheelRot+=v.speed*dt/.42;for(const w of v.parts.wheels)w.rotation.x=v.wheelRot;
+      for(const w of v.parts.front)w.rotation.y=-v.steer*.45;
+      if(v.type==='jeep'){const ws=v.floats?1.45:1;for(const w of v.parts.wheels)w.scale.setScalar(lerp(w.scale.x,ws,dt*5));}
+    }
+  }
 }
 function netBuildSnapshot(){
   const r1=n=>Math.round(n*100)/100,r2=n=>Math.round(n*1000)/1000;
   const vt=T=>{const t=G.teams[T],v=t.vehicle;
-    return {stock:t.stock,respawnT:r1(t.respawnT),v:v?{id:v.netId,type:v.type,x:r1(v.x),y:r1(v.y),z:r1(v.z),h:r2(v.heading),tur:r2(v.turret||0),hp:r1(v.hp),fuel:r1(v.fuel),ammo:v.ammo,ammo2:v.ammo2,carrying:!!v.carrying,state:v.state}:null};};
+    return {stock:t.stock,respawnT:r1(t.respawnT),v:v?{id:v.netId,type:v.type,x:r1(v.x),y:r1(v.y),z:r1(v.z),h:r2(v.heading),tur:r2(v.turret||0),hp:r1(v.hp),fuel:r1(v.fuel),ammo:v.ammo,ammo2:v.ammo2,carrying:!!v.carrying,state:v.state,sp:r1(v.speed||0),st:r2(v.steer||0),fl:!!v.floats}:null};};
   const soldiers=G.soldiers.filter(s=>s.alive).map(s=>({id:s.netId,team:s.team,x:r1(s.x),z:r1(s.z),h:r2(s.heading)}));
   const turrets=G.statics.filter(s=>s.kind==='turret'&&s.alive).map(s=>({i:s.netIdx,yaw:r2(s.yaw||0)}));
   const dirty=[];NET.dirty.forEach(i=>{const s=G.statics[i];if(s)dirty.push({i,alive:s.alive,hp:r1(s.hp)});});NET.dirty.clear();
+  const bridges=[...NET.dirtyBridges];NET.dirtyBridges.clear();
   const proj=G.proj.map(p=>({k:p.kind,x:r1(p.x),y:r1(p.y),z:r1(p.z)}));
   const flags=G.flags.map(f=>({s:f.state,x:r1(f.x),z:r1(f.z),c:f.carrier?f.carrier.team:null}));
   const fx=NET.events;NET.events=[];
-  return {t:G.time,over:G.over,oi:G.overInfo||null,teams:[vt(0),vt(1)],soldiers,turrets,dirty,proj,flags,fx};
+  return {t:G.time,over:G.over,oi:G.overInfo||null,teams:[vt(0),vt(1)],soldiers,turrets,dirty,bridges,proj,flags,fx};
 }
 function netSpawnVisualVehicle(T,s){
   const def=VDEF[s.type];const {g,parts}=buildVehicleObj(s.type,T);
   const v={type:s.type,def,team:T,x:s.x,z:s.z,y:s.y,heading:s.h,speed:0,vx:0,vz:0,turret:s.tur||0,hp:s.hp,fuel:s.fuel,ammo:s.ammo,ammo2:s.ammo2,cd:0,cd2:0,
-    state:s.state||'active',stateT:0,obj:g,parts,leftPad:false,padT:0,carrying:null,r:def.r,alt:0,smokeT:0,scuttle:0,strafe:0,steer:0,wheelRot:0,lowFuelWarned:false,dustT:0,netId:s.id};
+    state:s.state||'active',stateT:0,obj:g,parts,leftPad:false,padT:0,carrying:null,r:def.r,alt:0,smokeT:0,scuttle:0,strafe:0,steer:0,wheelRot:0,lowFuelWarned:false,dustT:0,netId:s.id,floats:!!s.fl};
   g.position.set(v.x,v.y,v.z);g.rotation.y=v.heading;world.add(g);world.add(parts.ring);
   G.teams[T].vehicle=v;G.vehicles.push(v);sfx('lift',v.x,v.z);return v;
 }
 function netUpdateVisualVehicle(v,s){
-  v.x=s.x;v.y=s.y;v.z=s.z;v.heading=s.h;v.turret=s.tur;v.hp=s.hp;v.fuel=s.fuel;v.ammo=s.ammo;v.ammo2=s.ammo2;v.state=s.state;
+  v.x=s.x;v.y=s.y;v.z=s.z;v.heading=s.h;v.turret=s.tur;v.hp=s.hp;v.fuel=s.fuel;v.ammo=s.ammo;v.ammo2=s.ammo2;v.state=s.state;v.speed=s.sp;v.steer=s.st;v.floats=s.fl;
   v.obj.position.set(s.x,s.y,s.z);v.obj.rotation.y=s.h;
   if(v.parts.turret)v.parts.turret.rotation.y=s.tur;
   v.parts.ring.position.set(s.x,.05,s.z);
@@ -1783,6 +1800,7 @@ function netApplySnapshot(snap){
   for(const d of snap.dirty){const s=G.statics[d.i];if(!s)continue;const wasAlive=s.alive;s.hp=d.hp;
     if(wasAlive&&!d.alive)destroyStatic(s,undefined);else s.alive=d.alive;}
   for(const tr of snap.turrets){const s=G.statics[tr.i];if(!s||!s.alive)continue;s.yaw=tr.yaw;if(s.head)s.head.rotation.y=tr.yaw;}
+  for(const i of snap.bridges||[]){const sp=G.bridgeSpans[i];if(sp&&sp.alive)collapseSpan(sp,undefined);}
   netSyncProjectiles(snap.proj);
   for(let T=0;T<2;T++)netApplyFlag(G.flags[T],snap.flags[T]);
   if(snap.over&&!G.over&&snap.oi)gameOver(snap.oi.winner,snap.oi.how);

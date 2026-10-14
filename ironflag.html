@@ -549,27 +549,32 @@ function explosion(x,y,z,size=1,water=false){
 function puff(x,y,z,c=C_SMK0,s=2,life=1.2,a=.6){SMOKE.spawn(x,y,z,rr(-.6,.6),rr(.8,2.2),rr(-.6,.6),life,s*.6,s*1.6,c,C_SMK1,a,-.5,1);}
 // ---- blood: a spray of heavy droplets (SMOKE particles with real gravity) plus
 // long-lived splatter decals on the ground (instanced flat discs, pooled like debris).
-const C_BLOOD0=[.66,.03,.03],C_BLOOD1=[.26,.01,.01];
+const C_BLOOD0=[.5,.04,.03],C_BLOOD1=[.2,.02,.02];
 const BLD={max:96,im:null,p:[],head:0};
-{const g=new THREE.CircleGeometry(1,10);g.rotateX(-Math.PI/2);BLD.im=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({color:0x4a0505,transparent:true,opacity:.88,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),BLD.max);
- BLD.im.frustumCulled=false;BLD.im.renderOrder=1;for(let i=0;i<BLD.max;i++)BLD.p.push({x:0,y:-99,z:0,s:0,r:0,life:0,max:1});scene.add(BLD.im);}
-function bloodDecal(x,z,s){if(!G)return;const g=groundAt(x,z);if(g<0)return;const p=BLD.p[BLD.head];BLD.head=(BLD.head+1)%BLD.max;Object.assign(p,{x,y:g+.05,z,s,r:Math.random()*TAU,life:45,max:45});}
+{ // splatter decal: an irregular blob rather than a perfect disc - each instance also gets its own rotation and x/z stretch, so no two look alike
+  const N=16,pts=[];for(let i=0;i<N;i++){const a=i/N*TAU,r=.62+Math.abs(Math.sin(i*2.7)*.3)+Math.abs(Math.cos(i*1.3))*.18;pts.push(new THREE.Vector2(Math.cos(a)*r,Math.sin(a)*r));}
+  const g=new THREE.ShapeGeometry(new THREE.Shape(pts));g.rotateX(-Math.PI/2);
+  BLD.im=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({color:0x3a0707,transparent:true,opacity:.68,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),BLD.max);
+  BLD.im.frustumCulled=false;BLD.im.renderOrder=1;for(let i=0;i<BLD.max;i++)BLD.p.push({x:0,y:-99,z:0,s:0,sx:1,sz:1,r:0,life:0,max:1});scene.add(BLD.im);}
+function bloodDecal(x,z,s){if(!G)return;const g=groundAt(x,z);if(g<0)return;const p=BLD.p[BLD.head];BLD.head=(BLD.head+1)%BLD.max;
+  Object.assign(p,{x,y:g+.05,z,s,sx:.7+Math.random()*.6,sz:.7+Math.random()*.6,r:Math.random()*TAU,life:30,max:30});}
 function updateBlood(dt){
   for(let i=0;i<BLD.max;i++){const p=BLD.p[i];let s=0;
-    if(p.life>0){p.life-=dt;const age=p.max-p.life;s=p.s*Math.min(1,age*5)*Math.min(1,p.life/8);}
-    _m4.compose(_v.set(p.x,p.y,p.z),_q.setFromEuler(_e.set(0,p.r,0)),_s.set(s,1,s));BLD.im.setMatrixAt(i,_m4);}
+    if(p.life>0){p.life-=dt;const age=p.max-p.life;s=p.s*Math.min(1,age*5)*Math.min(1,p.life/10);}
+    _m4.compose(_v.set(p.x,p.y,p.z),_q.setFromEuler(_e.set(0,p.r,0)),_s.set(s*p.sx,1,s*p.sz));BLD.im.setMatrixAt(i,_m4);}
   BLD.im.instanceMatrix.needsUpdate=true;
 }
 // how: 'hit' (a bullet landed, small spurt) | 'shot' (killed by fire) | 'blast' (splash/grenade) | 'crush' (run over - the big one)
 // dx/dz: direction the hit came from, so the spray carries through. Relayed to the online guest as an fx event.
+// Tuned for "realistic, not cartoon": a short low spray of small dark droplets and a pool about the size of the body, not bigger.
 function gore(x,y,z,how='shot',dx=0,dz=0){
   if(G&&G.net&&G.net.host)G.net.events.push({k:'gore',x,y,z,how,dx,dz});
-  const R=Math.random;const n=how==='crush'?110:how==='blast'?80:how==='hit'?14:60;const f=how==='crush'?1.7:how==='blast'?1.4:1;
-  for(let i=0;i<n;i++){const a=R()*TAU,sp=(1.2+R()*6)*f;const up=how==='crush'?.5+R()*4:1+R()*6*f;
-    SMOKE.spawn(x+(R()-.5)*.6,y+.2+R()*1.3,z+(R()-.5)*.6,Math.cos(a)*sp+dx*.35,up,Math.sin(a)*sp+dz*.35,.35+R()*.6,.22+R()*.3,.08+R()*.14,C_BLOOD0,C_BLOOD1,.95,30,1.6);}
-  if(how==='hit'){if(R()<.5)bloodDecal(x+(R()-.5)*1.2,z+(R()-.5)*1.2,.35+R()*.5);return;}
-  bloodDecal(x,z,(1.5+R()*1.2)*f);
-  const k=how==='crush'?8:4;for(let i=0;i<k;i++)bloodDecal(x+(R()-.5)*4.5*f,z+(R()-.5)*4.5*f,.4+R()*.9*f);
+  const R=Math.random;const n=how==='crush'?55:how==='blast'?40:how==='hit'?7:28;const f=how==='crush'?1.5:how==='blast'?1.3:1;
+  for(let i=0;i<n;i++){const a=R()*TAU,sp=(1+R()*4.5)*f;const up=how==='crush'?.3+R()*2.5:.8+R()*4*f;
+    SMOKE.spawn(x+(R()-.5)*.5,y+.2+R()*1.1,z+(R()-.5)*.5,Math.cos(a)*sp+dx*.3,up,Math.sin(a)*sp+dz*.3,.3+R()*.4,.13+R()*.17,.05+R()*.08,C_BLOOD0,C_BLOOD1,.9,30,1.8);}
+  if(how==='hit'){if(R()<.45)bloodDecal(x+(R()-.5)*1,z+(R()-.5)*1,.2+R()*.3);return;}
+  bloodDecal(x,z,(.75+R()*.4)*f);
+  const k=how==='crush'?5:3;for(let i=0;i<k;i++)bloodDecal(x+(R()-.5)*2.6*f,z+(R()-.5)*2.6*f,.2+R()*.45*f);
 }
 
 // ============================================================ terrain

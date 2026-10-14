@@ -1485,6 +1485,14 @@ function showOps(){
   $('#opsSub').textContent=`${Object.keys(best).length} of ${OPS.length} operations complete. Each base is defended by turrets, soldiers and later drones. There are no enemy vehicles, just their defenses. Difficulty: ${['Easy','Normal','Hard'][opts.diff]} (change it on the title screen; Hard is the original's one-hit jeep).`;
   $('#opsGrid').innerHTML=OPS.map((o,i)=>{const done=best[i]!=null,lock=i>unlocked;return `<button class="op${done?' done':''}${i===unlocked&&!done?' next':''}" data-i="${i}" ${lock?'disabled':''}><span class="no">OPERATION ${String(i+1).padStart(2,'0')}</span><span class="nm">${o.name}</span><span class="st">${lock?'Locked':done?'Complete · best '+fmtTime(best[i]):'Map '+o.seed+' · ready'}</span></button>`;}).join('');
   $('#opsGrid').querySelectorAll('.op').forEach(b=>b.onclick=()=>{if(b.disabled)return;startOp(+b.dataset.i);});
+  // The grid's scroll position otherwise carries over from the last time
+  // this screen was open (the #ops container itself is just hidden/shown,
+  // never recreated) - on a PC monitor everything fits without scrolling
+  // so this never showed up, but on a phone, if you'd scrolled down before
+  // (e.g. to an operation further down the list), reopening Operations
+  // would land right back there with Operation 01 scrolled out of view
+  // above the fold, making it look like the list "starts" partway through.
+  $('#ops').scrollTop=0;
   $('#title').hidden=true;$('#over').hidden=true;$('#ops').hidden=false;state='ops';audioInit();musicPlay('diesirae');
 }
 function startOp(i){opIndex=i;$('#ops').hidden=true;startMatch('campaign',OPS[i].seed);}

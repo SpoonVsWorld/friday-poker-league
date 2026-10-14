@@ -388,6 +388,10 @@ function sfx(kind,x,z){
     case 'rocket':noiseHit(.5*g,.5,3000,400,'bandpass',1.4);break;
     case 'missile':noiseHit(.45*g,.9,900,2600,'bandpass',2);tone(.12*g,.6,300,900,'sawtooth');break;
     case 'grenade':tone(.3*g,.12,500,200,'square');break;
+    case 'gthrow':tone(.22*g,.07,2200,1100,'square');noiseHit(.22*g,.4,500,2200,'bandpass',1.4,.04);break; // pin "tink" + whoosh
+    case 'splat':noiseHit(.45*g,.16,1400,250,'bandpass',.7);noiseHit(.3*g,.12,500,120,'lowpass',1,.03);break;
+    case 'squish':noiseHit(.6*g,.3,800,90,'lowpass',1);tone(.3*g,.18,170,45,'sine');noiseHit(.35*g,.2,2200,300,'bandpass',.6,.05);break; // wet crunch
+    case 'scream':{const f0=rr(560,760);tone(.11*g,.42,f0,f0*.42,'sawtooth');tone(.05*g,.38,f0*2.01,f0*.8,'square',.02);break;}
     case 'boom':if(!sample('s_boom',1*g)){noiseHit(1.1*g,1.1,1200,40);tone(.7*g,.6,90,28,'sine');}break;
     case 'bigboom':if(!sample(Math.random()<.5?'s_bigboom1':'s_bigboom2',1.1*g)){noiseHit(1.4*g,1.8,900,30);tone(1*g,1.1,70,20,'sine');noiseHit(.6*g,1.4,3000,200,'lowpass',1,.08);}break;
     case 'hit':if(!sample('s_boom',.35*g,1.6))noiseHit(.3*g,.1,2400,800,'highpass');break;
@@ -543,6 +547,30 @@ function explosion(x,y,z,size=1,water=false){
   if(G)for(const v of G.views){const d=Math.hypot(v.focus.x-x,v.focus.z-z);v.shake=Math.max(v.shake,clamp(size*.9-d/60,0,1.5));}
 }
 function puff(x,y,z,c=C_SMK0,s=2,life=1.2,a=.6){SMOKE.spawn(x,y,z,rr(-.6,.6),rr(.8,2.2),rr(-.6,.6),life,s*.6,s*1.6,c,C_SMK1,a,-.5,1);}
+// ---- blood: a spray of heavy droplets (SMOKE particles with real gravity) plus
+// long-lived splatter decals on the ground (instanced flat discs, pooled like debris).
+const C_BLOOD0=[.66,.03,.03],C_BLOOD1=[.26,.01,.01];
+const BLD={max:96,im:null,p:[],head:0};
+{const g=new THREE.CircleGeometry(1,10);g.rotateX(-Math.PI/2);BLD.im=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({color:0x4a0505,transparent:true,opacity:.88,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),BLD.max);
+ BLD.im.frustumCulled=false;BLD.im.renderOrder=1;for(let i=0;i<BLD.max;i++)BLD.p.push({x:0,y:-99,z:0,s:0,r:0,life:0,max:1});scene.add(BLD.im);}
+function bloodDecal(x,z,s){if(!G)return;const g=groundAt(x,z);if(g<0)return;const p=BLD.p[BLD.head];BLD.head=(BLD.head+1)%BLD.max;Object.assign(p,{x,y:g+.05,z,s,r:Math.random()*TAU,life:45,max:45});}
+function updateBlood(dt){
+  for(let i=0;i<BLD.max;i++){const p=BLD.p[i];let s=0;
+    if(p.life>0){p.life-=dt;const age=p.max-p.life;s=p.s*Math.min(1,age*5)*Math.min(1,p.life/8);}
+    _m4.compose(_v.set(p.x,p.y,p.z),_q.setFromEuler(_e.set(0,p.r,0)),_s.set(s,1,s));BLD.im.setMatrixAt(i,_m4);}
+  BLD.im.instanceMatrix.needsUpdate=true;
+}
+// how: 'hit' (a bullet landed, small spurt) | 'shot' (killed by fire) | 'blast' (splash/grenade) | 'crush' (run over - the big one)
+// dx/dz: direction the hit came from, so the spray carries through. Relayed to the online guest as an fx event.
+function gore(x,y,z,how='shot',dx=0,dz=0){
+  if(G&&G.net&&G.net.host)G.net.events.push({k:'gore',x,y,z,how,dx,dz});
+  const R=Math.random;const n=how==='crush'?110:how==='blast'?80:how==='hit'?14:60;const f=how==='crush'?1.7:how==='blast'?1.4:1;
+  for(let i=0;i<n;i++){const a=R()*TAU,sp=(1.2+R()*6)*f;const up=how==='crush'?.5+R()*4:1+R()*6*f;
+    SMOKE.spawn(x+(R()-.5)*.6,y+.2+R()*1.3,z+(R()-.5)*.6,Math.cos(a)*sp+dx*.35,up,Math.sin(a)*sp+dz*.35,.35+R()*.6,.22+R()*.3,.08+R()*.14,C_BLOOD0,C_BLOOD1,.95,30,1.6);}
+  if(how==='hit'){if(R()<.5)bloodDecal(x+(R()-.5)*1.2,z+(R()-.5)*1.2,.35+R()*.5);return;}
+  bloodDecal(x,z,(1.5+R()*1.2)*f);
+  const k=how==='crush'?8:4;for(let i=0;i<k;i++)bloodDecal(x+(R()-.5)*4.5*f,z+(R()-.5)*4.5*f,.4+R()*.9*f);
+}
 
 // ============================================================ terrain
 const W=500,L=840,CELL=4,X0=-W/2,Z0=-L/2,NX=W/CELL+1,NZ=L/CELL+1;
@@ -858,6 +886,7 @@ const PK={
   rocket:{speed:75,life:.8,dmg:42,splash:4.5,geo:'missile'},
   missile:{speed:38,accel:40,max:72,life:2.4,dmg:55,splash:4,geo:'missile',homing:3},
   grenade:{life:2,dmg:30,splash:4.5,geo:'grenade',grav:28},
+  sgrenade:{life:2.6,dmg:16,splash:4.2,geo:'grenade',grav:28}, // infantry hand grenade - lobbed at ground vehicles (see updateSoldiers)
 };
 const PGEO={shell:new THREE.SphereGeometry(.28,6,4),bullet:new THREE.BoxGeometry(.12,.12,1.6),missile:new THREE.CylinderGeometry(.18,.18,1.3,6).rotateX(Math.PI/2),grenade:new THREE.SphereGeometry(.3,6,4)};
 const PMAT={shell:new THREE.MeshBasicMaterial({color:0xffe08a}),bullet:new THREE.MeshBasicMaterial({color:0xfff2b0}),missile:new THREE.MeshStandardMaterial({color:0xe8e4d8,roughness:.5}),grenade:new THREE.MeshStandardMaterial({color:0x2c3a20})};
@@ -868,6 +897,7 @@ function fire(kind,team,x,y,z,dx,dy,dz,opts={}){
   const k=PK[kind];const l=Math.hypot(dx,dy,dz)||1;const sp=opts.speed||k.speed||0;
   const p={kind,k,team,x,y,z,vx:dx/l*sp,vy:dy/l*sp,vz:dz/l*sp,life:k.life,dmg:k.dmg*(opts.mul||1),target:opts.target||null,follow:k.follow,owner:opts.owner,sp,mesh:pmesh(k.geo)};p.mesh.position.set(x,y,z);
   if(kind==='grenade'){p.vx=dx/l*22;p.vz=dz/l*22;p.vy=9;}
+  if(opts.vel){p.vx=opts.vel.vx;p.vy=opts.vel.vy;p.vz=opts.vel.vz;} // explicit launch velocity (soldier lobs)
   if(p.follow)p.y=groundAt(x,z)+p.follow;
   G.proj.push(p);return p;
 }
@@ -908,6 +938,7 @@ function updateProjectiles(dt){
   }
 }
 function impact(p,hit,water){
+  if(hit&&hit.soldier&&hit.alive){const l=Math.hypot(p.vx,p.vz)||1;gore(hit.x,hit.y,hit.z,'hit',p.vx/l*6,p.vz/l*6);}
   if(hit)damage(hit,p.dmg,p.team);
   if(p.k.splash){splashDamage(p.x,p.y,p.z,p.k.splash,p.dmg*.6,p.team,hit);
     if(water)explosion(p.x,0,p.z,p.k.splash/4,true);else{explosion(p.x,p.y,p.z,p.k.splash/4.5);sfx(p.k.splash>4?'boom':'hit',p.x,p.z);}}
@@ -918,7 +949,7 @@ function splashDamage(x,y,z,R,dmg,team,skip){
   staticsNear(x,z,_near);for(const s of [..._near]){if(s===skip||s.team===team)continue;const d=Math.hypot(s.x-x,s.z-z);if(d<R+(s.pts[0][2]||1)&&y<s.y0+s.h+1)damage(s,dmg*.7,team);}
   for(const m of G.mines){if(m.team!==team&&Math.hypot(m.x-x,m.z-z)<R)m.boom=true;}
   for(const dr of G.drones){if(dr.alive&&dr.team!==team&&Math.hypot(dr.x-x,dr.z-z)<R+1.6&&Math.abs(dr.y-y)<R+1.5)damage(dr,dmg,team);}
-  for(const sd of G.soldiers){if(sd.alive&&sd.team!==team&&Math.hypot(sd.x-x,sd.z-z)<R+.8&&Math.abs(sd.y-y)<R+2)killSoldier(sd,team);}
+  for(const sd of G.soldiers){if(sd.alive&&sd.team!==team&&Math.hypot(sd.x-x,sd.z-z)<R+.8&&Math.abs(sd.y-y)<R+2)killSoldier(sd,team,'blast');}
   if(dmg>=12&&y<BRIDGE_Y+4)for(const sp of G.bridgeSpans){if(!sp.alive||Math.abs(sp.x-x)>22||Math.abs(sp.z-z)>22)continue;
     if(sp.segs.some(q=>Math.hypot(q.cx-x,q.cz-z)<R+5)){sp.hp-=dmg;if(sp.hp<=0)collapseSpan(sp,team);}}
 }
@@ -933,7 +964,7 @@ function collapseSpan(sp,byTeam){
   sfx('bigboom',sp.x,sp.z);sfx('waterboom',sp.x,sp.z);
   G.corrBroken[sp.corrIdx]=true;
   for(const v of [...G.vehicles]){if(!v.def.air&&v.state==='active'&&!onBridge(v.x,v.z)&&H(v.x,v.z)<-1.3)destroyVehicle(v);}
-  for(const sd of G.soldiers)if(sd.alive&&!onBridge(sd.x,sd.z)&&H(sd.x,sd.z)<-1.3)killSoldier(sd);
+  for(const sd of G.soldiers)if(sd.alive&&!onBridge(sd.x,sd.z)&&H(sd.x,sd.z)<-1.3)killSoldier(sd,undefined,'fall');
   for(const T of [0,1])note(T,'A bridge has been destroyed','warn');
 }
 function damage(e,amount,byTeam){
@@ -1172,9 +1203,12 @@ function spawnSoldier(T,x,z,mode){
   if(mode==='flee'){const a=RND()*TAU;sd.wp=[x+Math.cos(a)*22,z+Math.sin(a)*22];}
   sd.netId=++G.netSeq;G.soldiers.push(sd);return sd;
 }
-function killSoldier(sd,byTeam){
-  if(!sd.alive)return;sd.alive=false;sd.deadT=0;sd.fallDir=RND()<.5?1:-1;
+function killSoldier(sd,byTeam,how='shot'){
+  if(!sd.alive)return;sd.alive=false;sd.deadT=0;sd.fallDir=RND()<.5?1:-1;sd.crushed=how==='crush';
   puff(sd.x,sd.y+.8,sd.z,C_DUST,1.4,.8,.6);
+  if(how==='fall')return; // went into the water with a bridge - no gore
+  gore(sd.x,sd.y,sd.z,how);
+  if(how==='crush')sfx('squish',sd.x,sd.z);else{sfx('splat',sd.x,sd.z);if(Math.random()<.65)sfx('scream',sd.x,sd.z);}
 }
 function updateSoldiers(dt){
   // reinforcements walk out of surviving buildings
@@ -1183,11 +1217,13 @@ function updateSoldiers(dt){
     if(alive<G.cfg[T].soldierCap&&blds.length){const b=blds[(RND()*blds.length)|0];const B=G.bases[T];const dx=B.x-b.x,dz=B.z-b.z,l=Math.hypot(dx,dz)||1;spawnSoldier(T,b.x+dx/l*9,b.z+dz/l*9,'patrol');}}
   const near=(sd,R)=>{for(const v of G.views)if(Math.hypot(v.focus.x-sd.x,v.focus.z-sd.z)<R)return true;return false;};
   for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];
-    if(!sd.alive){sd.deadT+=dt;const o=sd.obj;o.rotation.order='YXZ';o.rotation.x=lerp(o.rotation.x,-sd.fallDir*Math.PI/2,1-Math.exp(-dt*9));
+    if(!sd.alive){sd.deadT+=dt;const o=sd.obj;
+      if(sd.crushed){const k=1-Math.exp(-dt*16);o.scale.y=lerp(o.scale.y,SOLDIER_SCALE*.07,k);o.scale.x=lerp(o.scale.x,SOLDIER_SCALE*1.6,k);o.scale.z=lerp(o.scale.z,SOLDIER_SCALE*1.6,k);} // flattened into the dirt
+      else{o.rotation.order='YXZ';o.rotation.x=lerp(o.rotation.x,-sd.fallDir*Math.PI/2,1-Math.exp(-dt*9));}
       if(sd.deadT>3.5)o.position.y-=dt*.6;if(sd.deadT>5.5){world.remove(o);G.soldiers.splice(i,1);}continue;}
     // crushed by enemy ground vehicles
     let crushed=false;for(const v of G.vehicles){if(v.team!==sd.team&&!v.def.air&&v.state==='active'&&Math.abs(v.speed)>1.5&&Math.hypot(v.x-sd.x,v.z-sd.z)<v.r+.3){crushed=true;break;}}
-    if(crushed){killSoldier(sd,1-sd.team);sfx('hit',sd.x,sd.z);continue;}
+    if(crushed){killSoldier(sd,1-sd.team,'crush');continue;}
     sd.think-=dt;
     if(sd.think<=0){sd.think=.4;
       let best=null,bd=38;for(const v of G.vehicles){if(v.team===sd.team||v.state!=='active')continue;const d=Math.hypot(v.x-sd.x,v.z-sd.z);if(d<bd){bd=d;best=v;}}
@@ -1211,6 +1247,14 @@ function updateSoldiers(dt){
       if(d<36){const ty=t.def.air?t.y+.4:t.y+1.1,sy=sd.y+1.4,a=Math.atan2(t.x-sd.x,t.z-sd.z)+rr(-.09,.09);
         fire('rifle',sd.team,sd.x+Math.sin(a)*.8,sy,sd.z+Math.cos(a)*.8,Math.sin(a)*d,ty-sy+rr(-.6,.6),Math.cos(a)*d,{mul:G.infMul[sd.team]});sfx('rifle',sd.x,sd.z);
         FIRE.spawn(sd.x+Math.sin(a)*1,sy,sd.z+Math.cos(a)*1,0,0,0,.05,.8,.3,C_FIRE0,C_FIRE1);}}
+    // grenades: lobbed at ground vehicles in the 8-26m band on a slow, independent cooldown
+    // (ballistic lob: fixed vy, horizontal speed solved from the flight time so it lands on the target, with a little lead)
+    sd.gcd=(sd.gcd===undefined?rr(2,7):sd.gcd)-dt;
+    if(sd.target&&sd.mode==='attack'&&sd.gcd<=0&&!sd.target.def.air){const t=sd.target;const d=Math.hypot(t.x-sd.x,t.z-sd.z);
+      if(d>8&&d<26){sd.gcd=rr(6,11);const vy=11,tt=2*vy/PK.sgrenade.grav,lead=.35;const tx=t.x+(t.vx||0)*lead,tz=t.z+(t.vz||0)*lead;
+        const ddx=tx-sd.x,ddz=tz-sd.z,dd=Math.hypot(ddx,ddz)||1;const hs=Math.min(30,dd/tt)*rr(.92,1.08);const a=Math.atan2(ddx,ddz)+rr(-.06,.06);
+        fire('sgrenade',sd.team,sd.x+Math.sin(a)*.9,sd.y+1.5,sd.z+Math.cos(a)*.9,ddx,0,ddz,{mul:G.infMul[sd.team],vel:{vx:Math.sin(a)*hs,vy,vz:Math.cos(a)*hs}});sfx('gthrow',sd.x,sd.z);}
+      else sd.gcd=.5;}
     sd.y=groundAt(sd.x,sd.z);const o=sd.obj;o.position.set(sd.x,sd.y,sd.z);o.rotation.y=lerpAngle(o.rotation.y,sd.heading,1-Math.exp(-dt*10));
     sd.moving=lerp(sd.moving,moving?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(sd.moving);sd.idle.setEffectiveWeight(1-sd.moving);sd.run.timeScale=moving>3?1.15:.75;
     if(near(sd,140))sd.mx.update(dt);
@@ -1469,7 +1513,7 @@ const opts={diff:1,shadows:true,mouse:true,touch:false};
 const TOUCH={ax:0,ay:0,active:false,fire:false,special:false,id:null,ox:0,oy:0};
 function newGame(mode,seed,demo=false){
   endGame();
-  world=new THREE.Group();scene.add(world);FIRE.clear();SMOKE.clear();for(const p of DEB.p)p.life=0;
+  world=new THREE.Group();scene.add(world);FIRE.clear();SMOKE.clear();for(const p of DEB.p)p.life=0;for(const p of BLD.p)p.life=0;
   G={mode,seed,demo,time:0,statics:[],hash:new Map(),vehicles:[],proj:[],mines:[],smokers:[],views:[],batches:{},soldiers:[],soldierT:[0,0],drones:[],droneT:[40,40],sub:{mesh:null,cool:0},over:false,netSeq:0,net:mode==='online'?NET:null};
   const SK={buildings:6,turrets:['gun','cannon','gun','cannon'],outposts:['gun'],soldiers:7,soldierCap:9,drones:0,gates:true};
   G.op=mode==='campaign'?OPS[opIndex]:null;
@@ -1632,7 +1676,7 @@ function loop(now){
     if(!paused&&state!=='over')step(dt);else if(state==='over')step(dt*.3);
     if(G.net&&G.net.host)netHostTick(dt);
   }
-  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);
+  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
 }
@@ -1757,6 +1801,11 @@ function netGuestTick(dt){
   if(NET.lastRecv&&performance.now()-NET.lastRecv>12000&&!G.over){note(NET.myTeam,'Connection to the host was lost.','bad',true);NET.lastRecv=performance.now()+1e9;}
 }
 function netCosmeticTick(dt){
+  // dead soldiers: same fall / flatten as updateSoldiers on the host, run locally
+  for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];if(sd.alive)continue;sd.deadT+=dt;const o=sd.obj;
+    if(sd.crushed){const k=1-Math.exp(-dt*16);o.scale.y=lerp(o.scale.y,SOLDIER_SCALE*.07,k);o.scale.x=lerp(o.scale.x,SOLDIER_SCALE*1.6,k);o.scale.z=lerp(o.scale.z,SOLDIER_SCALE*1.6,k);}
+    else{o.rotation.order='YXZ';o.rotation.x=lerp(o.rotation.x,-sd.fallDir*Math.PI/2,1-Math.exp(-dt*9));}
+    if(sd.deadT>3.5)o.position.y-=dt*.6;if(sd.deadT>5.5){world.remove(o);G.soldiers.splice(i,1);}}
   for(const v of G.vehicles){
     if(v.type==='heli'){
       if(v.state==='active'){v.parts.rotor.rotation.y+=dt*28;v.parts.tail.rotation.x+=dt*40;}
@@ -1811,7 +1860,7 @@ function netSyncProjectiles(arr){
   for(const d of arr){const k=PK[d.k];if(!k)continue;const mesh=pmesh(k.geo);mesh.position.set(d.x,d.y,d.z);G.proj.push({kind:d.k,k,x:d.x,y:d.y,z:d.z,mesh,life:1});}
 }
 function netApplySnapshot(snap){
-  for(const e of snap.fx){if(e.k==='note')note(e.T,e.text,e.kind,e.big);else if(e.k==='sfx')sfx(e.n,e.x,e.z);else if(e.k==='exp')explosion(e.x,e.y,e.z,e.size,e.water);}
+  for(const e of snap.fx){if(e.k==='note')note(e.T,e.text,e.kind,e.big);else if(e.k==='sfx')sfx(e.n,e.x,e.z);else if(e.k==='exp')explosion(e.x,e.y,e.z,e.size,e.water);else if(e.k==='gore')gore(e.x,e.y,e.z,e.how,e.dx,e.dz);}
   for(let T=0;T<2;T++){
     const t=G.teams[T],st=snap.teams[T];t.stock=st.stock;t.respawnT=st.respawnT;
     if(st.v){
@@ -1823,7 +1872,12 @@ function netApplySnapshot(snap){
   for(const s of snap.soldiers){seen.add(s.id);let sd=G.soldiers.find(x=>x.netId===s.id);
     if(!sd){sd=spawnSoldier(s.team,s.x,s.z,'patrol');sd.netId=s.id;}
     sd.x=s.x;sd.z=s.z;sd.heading=s.h;const gy=groundAt(s.x,s.z);sd.y=gy;sd.obj.position.set(s.x,gy,s.z);sd.obj.rotation.y=s.h;}
-  for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];if(!seen.has(sd.netId)){world.remove(sd.obj);G.soldiers.splice(i,1);}}
+  for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];if(seen.has(sd.netId))continue;
+    if(!sd.alive)continue; // already playing its death locally (netCosmeticTick removes it when done)
+    // Dropped out of the snapshot: killed (a gore fx event lands in this same tick, right where he stood) or walked home. Only the former gets a death animation.
+    const g=snap.fx.find(e=>e.k==='gore'&&e.how!=='hit'&&Math.hypot(e.x-sd.x,e.z-sd.z)<2);
+    if(g){sd.alive=false;sd.deadT=0;sd.fallDir=Math.random()<.5?1:-1;sd.crushed=g.how==='crush';}
+    else{world.remove(sd.obj);G.soldiers.splice(i,1);}}
   for(const d of snap.dirty){const s=G.statics[d.i];if(!s)continue;const wasAlive=s.alive;s.hp=d.hp;
     if(wasAlive&&!d.alive)destroyStatic(s,undefined);else s.alive=d.alive;}
   for(const tr of snap.turrets){const s=G.statics[tr.i];if(!s||!s.alive)continue;s.yaw=tr.yaw;if(s.head)s.head.rotation.y=tr.yaw;}

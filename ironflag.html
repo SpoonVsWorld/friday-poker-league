@@ -189,8 +189,8 @@ body.touchui .hud .warn{bottom:auto;top:46%}
   <div class="help">
     <h3>Field manual</h3>
     <div class="cols">
-      <div><b>Player 1</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>1P: mouse aims the tank turret, click to fire</div>
-      <div><b>Player 2</b><br><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> drive<br><kbd>J</kbd><kbd>L</kbd> turret / strafe<br><kbd>K</kbd> or <kbd>Enter</kbd> fire · <kbd>I</kbd> special<br><kbd>P</kbd> hold to scuttle<br>Gamepads work for either player</div>
+      <div><b>Controls</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>Mouse aims the tank turret, click to fire. Gamepads work too; on a phone, switch Controls to Touch</div>
+      <div><b>Online</b><br>Host a match and wait in the open lobby, or tap someone else's game to join. Both sides get a full base with turrets, gates, bridges and infantry, same as Skirmish, and the enemy bunker is across the water. Same controls as above. Your name shows in the lobby so friends can find your game</div>
       <div><b>How to win</b><br>One enemy building hides their flag. Destroy buildings to expose it, then drive a <b>jeep</b> over it and back onto your bunker pad. Park on your bunker pad to swap vehicles, or stop beside a fuel depot or ammo tent to top up. With the jeep, <kbd>Shift</kbd> inflates its tires to float across deep water. Stray out to sea and a submarine will find you. Base gates open only for their own side, so blast the enemy's open first. Explosives drop bridges, and soldiers can be run over. <kbd>Esc</kbd> pauses, <kbd>M</kbd> music.</div>
     </div>
   </div>
@@ -1377,8 +1377,9 @@ renderer.domElement.addEventListener('pointerdown',e=>{audioInit();if(e.button==
 addEventListener('pointerup',e=>{if(e.button===0)mouse.l=false;if(e.button===2)mouse.r=false;});
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 const KEYMAP=[
-  {up:['KeyW'],down:['KeyS'],left:['KeyA'],right:['KeyD'],tl:['KeyQ'],tr:['KeyE'],fire:['Space'],special:['ShiftLeft'],abandon:['KeyR']},
-  {up:['ArrowUp'],down:['ArrowDown'],left:['ArrowLeft'],right:['ArrowRight'],tl:['KeyJ'],tr:['KeyL'],fire:['KeyK','Enter','Numpad0','ControlRight'],special:['KeyI','ShiftRight','NumpadDecimal'],abandon:['KeyP']},
+  // Single key set now that local split-screen is gone (Online replaced it; each
+  // client only ever reads ctrl 0). Arrows kept as drive alternates for laptops.
+  {up:['KeyW','ArrowUp'],down:['KeyS','ArrowDown'],left:['KeyA','ArrowLeft'],right:['KeyD','ArrowRight'],tl:['KeyQ'],tr:['KeyE'],fire:['Space'],special:['ShiftLeft','ShiftRight'],abandon:['KeyR']},
 ];
 const any=a=>a.some(k=>keys.has(k));
 const ray=new THREE.Raycaster(),plane=new THREE.Plane(new V3(0,1,0),0);

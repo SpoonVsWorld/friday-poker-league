@@ -31,6 +31,7 @@
 <style>
 /* Layout: full-bleed WebGL stage; per-player HUD layers pinned over each viewport; title menu as a left rail over a live AI-vs-AI demo battle. Single dark military look by design. */
 :root{
+  --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px); /* phone notch / status bar / home indicator */
   --ink:#0d120e; --panel:rgba(14,19,14,.84); --line:rgba(201,185,138,.28);
   --khaki:#c9b98a; --sand:#efe2b8; --olive:#6f7f3c; --signal:#f2b632;
   --blue:#4d8ae6; --red:#e5544a; --ok:#7bc96b; --warn:#f2b632; --bad:#e5544a;
@@ -48,7 +49,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline
 
 /* ---------- title */
 #title{background:linear-gradient(90deg,rgba(9,13,9,.93) 0,rgba(9,13,9,.8) 420px,rgba(9,13,9,0) 760px);align-items:stretch}
-.rail{width:min(400px,100%);box-sizing:border-box;padding:30px 32px 24px;display:flex;flex-direction:column;gap:18px;overflow:auto;overflow-x:hidden}
+.rail{width:min(400px,100%);box-sizing:border-box;padding:calc(30px + var(--sat)) 32px calc(24px + var(--sab)) calc(32px + var(--sal));display:flex;flex-direction:column;gap:18px;overflow:auto;overflow-x:hidden}
 .brand h1{font-family:var(--display);font-weight:400;font-size:clamp(46px,7vw,72px);line-height:.9;margin:0;color:var(--sand);letter-spacing:.02em;text-wrap:balance}
 .brand h1 span{color:var(--signal)}
 .brand p{margin:10px 0 0;color:var(--khaki);font-size:15px;letter-spacing:.04em;max-width:34ch}
@@ -81,7 +82,7 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 /* ---------- HUD */
 #huds{position:fixed;inset:0;pointer-events:none;z-index:10}
 .hud{position:absolute;overflow:hidden}
-.hud .status{position:absolute;left:14px;top:12px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--tc);padding:9px 12px 10px;min-width:190px;border-radius:2px}
+.hud .status{position:absolute;left:calc(14px + var(--sal));top:calc(12px + var(--sat));background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--tc);padding:9px 12px 10px;min-width:190px;border-radius:2px}
 .vname{font:400 18px var(--display);letter-spacing:.05em;display:flex;justify-content:space-between;gap:12px}
 .vname em{font:600 11px var(--ui);letter-spacing:.14em;color:var(--khaki);font-style:normal;align-self:center}
 .bars{display:grid;gap:5px;margin-top:7px}
@@ -91,11 +92,11 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .bar.fuel u i{background:var(--signal)}
 .ammo{margin-top:7px;font-size:12px;font-variant-numeric:tabular-nums;color:var(--sand);display:flex;gap:14px}
 .ammo span{color:var(--khaki)}
-.hud canvas.mini{position:absolute;right:12px;top:12px;border:1px solid var(--line);background:#0b1a22;image-rendering:pixelated;border-radius:2px}
-.stock{position:absolute;left:14px;bottom:12px;display:flex;gap:6px}
+.hud canvas.mini{position:absolute;right:calc(12px + var(--sar));top:calc(12px + var(--sat));border:1px solid var(--line);background:#0b1a22;image-rendering:pixelated;border-radius:2px}
+.stock{position:absolute;left:calc(14px + var(--sal));bottom:calc(12px + var(--sab));display:flex;gap:6px}
 .stock div{background:var(--panel);border:1px solid var(--line);padding:4px 8px;font-size:11px;font-weight:700;letter-spacing:.1em;font-variant-numeric:tabular-nums;border-radius:2px}
 .stock div.zero{opacity:.4}
-.flagbox{position:absolute;right:12px;bottom:12px;background:var(--panel);border:1px solid var(--line);padding:6px 10px;font-size:11px;letter-spacing:.08em;display:grid;gap:2px;text-align:right;border-radius:2px}
+.flagbox{position:absolute;right:calc(12px + var(--sar));bottom:calc(12px + var(--sab));background:var(--panel);border:1px solid var(--line);padding:6px 10px;font-size:11px;letter-spacing:.08em;display:grid;gap:2px;text-align:right;border-radius:2px}
 .flagbox b{font-weight:700}
 .msgs{position:absolute;left:50%;top:22%;transform:translateX(-50%);display:grid;gap:6px;justify-items:center;width:90%}
 .msg{font:400 clamp(15px,2.2vw,22px) var(--display);letter-spacing:.04em;text-shadow:0 2px 0 #000,0 0 14px rgba(0,0,0,.7);text-align:center;animation:fadeout 3.6s forwards}
@@ -133,7 +134,7 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
    toward the end still works. margin:auto on .opsbox below centers it
    the same way when it's short enough to fit, but scrolls correctly to
    its true top/left edge once it's taller than the screen. */
-#ops{background:rgba(8,11,8,.9);padding:24px;box-sizing:border-box;overflow:auto}
+#ops{background:rgba(8,11,8,.9);padding:calc(24px + var(--sat)) calc(24px + var(--sar)) calc(24px + var(--sab)) calc(24px + var(--sal));box-sizing:border-box;overflow:auto}
 .opsbox{width:min(980px,100%);display:grid;gap:18px;margin:auto}
 .opshead{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
 .opshead h2{margin:0;font:400 clamp(30px,5vw,46px) var(--display);letter-spacing:.04em}
@@ -148,7 +149,7 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .op.next{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
 .op:hover:not([disabled]){background:rgba(242,182,50,.14)}
 .op[disabled]{opacity:.35;cursor:not-allowed}
-#online{background:rgba(8,11,8,.9);padding:24px;box-sizing:border-box;overflow:auto}
+#online{background:rgba(8,11,8,.9);padding:calc(24px + var(--sat)) calc(24px + var(--sar)) calc(24px + var(--sab)) calc(24px + var(--sal));box-sizing:border-box;overflow:auto}
 .lobbybox{width:min(680px,100%);display:grid;gap:16px;margin:auto}
 .lobbybox h3{margin:10px 0 0;font:700 15px var(--ui);letter-spacing:.06em;text-transform:uppercase;color:var(--khaki)}
 #netName{width:200px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--sand);font:600 14px var(--ui);padding:7px 10px;border-radius:3px}
@@ -169,10 +170,10 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .tfire{right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(28px + env(safe-area-inset-bottom,0px));width:104px;height:104px;background:rgba(229,84,74,.55)}
 .tspec{right:calc(132px + env(safe-area-inset-right,0px));bottom:calc(34px + env(safe-area-inset-bottom,0px));width:72px;height:72px;font-size:11px;background:rgba(14,19,14,.55)}
 .tbtn.on{filter:brightness(1.5);transform:scale(.95)}
-.tpause{position:absolute;right:12px;top:calc(206px + env(safe-area-inset-top,0px));pointer-events:auto;width:44px;height:36px;border-radius:3px;background:var(--panel);border:1px solid var(--line);color:var(--sand);font:700 14px var(--ui)}
+.tpause{position:absolute;right:calc(12px + var(--sar));top:calc(206px + var(--sat));pointer-events:auto;width:44px;height:36px;border-radius:3px;background:var(--panel);border:1px solid var(--line);color:var(--sand);font:700 14px var(--ui)}
 .touchnote{margin:0;font-size:12px;color:var(--khaki);line-height:1.45}
-body.touchui .hud .stock{bottom:auto;top:118px;left:12px;gap:4px}body.touchui .stock div{padding:3px 6px;font-size:10px}
-body.touchui .hud .flagbox{bottom:auto;top:150px;font-size:10px;padding:5px 8px}
+body.touchui .hud .stock{bottom:auto;top:calc(118px + var(--sat));left:calc(12px + var(--sal));gap:4px}body.touchui .stock div{padding:3px 6px;font-size:10px}
+body.touchui .hud .flagbox{bottom:auto;top:calc(150px + var(--sat));font-size:10px;padding:5px 8px}
 body.touchui .hud canvas.mini{width:76px;height:auto}
 body.touchui .hud .warn{bottom:auto;top:46%}
 @media (max-width:600px){.hud .status{min-width:150px;padding:6px 9px}.vname{font-size:15px}.hud .msgs{top:30%}}

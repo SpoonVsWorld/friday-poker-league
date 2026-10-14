@@ -100,8 +100,17 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .box .btns{display:grid;gap:8px}
 .box button{background:rgba(239,226,184,.06);border:1px solid var(--line);color:var(--sand);padding:11px;font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:3px}
 .box button:hover{border-color:var(--signal);background:rgba(242,182,50,.14)}
-#ops{background:rgba(8,11,8,.9);align-items:center;justify-content:center;padding:24px;box-sizing:border-box;overflow:auto}
-.opsbox{width:min(980px,100%);display:grid;gap:18px}
+/* No align-items/justify-content centering here on purpose: #ops's
+   content (20 operations) can be taller than the screen in portrait on a
+   phone, and Safari has a long-standing bug where a flex item centered
+   with align-items/justify-content inside an overflow:auto container
+   gets its start edge (here, the top - Operation 01) clipped and
+   unreachable by scrolling once it overflows, even though scrolling
+   toward the end still works. margin:auto on .opsbox below centers it
+   the same way when it's short enough to fit, but scrolls correctly to
+   its true top/left edge once it's taller than the screen. */
+#ops{background:rgba(8,11,8,.9);padding:24px;box-sizing:border-box;overflow:auto}
+.opsbox{width:min(980px,100%);display:grid;gap:18px;margin:auto}
 .opshead{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
 .opshead h2{margin:0;font:400 clamp(30px,5vw,46px) var(--display);letter-spacing:.04em}
 .opshead p{margin:0;color:var(--khaki);flex:1;min-width:200px}

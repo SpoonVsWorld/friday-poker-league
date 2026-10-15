@@ -125,6 +125,7 @@
     const statGameTotalViews = document.getElementById("stat-game-total-views");
     const statGameWeekViews = document.getElementById("stat-game-week-views");
     const resetViewsBtn = document.getElementById("reset-views-btn");
+    const resetGameViewsBtn = document.getElementById("reset-game-views-btn");
     const statsError = document.getElementById("stats-error");
     const visitLogList = document.getElementById("visit-log-list");
 
@@ -1752,23 +1753,27 @@
         .join("");
     }
 
-    resetViewsBtn.addEventListener("click", async () => {
+    // Each counter resets on its own: clearing poker views leaves the Spoon
+    // Platoon rows alone, and vice versa.
+    async function resetViewsFor(page, label) {
       statsError.textContent = "";
       if (
         !window.confirm(
-          "Reset the view counter to zero? This permanently deletes all recorded page views and cannot be undone."
+          `Reset the ${label} view counter to zero? This permanently deletes all recorded ${label} page views and cannot be undone.`
         )
       ) {
         return;
       }
 
-      const { error } = await supabaseClient.from("page_views").delete().gt("viewed_at", "1970-01-01");
+      const { error } = await supabaseClient.from("page_views").delete().eq("page", page);
       if (error) {
         statsError.textContent = "Could not reset counter: " + error.message;
         return;
       }
       loadSiteStats();
-    });
+    }
+    resetViewsBtn.addEventListener("click", () => resetViewsFor("poker", "Poker"));
+    resetGameViewsBtn.addEventListener("click", () => resetViewsFor("spoonplatoon", "Spoon Platoon"));
 
     // ------------------------------------------------------------------
     // Feedback — public comments (visible to everyone) and problem

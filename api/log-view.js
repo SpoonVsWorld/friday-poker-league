@@ -40,7 +40,17 @@ export default async function handler(req, res) {
       }
     };
  
+    // Which page this visit was for. The poker app sends nothing (default
+    // "poker"); Spoon Platoon sends {page:"spoonplatoon"}. Anything else is
+    // ignored rather than trusted, since the browser picks this value.
+    let page = "poker";
+    try {
+      const raw = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+      if (raw && raw.page === "spoonplatoon") page = "spoonplatoon";
+    } catch {}
+
     const body = {
+      page,
       ip_address: ip || null,
       city: decode(req.headers["x-vercel-ip-city"]),
       region: decode(req.headers["x-vercel-ip-country-region"]),

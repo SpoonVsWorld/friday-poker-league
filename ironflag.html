@@ -19,6 +19,10 @@
   if('serviceWorker' in navigator)addEventListener('load',function(){
     navigator.serviceWorker.register('sw-spoonplatoon.js',{scope:own?'/':'/ironflag.html'}).catch(function(){});
   });
+  // Visit counter: same endpoint the poker app uses (see api/log-view.js),
+  // tagged so the Admin tab's Site Stats can show the game separately.
+  // Fire-and-forget; a failure here never affects the game.
+  try{fetch('/api/log-view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:'spoonplatoon'}),keepalive:true}).catch(function(){});}catch(e){}
 })();
 </script>
 <meta name="theme-color" content="#0d120e">

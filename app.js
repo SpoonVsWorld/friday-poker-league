@@ -122,6 +122,8 @@
 
     const statTotalViews = document.getElementById("stat-total-views");
     const statWeekViews = document.getElementById("stat-week-views");
+    const statGameTotalViews = document.getElementById("stat-game-total-views");
+    const statGameWeekViews = document.getElementById("stat-game-week-views");
     const resetViewsBtn = document.getElementById("reset-views-btn");
     const statsError = document.getElementById("stats-error");
     const visitLogList = document.getElementById("visit-log-list");
@@ -1641,27 +1643,36 @@
     async function loadSiteStats() {
       statsError.textContent = "";
 
-      const { count: totalCount, error: totalErr } = await supabaseClient
-        .from("page_views")
-        .select("*", { count: "exact", head: true });
+      // Each page_views row is tagged with the page it came from: "poker"
+      // (the default, and what every row before the game existed counts as)
+      // or "spoonplatoon" (logged by the game itself - see ironflag.html).
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const countViews = (page, since) => {
+        let q = supabaseClient.from("page_views").select("*", { count: "exact", head: true }).eq("page", page);
+        if (since) q = q.gte("viewed_at", since);
+        return q;
+      };
 
-      if (totalErr) {
-        statsError.textContent = "Could not load view stats: " + totalErr.message;
+      const [poker, pokerDay, game, gameDay] = await Promise.all([
+        countViews("poker"),
+        countViews("poker", oneDayAgo),
+        countViews("spoonplatoon"),
+        countViews("spoonplatoon", oneDayAgo),
+      ]);
+
+      if (poker.error) {
+        statsError.textContent = "Could not load view stats: " + poker.error.message;
         return;
       }
 
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { count: weekCount, error: weekErr } = await supabaseClient
-        .from("page_views")
-        .select("*", { count: "exact", head: true })
-        .gte("viewed_at", oneDayAgo);
-
-      statTotalViews.textContent = totalCount ?? 0;
-      statWeekViews.textContent = weekErr ? "—" : weekCount ?? 0;
+      statTotalViews.textContent = poker.count ?? 0;
+      statWeekViews.textContent = pokerDay.error ? "—" : pokerDay.count ?? 0;
+      statGameTotalViews.textContent = game.error ? "—" : game.count ?? 0;
+      statGameWeekViews.textContent = gameDay.error ? "—" : gameDay.count ?? 0;
 
       const { data: recentVisits, error: recentErr } = await supabaseClient
         .from("page_views")
-        .select("viewed_at, ip_address, city, region, country, user_agent")
+        .select("viewed_at, ip_address, city, region, country, user_agent, page")
         .order("viewed_at", { ascending: false })
         .limit(50);
 
@@ -1733,7 +1744,7 @@
           </div>
           <div class="visit-meta">
             <span class="visit-time">${escapeHtml(formatVisitTime(r.viewed_at))}</span>
-            <span class="visit-device">${escapeHtml(summarizeUserAgent(r.user_agent))}</span>
+            <span class="visit-device">${r.page === "spoonplatoon" ? "🎮 Spoon Platoon · " : ""}${escapeHtml(summarizeUserAgent(r.user_agent))}</span>
           </div>
         </div>
       `

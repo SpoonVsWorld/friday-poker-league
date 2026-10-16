@@ -21,8 +21,22 @@
   });
   // Visit counter: same endpoint the poker app uses (see api/log-view.js),
   // tagged so the Admin tab's Site Stats can show the game separately.
+  // Owner's own opens are skipped, like the poker app skips admin visits:
+  //  - on the poker site, being logged in as admin (supabase-js keeps the
+  //    session in localStorage on that origin) is enough;
+  //  - elsewhere (spoonplatoon.vercel.app, the installed app) the device is
+  //    marked via ?nocount once, or by tapping the Spoon Lab logo on the title
+  //    screen 5 times (see the UI wiring); ?count or 5 more taps undoes it.
   // Fire-and-forget; a failure here never affects the game.
-  try{fetch('/api/log-view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:'spoonplatoon'}),keepalive:true}).catch(function(){});}catch(e){}
+  var noCount=false;
+  try{
+    var q=new URLSearchParams(location.search);
+    if(q.has('nocount'))localStorage.setItem('ironflag.nocount','1');
+    if(q.has('count'))localStorage.removeItem('ironflag.nocount');
+    noCount=localStorage.getItem('ironflag.nocount')==='1'||!!localStorage.getItem('sb-kvdsmrlzsjzovbegdalq-auth-token');
+  }catch(e){}
+  window.__noCount=noCount;
+  if(!noCount)try{fetch('/api/log-view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:'spoonplatoon'}),keepalive:true}).catch(function(){});}catch(e){}
 })();
 </script>
 <meta name="theme-color" content="#0d120e">
@@ -1931,6 +1945,12 @@ $('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state=
 $('#oNext').onclick=()=>startOp(opIndex+1);
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();
+// Owner switch: 5 quick taps on the Spoon Lab logo toggles "don't count my visits on this device" (see head script).
+{const logo=document.querySelector('.brand .made img'),label=document.querySelector('.brand .made');let taps=[];
+ const show=t=>{const old=label.lastChild.textContent;label.lastChild.textContent=t;label.style.color='var(--signal)';setTimeout(()=>{label.lastChild.textContent=old;label.style.color='';},2600);};
+ if(logo)logo.addEventListener('click',()=>{const now=performance.now();taps=taps.filter(x=>now-x<2500);taps.push(now);if(taps.length<5)return;taps=[];
+   let on=false;try{on=localStorage.getItem('ironflag.nocount')==='1';if(on)localStorage.removeItem('ironflag.nocount');else localStorage.setItem('ironflag.nocount','1');}catch(e){}
+   sfx('click');show(on?'Owner mode off — visits from this device count again':'Owner mode — visits from this device are not counted');});}
 $('#onlineBack').onclick=()=>{netLeaveLobby();$('#online').hidden=true;$('#title').hidden=false;state='title';};
 $('#bHost').onclick=()=>netHostMatch();
 $('#netCancel').onclick=()=>netCancelHost();

@@ -415,6 +415,7 @@ ul#player-list, ul#season-list {
 
 .result-row.disabled { opacity: 0.5; }
 
+.friday-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .friday-row {
   display: flex;
   align-items: center;

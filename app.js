@@ -1052,15 +1052,58 @@
           f.status === "cancelled" ? "badge-cancelled" : f.status === "scheduled" ? "badge-muted" : "";
         li.innerHTML = `
           <span>${f.game_date} <span class="badge ${badgeClass}">${f.status.toUpperCase()}</span></span>
-          <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
+          <span class="friday-row-actions">
+            <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete" title="Erase this Friday">Delete</button>
+          </span>
         `;
         li.querySelector('[data-action="edit"]').addEventListener("click", () => {
           fridayDateInput.value = f.game_date;
           loadResultsForSelectedDate();
           window.scrollTo({ top: resultsEditor.offsetTop, behavior: "smooth" });
         });
+        li.querySelector('[data-action="delete"]').addEventListener("click", () => deleteFriday(f));
         fridayList.appendChild(li);
       }
+    }
+
+    // Erase a Friday completely: its results and any high hands recorded for
+    // it go first (they point at the Friday), then the Friday itself. Asks
+    // twice-worth of confirmation because this changes standings and can't
+    // be undone.
+    async function deleteFriday(f) {
+      const label = `${f.game_date} (${f.status})`;
+      const [{ count: resultCount }, { count: hhCount }] = await Promise.all([
+        supabaseClient.from("results").select("id", { count: "exact", head: true }).eq("friday_id", f.id),
+        supabaseClient.from("high_hands").select("id", { count: "exact", head: true }).eq("friday_id", f.id),
+      ]);
+      const parts = [];
+      if (resultCount) parts.push(`${resultCount} player result${resultCount === 1 ? "" : "s"}`);
+      if (hhCount) parts.push(`${hhCount} high hand${hhCount === 1 ? "" : "s"}`);
+      const detail = parts.length ? `\n\nThis also erases ${parts.join(" and ")} recorded for that night, and standings will change.` : "";
+      if (!window.confirm(`Erase the Friday on ${label}?${detail}\n\nThis cannot be undone.`)) return;
+      if (resultCount && !window.confirm(`Last check — really erase ${label} and its results?`)) return;
+
+      resultsError.textContent = "";
+      const steps = [
+        () => supabaseClient.from("high_hands").delete().eq("friday_id", f.id),
+        () => supabaseClient.from("results").delete().eq("friday_id", f.id),
+        () => supabaseClient.from("fridays").delete().eq("id", f.id),
+      ];
+      for (const step of steps) {
+        const { error } = await step();
+        if (error) {
+          resultsError.textContent = "Could not erase that Friday: " + error.message;
+          return;
+        }
+      }
+
+      if (currentFridayId === f.id) {
+        currentFridayId = null;
+        fridayStatusLine.textContent = "That Friday was erased.";
+      }
+      await Promise.all([loadFridayList(), loadHighHandsAdmin(), loadPotTotal()]);
+      refreshPublicView();
     }
 
     // ------------------------------------------------------------------

@@ -1221,9 +1221,32 @@ ul#highhand-list, ul#public-highhand-list {
   flex: 1;
   min-width: 0;
   color: #fdfdfd;
-  font-size: 0.86rem;
-  font-weight: 600;
+  font-size: 0.92rem;
+  font-weight: 700;
   line-height: 1.3;
+  overflow: hidden;
+  white-space: nowrap;
+  /* fade the text in/out at the edges instead of a hard clip */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+
+/* Continuous right-to-left ticker for the What's New message. The track
+   holds the message twice; sliding it by exactly half its own width lands
+   the second copy where the first began, so the loop never visibly jumps. */
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker 16s linear infinite;
+}
+.ticker-item { padding-right: 3rem; }
+.ticker-item::after { content: "\2022"; margin-left: 3rem; color: var(--poker-gold); }
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.whats-new-banner:hover .ticker-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; width: auto; display: block; }
+  .whats-new-text { white-space: normal; -webkit-mask-image: none; mask-image: none; }
+  .ticker-item + .ticker-item, .ticker-item::after { display: none; }
 }
 
 .whats-new-dismiss {

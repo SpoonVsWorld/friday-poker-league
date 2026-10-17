@@ -6830,7 +6830,22 @@
         }
         if (seenAt === data.updated_at) return;
 
-        whatsNewText.textContent = data.message;
+        // Scrolling ticker: the message is laid out twice in a row so that
+        // when the first copy has slid fully off the left, the second is
+        // exactly where the first began and the loop restarts seamlessly.
+        // Speed scales with length so a long message isn't a blur and a
+        // short one doesn't crawl.
+        whatsNewText.innerHTML = "";
+        const track = document.createElement("span");
+        track.className = "ticker-track";
+        for (let i = 0; i < 2; i++) {
+          const item = document.createElement("span");
+          item.className = "ticker-item";
+          item.textContent = data.message;
+          track.appendChild(item);
+        }
+        track.style.animationDuration = `${Math.max(12, Math.round(data.message.length * 0.33))}s`;
+        whatsNewText.appendChild(track);
         whatsNewBanner.hidden = false;
 
         whatsNewDismiss.addEventListener("click", () => {

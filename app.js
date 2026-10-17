@@ -6844,7 +6844,7 @@
           item.textContent = data.message;
           track.appendChild(item);
         }
-        track.style.animationDuration = `${Math.max(12, Math.round(data.message.length * 0.33))}s`;
+        track.style.animationDuration = `${Math.max(8, Math.round(data.message.length * 0.15))}s`;
         whatsNewText.appendChild(track);
         whatsNewBanner.hidden = false;
 

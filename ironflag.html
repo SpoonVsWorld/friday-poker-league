@@ -1273,7 +1273,8 @@ function fireWeapon(v,slot){
       fire('hbullet',T,sx,v.y-.6,sz,tx-sx,ty-(v.y-.6),tz-sz,{mul:G.vehMul[T]});v.ammo--;v.cd=.075;sfx('mg',v.x,v.z);FIRE.spawn(sx,v.y-.6,sz,0,0,0,.05,1.2,.4,C_FIRE0,C_FIRE1);}
     else{const gx=v.x+fx*34,gz=v.z+fz*34,g2=Math.max(groundAt(gx,gz),0);fire('rocket',T,v.x+fx*2,v.y-.8,v.z+fz*2,gx-v.x,g2+.8-(v.y-.8),gz-v.z,{mul:G.vehMul[T]});v.ammo2--;v.cd2=.45;sfx('rocket',v.x,v.z);}}
   else if(v.type==='asv'){
-    if(slot===1){const tgt=findLock(v);const ox=v.x+fx*1.5,oz=v.z+fz*1.5;fire('missile',T,ox,v.y+3.2,oz,fx,.25,fz,{target:tgt,mul:G.vehMul[T]});v.ammo--;v.cd=1.25;sfx('missile',v.x,v.z);
+    if(slot===1){const tgt=findLock(v);const ox=v.x+fx*1.5,oz=v.z+fz*1.5;const air=tgt&&(tgt.jet||tgt.drone); // airborne lock: launch steeper + proximity fuse so a high, fast jet can't slip past
+      const m=fire('missile',T,ox,v.y+3.2,oz,fx,air?.8:.25,fz,{target:tgt,mul:G.vehMul[T]});if(tgt&&tgt.jet)m.fuse=7;v.ammo--;v.cd=1.25;sfx('missile',v.x,v.z);
       for(let i=0;i<8;i++)puff(v.x-fx*2,v.y+2.4,v.z-fz*2,[.8,.78,.74],2,1.2,.6);}
     else{layMine(v);v.ammo2--;v.cd2=.8;}}
   else if(v.type==='jeep'){fire('grenade',T,v.x+fx*2,v.y+1.8,v.z+fz*2,fx,0,fz,{mul:G.vehMul[T]});v.ammo--;v.cd=.55;sfx('grenade',v.x,v.z);}

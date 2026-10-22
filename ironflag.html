@@ -236,7 +236,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
     <div class="cols">
       <div><b>Controls</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>Mouse aims the tank turret, click to fire. Gamepads work too; on a phone, switch Controls to Touch</div>
       <div><b>Online</b><br>Host a match and wait in the open lobby, or tap someone else's game to join. Both sides get a full base with turrets, gates, bridges and infantry, same as Skirmish, and the enemy bunker is across the water. Same controls as above. Your name shows in the lobby so friends can find your game</div>
-      <div><b>How to win</b><br>One enemy building hides their flag. Destroy buildings to expose it, then drive a <b>jeep</b> over it and back onto your bunker pad. Park on your bunker pad to swap vehicles, or stop beside a fuel depot or ammo tent to top up. With the jeep, <kbd>Shift</kbd> inflates its tires to float across deep water. Stray out to sea and a submarine will find you. Base gates open only for their own side, so blast the enemy's open first. Explosives drop bridges, and soldiers can be run over. <kbd>Esc</kbd> pauses, <kbd>M</kbd> music.</div>
+      <div><b>How to win</b><br>One enemy building hides their flag. Destroy buildings to expose it, then drive a <b>jeep</b> over it and back onto your bunker pad. Park on your bunker pad to swap vehicles, or stop beside a fuel depot or ammo tent to top up. With the jeep, <kbd>Shift</kbd> inflates its tires to float across deep water. Stray out to sea and a submarine will find you. Base gates open only for their own side, so blast the enemy's open first. Explosives drop bridges, and soldiers can be run over. Point the tank turret at a drone and the shell aims up to hit it. <kbd>Esc</kbd> pauses, <kbd>M</kbd> music.</div>
     </div>
   </div>
 </div>
@@ -928,6 +928,7 @@ function updateFlags(dt){
 const PK={
   shell:{speed:80,life:.95,dmg:34,splash:3.5,follow:1.6,geo:'shell'},
   tshell:{speed:62,life:1.25,dmg:20,splash:3,follow:2.2,geo:'shell'},
+  ashell:{speed:84,life:1.15,dmg:34,splash:3.5,geo:'shell'}, // tank shell auto-elevated at a drone (see droneInLine); proximity-fused
   bullet:{speed:130,life:.62,dmg:4,splash:0,geo:'bullet'},
   dbullet:{speed:95,life:.7,dmg:3,splash:0,geo:'bullet'},
   sub:{speed:40,accel:45,max:95,life:6,dmg:260,splash:4,geo:'missile',homing:4},
@@ -973,6 +974,7 @@ function updateProjectiles(dt){
       if(p.k.grav)p.vy-=p.k.grav*h;
       p.x+=p.vx*h;p.z+=p.vz*h;
       if(p.follow){p.y=lerp(p.y,groundAt(p.x,p.z)+p.follow,1-Math.exp(-h*20));}else p.y+=p.vy*h;
+      if(p.fuse&&p.target&&p.target.alive&&Math.hypot(p.target.x-p.x,p.target.y-p.y,p.target.z-p.z)<p.fuse){impact(p,p.target);dead=true;break;}
       p.life-=h;
       if(p.k.geo==='bullet'&&p.y<groundAt(p.x,p.z)+1.6)for(const m of G.mines){if(m.team!==p.team&&Math.abs(m.x-p.x)<1.3&&Math.abs(m.z-p.z)<1.3){m.boom=true;}}
       const hit=hitTest(p);
@@ -982,7 +984,7 @@ function updateProjectiles(dt){
     }
     // trail fx
     if(!dead){if(p.k.geo==='missile'){SMOKE.spawn(p.x,p.y,p.z,rr(-.4,.4),rr(0,.6),rr(-.4,.4),1,.6,2.2,[.85,.83,.8],[.6,.6,.6],.55,0,1);FIRE.spawn(p.x,p.y,p.z,0,0,0,.08,1.1,.3,C_FIRE0,C_FIRE1,1);}
-      else if(p.kind==='shell'||p.kind==='tshell'){FIRE.spawn(p.x,p.y,p.z,0,0,0,.12,.9,.2,[1,.9,.6],[1,.5,.2],.8);}
+      else if(p.kind==='shell'||p.kind==='tshell'||p.kind==='ashell'){FIRE.spawn(p.x,p.y,p.z,0,0,0,.12,.9,.2,[1,.9,.6],[1,.5,.2],.8);}
       p.mesh.position.set(p.x,p.y,p.z);if(p.k.geo!=='shell'&&p.k.geo!=='grenade')p.mesh.lookAt(p.x+p.vx,p.y+p.vy,p.z+p.vz);}
     if(dead){freeMesh(p.k.geo,p.mesh);G.proj.splice(i,1);}
   }
@@ -1166,9 +1168,17 @@ function syncObj(v,dt){
   const r=v.parts.ring;const gy=v.def.air?Math.max(groundAt(v.x,v.z),0):vehGround(v.x,v.z);r.position.set(v.x,gy+.15,v.z);r.visible=v.state==='active';
   r.material.opacity=v.hitFlash>0?.95:.5;
 }
+// Tank anti-drone: an enemy drone within 85m whose ground track passes within ~4m of the
+// turret's line of fire (in front of the muzzle) gets the shell aimed up at it instead of
+// along the ground. Nearest such drone wins.
+function droneInLine(v,a){const ax=Math.sin(a),az=Math.cos(a);let best=null,bd=86;
+  for(const dr of G.drones){if(!dr.alive||dr.team===v.team)continue;const dx=dr.x-v.x,dz=dr.z-v.z,along=dx*ax+dz*az;if(along<3||along>bd)continue;
+    const side=Math.abs(dx*az-dz*ax);if(side>4+along*.03)continue;bd=along;best=dr;}return best;}
 function fireWeapon(v,slot){
   const fx=fwdX(v.heading),fz=fwdZ(v.heading);const T=v.team;
-  if(v.type==='tank'){const a=v.heading+v.turret,ax=Math.sin(a),az=Math.cos(a);fire('shell',T,v.x+ax*4.6,v.y+1.6,v.z+az*4.6,ax,0,az,{owner:v,mul:G.vehMul[T]});v.ammo--;v.cd=.85;
+  if(v.type==='tank'){const a=v.heading+v.turret,ax=Math.sin(a),az=Math.cos(a);const mx=v.x+ax*4.6,my=v.y+1.6,mz=v.z+az*4.6;const dr=droneInLine(v,a);
+    if(dr){const lt=Math.hypot(dr.x-mx,dr.y-my,dr.z-mz)/PK.ashell.speed,tx=dr.x+dr.vx*lt,tz=dr.z+dr.vz*lt;const p=fire('ashell',T,mx,my,mz,tx-mx,dr.y-my,tz-mz,{owner:v,mul:G.vehMul[T],target:dr});p.fuse=3;}
+    else fire('shell',T,mx,my,mz,ax,0,az,{owner:v,mul:G.vehMul[T]});v.ammo--;v.cd=.85;
     v.turretKick=.3;sfx('cannon',v.x,v.z);for(let i=0;i<6;i++)FIRE.spawn(v.x+ax*5,v.y+1.7,v.z+az*5,ax*rr(4,10),rr(0,1),az*rr(4,10),.15,2.2,.6,C_FIRE0,C_FIRE1);for(let i=0;i<4;i++)puff(v.x+ax*5.5,v.y+1.7,v.z+az*5.5,C_SMK1,1.6,.8,.5);}
   else if(v.type==='heli'){const gy=Math.max(groundAt(v.x+fx*26,v.z+fz*26),0);
     if(slot===1){const side=(v.ammo%2?1:-1)*.9;const sx=v.x+fx*3-Math.cos(v.heading)*side,sz=v.z+fz*3+Math.sin(v.heading)*side;
@@ -1540,6 +1550,7 @@ function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat i
   for(const o of G.vehicles)if(o.team!==v.team&&o.state==='active'&&!o.def.air)consider(o,o.x,o.z,.6);
   for(const s of G.statics)if(s.alive&&s.team===1-v.team&&(s.kind==='turret'||s.kind==='gate'||s.kind==='building'))consider(s,s.x,s.z,s.kind==='turret'?.7:s.kind==='gate'?.9:1.3);
   for(const sd of G.soldiers)if(sd.alive&&sd.team!==v.team)consider(sd,sd.x,sd.z,1.1);
+  for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr,dr.x,dr.z,.55);
   return best;}
 function launchFromMenu(view){const t=view.team;const k=VORDER[view.sel];if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
   if(G.net&&!G.net.host){NET.matchCh&&NET.matchCh.send({type:'broadcast',event:'pick',payload:{k}});sfx('click');return;} // guest: ask the host to spawn it, never mutate local state

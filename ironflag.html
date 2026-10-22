@@ -1249,13 +1249,20 @@ function updateAir(dt){
 // Tank anti-drone: an enemy drone within 85m whose ground track passes within ~4m of the
 // turret's line of fire (in front of the muzzle) gets the shell aimed up at it instead of
 // along the ground. Nearest such drone wins.
+// Where to aim a shot of the given speed from (mx,my,mz) so it meets target t (moving at t.vx,t.vz)
+// - solves |t + V*tt - M| = speed*tt for the earliest tt>0. Matters for head-on jets: aiming at
+// 'where it will be after distance/speed' overshoots because the jet is closing on the shell.
+function intercept(mx,my,mz,t,speed){const rx=t.x-mx,ry=t.y-my,rz=t.z-mz,vx=t.vx||0,vz=t.vz||0,c=rx*rx+ry*ry+rz*rz;
+  const a=vx*vx+vz*vz-speed*speed,b=2*(rx*vx+rz*vz);let tt=Math.sqrt(c)/speed;
+  if(Math.abs(a)<1e-6){if(b<0)tt=-c/b;}else{const disc=b*b-4*a*c;if(disc>=0){const q=Math.sqrt(disc),r=[(-b-q)/(2*a),(-b+q)/(2*a)].filter(x=>x>0);if(r.length)tt=Math.min(...r);}}
+  return {x:t.x+vx*tt,y:t.y,z:t.z+vz*tt};}
 function droneInLine(v,a){const ax=Math.sin(a),az=Math.cos(a);let best=null,bd=86;
   for(const dr of [...G.drones,...G.jets]){if(!dr.alive||dr.team===v.team)continue;const dx=dr.x-v.x,dz=dr.z-v.z,along=dx*ax+dz*az;if(along<3||along>bd)continue;
     const side=Math.abs(dx*az-dz*ax);if(side>4+along*.03)continue;bd=along;best=dr;}return best;}
 function fireWeapon(v,slot){
   const fx=fwdX(v.heading),fz=fwdZ(v.heading);const T=v.team;
   if(v.type==='tank'){const a=v.heading+v.turret,ax=Math.sin(a),az=Math.cos(a);const mx=v.x+ax*4.6,my=v.y+1.6,mz=v.z+az*4.6;const dr=droneInLine(v,a);
-    if(dr){const lt=Math.hypot(dr.x-mx,dr.y-my,dr.z-mz)/PK.ashell.speed,tx=dr.x+dr.vx*lt,tz=dr.z+dr.vz*lt;const p=fire('ashell',T,mx,my,mz,tx-mx,dr.y-my,tz-mz,{owner:v,mul:G.vehMul[T],target:dr});p.fuse=3.6;}
+    if(dr){const ip=intercept(mx,my,mz,dr,PK.ashell.speed);const p=fire('ashell',T,mx,my,mz,ip.x-mx,ip.y-my,ip.z-mz,{owner:v,mul:G.vehMul[T],target:dr});p.fuse=3.6;}
     else fire('shell',T,mx,my,mz,ax,0,az,{owner:v,mul:G.vehMul[T]});v.ammo--;v.cd=.85;
     v.turretKick=.3;sfx('cannon',v.x,v.z);for(let i=0;i<6;i++)FIRE.spawn(v.x+ax*5,v.y+1.7,v.z+az*5,ax*rr(4,10),rr(0,1),az*rr(4,10),.15,2.2,.6,C_FIRE0,C_FIRE1);for(let i=0;i<4;i++)puff(v.x+ax*5.5,v.y+1.7,v.z+az*5.5,C_SMK1,1.6,.8,.5);}
   else if(v.type==='heli'){const gy=Math.max(groundAt(v.x+fx*26,v.z+fz*26),0);

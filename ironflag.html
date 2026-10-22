@@ -1183,7 +1183,7 @@ function syncObj(v,dt){
 // and drops a bomb on each point. Shooting the jet down before it reaches a point cancels that bomb
 // (and every one after it). Enemy strikes fire on a timer, only while the player is out in a vehicle
 // away from their own pad; the player calls theirs with F / the AIR touch button / gamepad Y.
-const JET={speed:62,approach:250,alt:22,spacing:7,fall:.8,lead:30,hp:30,bombR:5.5,bombDmg:75};
+const JET={speed:62,approach:250,alt:22,spacing:7,fall:.65,lead:12,hp:30,bombR:5.5,bombDmg:75}; // lead: release this far before each marker (small = more time to shoot the jet down)
 const _jetMat={};
 function jetMats(T){if(_jetMat[T])return _jetMat[T];
   return _jetMat[T]={body:new THREE.MeshStandardMaterial({color:T===0?0x52627a:0x7a5650,roughness:.55,metalness:.35}),
@@ -1210,14 +1210,14 @@ function launchStrike(T,tx,tz){
   return j;}
 function killJet(j,byTeam){if(!j.alive)return;j.alive=false;
   explosion(j.x,j.y,j.z,1.8);sfx('bigboom',j.x,j.z);debris(j.x,j.y,j.z,8,10);for(let i=0;i<10;i++)puff(j.x,j.y,j.z,C_SMK0,3,1.6,.7);
-  world.remove(j.obj);for(const p of j.pts)if(!p.dropped){world.remove(p.ring);p.dropped=true;}
+  world.remove(j.obj);for(const p of j.pts)if(!p.dropped){world.remove(p.ring);p.dropped=true;p.cancelled=true;}
   if(byTeam!==undefined)note(byTeam,j.team===1?'Enemy jet shot down — strike stopped!':'Jet down','good',true);
   if(j.team===0)note(0,'Your jet was shot down','bad');}
 function callStrike(){
   const air=G&&G.air;if(!air||G.over||paused||state!=='play')return;const v=G.teams[0].vehicle;
   if(air.left[0]<=0){note(0,'No air strikes left','warn');return;}
   if(!v||v.state!=='active'){note(0,'Launch a vehicle first, then call the strike','warn');return;}
-  if(G.jets.some(j=>j.alive&&j.team===0)){note(0,'Your jet is already inbound','warn');return;}
+  if(G.jets.some(j=>j.alive&&j.team===0&&j.pts.some(p=>!p.dropped))){note(0,'Your jet is already inbound','warn');return;}
   let tx,tz;const view=G.views[0];
   if(opts.mouse&&!opts.touch&&performance.now()-mouse.moved<4000&&view){const rect=renderer.domElement.getBoundingClientRect();
     ray.setFromCamera({x:(mouse.x-rect.left)/rect.width*2-1,y:-(mouse.y-rect.top)/rect.height*2+1},view.cam);plane.constant=-(v.y);const p=ray.ray.intersectPlane(plane,_v);if(p){tx=p.x;tz=p.z;}}
@@ -1227,7 +1227,7 @@ function callStrike(){
 function updateAir(dt){
   const air=G.air;
   if(air&&air.left[1]>0&&!G.over){const pv=G.teams[0].vehicle,pb=G.bases[0];
-    if(pv&&pv.state==='active'&&Math.hypot(pv.x-pb.x,pv.z-pb.z)>16&&!G.jets.some(j=>j.alive&&j.team===1)){air.enemyT-=dt;
+    if(pv&&pv.state==='active'&&Math.hypot(pv.x-pb.x,pv.z-pb.z)>16&&!G.jets.some(j=>j.alive&&j.team===1&&j.pts.some(p=>!p.dropped))){air.enemyT-=dt;
       if(air.enemyT<=0){air.left[1]--;air.enemyT=100+Math.random()*50; // aim where the player will be when the jet arrives
         const eta=JET.approach/JET.speed,tx=clamp(pv.x+(pv.vx||0)*eta,X0+20,-X0-20),tz=clamp(pv.z+(pv.vz||0)*eta,Z0+20,-Z0-20);launchStrike(1,tx,tz);}}}
   for(let i=G.jets.length-1;i>=0;i--){const j=G.jets[i];

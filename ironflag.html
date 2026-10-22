@@ -928,7 +928,7 @@ function updateFlags(dt){
 const PK={
   shell:{speed:80,life:.95,dmg:34,splash:3.5,follow:1.6,geo:'shell'},
   tshell:{speed:62,life:1.25,dmg:20,splash:3,follow:2.2,geo:'shell'},
-  ashell:{speed:84,life:1.15,dmg:34,splash:3.5,geo:'shell'}, // tank shell auto-elevated at a drone (see droneInLine); proximity-fused
+  ashell:{speed:84,life:1.15,dmg:34,splash:3.5,geo:'shell',homing:2.5}, // tank shell auto-elevated at a drone (see droneInLine); proximity-fused
   bullet:{speed:130,life:.62,dmg:4,splash:0,geo:'bullet'},
   dbullet:{speed:95,life:.7,dmg:3,splash:0,geo:'bullet'},
   sub:{speed:40,accel:45,max:95,life:6,dmg:260,splash:4,geo:'missile',homing:4},
@@ -1177,7 +1177,7 @@ function droneInLine(v,a){const ax=Math.sin(a),az=Math.cos(a);let best=null,bd=8
 function fireWeapon(v,slot){
   const fx=fwdX(v.heading),fz=fwdZ(v.heading);const T=v.team;
   if(v.type==='tank'){const a=v.heading+v.turret,ax=Math.sin(a),az=Math.cos(a);const mx=v.x+ax*4.6,my=v.y+1.6,mz=v.z+az*4.6;const dr=droneInLine(v,a);
-    if(dr){const lt=Math.hypot(dr.x-mx,dr.y-my,dr.z-mz)/PK.ashell.speed,tx=dr.x+dr.vx*lt,tz=dr.z+dr.vz*lt;const p=fire('ashell',T,mx,my,mz,tx-mx,dr.y-my,tz-mz,{owner:v,mul:G.vehMul[T],target:dr});p.fuse=3;}
+    if(dr){const lt=Math.hypot(dr.x-mx,dr.y-my,dr.z-mz)/PK.ashell.speed,tx=dr.x+dr.vx*lt,tz=dr.z+dr.vz*lt;const p=fire('ashell',T,mx,my,mz,tx-mx,dr.y-my,tz-mz,{owner:v,mul:G.vehMul[T],target:dr});p.fuse=3.6;}
     else fire('shell',T,mx,my,mz,ax,0,az,{owner:v,mul:G.vehMul[T]});v.ammo--;v.cd=.85;
     v.turretKick=.3;sfx('cannon',v.x,v.z);for(let i=0;i<6;i++)FIRE.spawn(v.x+ax*5,v.y+1.7,v.z+az*5,ax*rr(4,10),rr(0,1),az*rr(4,10),.15,2.2,.6,C_FIRE0,C_FIRE1);for(let i=0;i<4;i++)puff(v.x+ax*5.5,v.y+1.7,v.z+az*5.5,C_SMK1,1.6,.8,.5);}
   else if(v.type==='heli'){const gy=Math.max(groundAt(v.x+fx*26,v.z+fz*26),0);

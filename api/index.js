@@ -65,12 +65,14 @@ async function getNextGameDescription() {
   if (!fridays || !fridays.length || !fridays[0].location) return null;
  
   const next = fridays[0];
-  const dateLabel = new Date(`${next.game_date}T00:00:00`).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-  return `Next Game: ${dateLabel} — ${next.location}`;
+  // Compact on purpose: iMessage only shows ~3 lines of the title, so the
+  // long form ("Next Game: Friday, October 16 — Greg's House - 7:00 - ...")
+  // got cut off. Short weekday/month, and the location's " - " separators
+  // become " · " so it reads like one tidy line of details.
+  const d = new Date(`${next.game_date}T00:00:00`);
+  const dateLabel = `${d.toLocaleDateString("en-US", { weekday: "short" })} ${d.toLocaleDateString("en-US", { month: "short" })} ${d.getDate()}`;
+  const place = String(next.location).trim().replace(/\s+[-\u2013\u2014]\s+/g, " · ");
+  return `${dateLabel} · ${place}`;
 }
  
 export default async function handler(req, res) {
@@ -92,7 +94,7 @@ export default async function handler(req, res) {
       const dynamicDescription = await getNextGameDescription();
       if (dynamicDescription) {
         title = dynamicDescription;
-        description = "Tap to see standings, results, and more.";
+        description = "Next game — tap to see standings, results, and more.";
       }
     } catch (e) {
       // Supabase hiccup — fall back to the generic title/description below.

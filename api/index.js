@@ -100,7 +100,10 @@ export default async function handler(req, res) {
       // Supabase hiccup — fall back to the generic title/description below.
     }
  
-    const imageUrl = `${origin}/icons/icon-512.png`;
+    // Wide poster frame + a short looping MP4. iMessage autoplays an
+    // og:video that points straight at an .mp4 file inside the bubble.
+    const imageUrl = `${origin}/icons/league-preview.jpg?v=1`;
+    const videoUrl = `${origin}/icons/league-preview.mp4?v=1`;
     const pageUrl = `${origin}/`;
  
     const ogTags = [
@@ -110,8 +113,14 @@ export default async function handler(req, res) {
       `<meta property="og:title" content="${escapeHtml(title)}" />`,
       `<meta property="og:description" content="${escapeHtml(description)}" />`,
       `<meta property="og:image" content="${escapeHtml(imageUrl)}" />`,
-      '<meta property="og:image:width" content="512" />',
-      '<meta property="og:image:height" content="512" />',
+      '<meta property="og:image:width" content="1280" />',
+      '<meta property="og:image:height" content="720" />',
+      `<meta property="og:video" content="${escapeHtml(videoUrl)}" />`,
+      `<meta property="og:video:url" content="${escapeHtml(videoUrl)}" />`,
+      `<meta property="og:video:secure_url" content="${escapeHtml(videoUrl)}" />`,
+      '<meta property="og:video:type" content="video/mp4" />',
+      '<meta property="og:video:width" content="1280" />',
+      '<meta property="og:video:height" content="720" />',
       '<meta name="twitter:card" content="summary_large_image" />',
       `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
       `<meta name="twitter:description" content="${escapeHtml(description)}" />`,

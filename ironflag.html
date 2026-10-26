@@ -897,6 +897,14 @@ function wreckVehicle(v,info={}){
   W.bodies.unshift(W.main);
   (G.wrecks||(G.wrecks=[])).push(W);
   const live=G.wrecks.filter(x=>x.t<WRECK_LIFE);if(live.length>WRECK_MAX)live[0].t=WRECK_LIFE; // oldest starts settling away
+  return W;
+}
+// death cam: when YOUR vehicle dies the camera stays on the wreck (a helicopter until it has crashed and burst),
+// and only then the skull + vehicle menu come up
+function deathCam(view,W){if(!view||!W||G.demo)return;view.watch={W,t:0,after:0};}
+function updateDeathCam(view,dt){
+  if(view.hold>0)view.hold-=dt;const w=view.watch;if(!w)return;w.t+=dt;if(w.W.mode!=='spin')w.after+=dt;
+  if(w.after>=(w.W.type==='heli'&&w.t-w.after>.3?1.5:2.1)||w.t>8){view.watch=null;skullFor(view);view.hold=2.3;}
 }
 function updateWrecks(dt){
   if(!G||dt<=0)return;
@@ -1253,8 +1261,8 @@ function destroyVehicle(v,by){
   explosion(v.x,v.y+1,v.z,air?1:v.type==='jeep'?1.3:2);sfx(air?'boom':'bigboom',v.x,v.z);
   if(v.carrying){dropFlag(v.carrying,v.x,v.z);}
   if(G.net&&G.net.host)G.net.events.push({k:'wreck',id:v.netId,vx:Math.round((v.vx||0)*10)/10,vz:Math.round((v.vz||0)*10)/10});
-  try{wreckVehicle(v);}catch(e){console.warn('wreck',e);}
-  if(team.view&&!G.demo)skullFor(team.view);
+  let W=null;try{W=wreckVehicle(v);}catch(e){console.warn('wreck',e);}
+  if(team.view&&!G.demo){if(W)deathCam(team.view,W);else skullFor(team.view);}
   removeVehicle(v);team.vehicle=null;team.respawnT=2.5;
   note(v.team,`${v.def.name} destroyed`,'bad');
   if(by!==undefined&&by!==v.team)note(by,`Enemy ${v.def.name.toLowerCase()} destroyed`,'good');
@@ -2004,7 +2012,7 @@ function drawMini(view){
 const lastHud=new WeakMap();
 function updateHud(view){
   const t=view.team,v=t.vehicle,q=view.q;
-  const sel=q.sel;const menuOn=!v&&t.respawnT<=0&&!G.over;if(sel.hidden===menuOn)sel.hidden=!menuOn;
+  const sel=q.sel;const menuOn=!v&&t.respawnT<=0&&!G.over&&!view.watch&&!(view.hold>0);if(sel.hidden===menuOn)sel.hidden=!menuOn;
   if(menuOn){VORDER.forEach((k,i)=>{const c=q.cards.children[i];c.querySelector('i').textContent='×'+t.stock[k];c.toggleAttribute('disabled',t.stock[k]<=0);c.classList.toggle('on',i===view.sel);});}
   let s;
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
@@ -2026,7 +2034,7 @@ function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat i
   for(const sd of G.soldiers)if(sd.alive&&sd.team!==v.team)consider(sd,sd.x,sd.z,1.1);
   for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr,dr.x,dr.z,.55);
   return best;}
-function launchFromMenu(view){const t=view.team;const k=VORDER[view.sel];if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
+function launchFromMenu(view){const t=view.team;const k=VORDER[view.sel];if(view.watch||view.hold>0)return;if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
   if(G.net&&!G.net.host){NET.matchCh&&NET.matchCh.send({type:'broadcast',event:'pick',payload:{k}});sfx('click');return;} // guest: ask the host to spawn it, never mutate local state
   spawnVehicle(t.team,k);sfx('click');}}
 function menuInput(view){
@@ -2186,11 +2194,13 @@ function render(dt){
   const w=innerWidth,h=innerHeight;
   renderer.setScissorTest(G.views.length>1);
   for(const view of G.views){
+    updateDeathCam(view,paused?0:dt);
     const v=view.team.vehicle,T=view.team.team;
     if(G.demo){ // follow whichever vehicle is busiest
       const tgt=G.vehicles.find(x=>x.state==='active'&&x.team===(((G.time/22)|0)%2))||G.vehicles[0];if(tgt)_ft.set(tgt.x,0,tgt.z);else _ft.copy(view.focus);
       view.focus.lerp(_ft,1-Math.exp(-dt*.8));}
     else if(v){_ft.set(v.x+v.vx*.55,v.def.air?v.y*.25:v.y,v.z+v.vz*.55);view.focus.lerp(_ft,1-Math.exp(-dt*4));}
+    else if(view.watch){const p=view.watch.W.main.o.position;_ft.set(p.x,Math.max(0,p.y*.3),p.z);view.focus.lerp(_ft,1-Math.exp(-dt*5));}
     else{_ft.set(G.bases[T].x,3,G.bases[T].z);view.focus.lerp(_ft,1-Math.exp(-dt*3));}
     const split=G.views.length>1;const back=(T===0?1:-1)*(split?42:47),up=split?78:72;
     let cx=view.focus.x,cz=view.focus.z+back;if(G.demo){cx+=Math.sin(G.time*.1)*30;}
@@ -2400,7 +2410,7 @@ function netSyncProjectiles(arr){
 }
 function netApplySnapshot(snap){
   for(const e of snap.fx){if(e.k==='note')note(e.T,e.text,e.kind,e.big);else if(e.k==='sfx')sfx(e.n,e.x,e.z);else if(e.k==='exp')explosion(e.x,e.y,e.z,e.size,e.water);else if(e.k==='gore')gore(e.x,e.y,e.z,e.how,e.dx,e.dz);
-    else if(e.k==='wreck'){const v=G.vehicles.find(x=>x.netId===e.id);if(v)try{wreckVehicle(v,e);}catch(err){console.warn('wreck',err);}}}
+    else if(e.k==='wreck'){const v=G.vehicles.find(x=>x.netId===e.id);if(v)try{const W=wreckVehicle(v,e);const tv=G.teams[v.team].view;if(tv&&W)deathCam(tv,W);}catch(err){console.warn('wreck',err);}}}
   for(let T=0;T<2;T++){
     const t=G.teams[T],st=snap.teams[T];t.stock=st.stock;t.respawnT=st.respawnT;
     if(st.v){

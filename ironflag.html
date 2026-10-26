@@ -1287,6 +1287,9 @@ function addStatic(s){
 }
 function staticsNear(x,z,out){out.length=0;const i=Math.floor(x/HASH),j=Math.floor(z/HASH);
   for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const arr=G.hash.get(hkey(i+a,j+b));if(arr)for(const s of arr)if(s.alive&&!out.includes(s))out.push(s);}return out;}
+function rectFootprint(x,z,sx,sz,yaw,shrink=1){ // grid of small circles that covers the rectangle including its corners, bulging < ~0.6 m
+  sx*=shrink;sz*=shrink;const nx=Math.max(1,Math.ceil(sx/3)),nz=Math.max(1,Math.ceil(sz/3)),cx=sx/nx,cz=sz/nz,r=Math.hypot(cx,cz)/2,c=Math.cos(yaw),sn=Math.sin(yaw),pts=[];
+  for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){const lx=-sx/2+cx*(i+.5),lz=-sz/2+cz*(j+.5);pts.push([x+lx*c+lz*sn,z-lx*sn+lz*c,r]);}return pts;}
 function footprint(x,z,sx,sz,yaw,shrink=1){ // circles along long axis
   const long=Math.max(sx,sz),short=Math.min(sx,sz)*shrink;const n=Math.max(1,Math.round(long/short));const ax=sx>=sz?[Math.cos(yaw),-Math.sin(yaw)]:[Math.sin(yaw),Math.cos(yaw)];
   const pts=[];for(let k=0;k<n;k++){const o=n===1?0:(k/(n-1)-.5)*(long-short);pts.push([x+ax[0]*o,z+ax[1]*o,short/2*1.05]);}return pts;}
@@ -1311,7 +1314,7 @@ function buildBase(b){
     if(near(x,z,15)||spots.some(s=>Math.hypot(s[0]-x,s[1]-z)<17))continue;spots.push([x,z]);k++;}
   b.buildings=[];
   spots.forEach(([x,z],i)=>{const nm=bnames[i%bnames.length];const yaw=Math.round(RND()*4)*Math.PI/2;const o=placeObj(nm,6.5,x,z,yaw);o.position.y=Math.min(H(x,z),3);
-    const sz=proto(nm,6.5).userData.size;const s=addStatic({kind:'building',team:T,x,z,y0:o.position.y,h:sz.y,hp:150,obj:o,name:nm,pts:footprint(x,z,sz.x,sz.z,yaw,.95)});b.buildings.push(s);});
+    const sz=proto(nm,6.5).userData.size;const s=addStatic({kind:'building',team:T,x,z,y0:o.position.y,h:sz.y,hp:150,obj:o,name:nm,pts:rectFootprint(x,z,sz.x,sz.z,yaw,.95)});b.buildings.push(s);});
   const flagB=b.buildings[(RND()*b.buildings.length)|0];flagB.hasFlag=true;
   // perimeter wall with gaps for the roads
   const R=64;const segN=Math.floor(TAU*R/8.6);
@@ -1335,7 +1338,7 @@ function buildBase(b){
       if(near(x,z,(clr+2)*lax)||H(x,z)<.8||Math.hypot(x-b.x,z-b.z)<18||G.statics.some(s=>s.alive&&s.kind!=='wall'&&s.kind!=='hedge'&&Math.hypot(s.x-x,s.z-z)<((s.kind==='building'?11:(s.kind==='hospital'||s.kind==='depot'||s.kind==='gas')?11:(s.r||5))+clr)*(s.kind==='hospital'?1:lax)))continue;
       const yaw=Math.round(RND()*4)*Math.PI/2;const o=placeObj(nm,sc,x,z,yaw);o.position.y=Math.min(H(x,z),3);
       const sz=proto(nm,sc).userData.size,turned=Math.round(yaw/(Math.PI/2))%2===1,wx=turned?sz.z:sz.x,wz=turned?sz.x:sz.z;
-      const pts=[];for(const qx of [-1,1])for(const qz of [-1,1])pts.push([x+qx*wx/4,z+qz*wz/4,Math.hypot(wx,wz)/4*1.08]);
+      const pts=rectFootprint(x,z,sz.x,sz.z,yaw,.96); /* hugs the walls (old 4 big circles bulged ~3 m past them and pinched the gaps) */
       addStatic({kind,team:T,x,z,y0:o.position.y,h:sz.y,hp,obj:o,pts,reach:Math.max(wx,wz)/2+7});break;}}
   // decor: tents, fuel, crates, barrels, tower, radio
   const decor=[['tent',.7,4,45,'tent'],['tentBig',.7,4,60,'tent'],['radio',.75,3,90,'radio'],['watchtower',.65,2.4,70,'tower'],['fuel',6,2.4,40,'fuel'],['generator',1.1,1.3,40,'gen']];
@@ -1714,10 +1717,20 @@ function updateTurrets(dt){
 
 // ============================================================ vehicle update
 const _vn=[];
-function blockedAt(v,x,z){
+function staticPen(v,x,z,hd=v.heading){ // how deep the hull capsule overlaps buildings/props (0 = clear)
+  if(v.def.air)return 0;const hw=v.r*.55,off=v.r-hw,ox=Math.sin(hd)*off,oz=Math.cos(hd)*off;let p=0;
+  staticsNear(x,z,_vn);for(const s of _vn){if(s.kind==='gate'&&s.team===v.team)continue;for(const q of s.pts){const r=q[2]+hw;
+    for(let k=-1;k<=1;k++){const dx=q[0]-(x+ox*k),dz=q[1]-(z+oz*k),d=Math.sqrt(dx*dx+dz*dz);if(r-d>p)p=r-d;}}}
+  return p;
+}
+function blockedAt(v,x,z,hd=v.heading){
   if(!v.def.air&&!(v.floats?(x>X0+12&&x<-X0-12&&z>Z0+12&&z<-Z0-12):passable(x,z)))return true;
   if(v.def.air)return x<X0+10||x>-X0-10||z<Z0+10||z>-Z0-10;
-  staticsNear(x,z,_vn);for(const s of _vn){if(s.kind==='gate'&&s.team===v.team)continue;for(const q of s.pts){const dx=q[0]-x,dz=q[1]-z,r=q[2]+v.r*.85;if(dx*dx+dz*dz<r*r)return s;}}
+  // the hull is a capsule along its heading (half-width ~0.55 r), not one fat circle, so a vehicle fits through any gap
+  // that visibly looks wide enough when it lines up with it
+  const hw=v.r*.55,off=v.r-hw,ox=Math.sin(hd)*off,oz=Math.cos(hd)*off;
+  staticsNear(x,z,_vn);for(const s of _vn){if(s.kind==='gate'&&s.team===v.team)continue;for(const q of s.pts){const r=q[2]+hw,r2=r*r;
+    for(let k=-1;k<=1;k++){const dx=q[0]-(x+ox*k),dz=q[1]-(z+oz*k);if(dx*dx+dz*dz<r2)return s;}}}
   for(const o of G.vehicles){if(o===v||o.def.air||o.state==='dead'||o.state==='lowering')continue;const r=o.r+v.r*.9;const dx=o.x-x,dz=o.z-z;if(dx*dx+dz*dz<r*r&&(dx*(x-v.x)+dz*(z-v.z))>0)return o;}
   return false;
 }
@@ -1759,10 +1772,12 @@ function updateVehicle(v,inp,dt){
     const tgt=thr>0?thr*max:thr*max*.55;
     const acc=v.type==='jeep'?2.2:1.5;v.speed=lerp(v.speed,tgt,1-Math.exp(-dt*acc*(Math.abs(tgt)<Math.abs(v.speed)?1.6:1)));
     let tr=def.turn;if(v.type==='jeep'){tr*=clamp(Math.abs(v.speed)/6,0,1)*(v.speed<0?-1:1);}
-    v.heading-=turn*tr*dt;v.steer=lerp(v.steer,turn,dt*8);
+    const h0=v.heading;v.heading-=turn*tr*dt;v.steer=lerp(v.steer,turn,dt*8);
+    if(v.heading!==h0&&staticPen(v,v.x,v.z)>staticPen(v,v.x,v.z,h0)+1e-4)v.heading=h0; /* don't swing the nose/tail deeper into a wall */
     const fx=fwdX(v.heading),fz=fwdZ(v.heading);
     let nx=v.x+fx*v.speed*dt,nz=v.z+fz*v.speed*dt;
-    const blk=blockedAt(v,nx,nz);
+    let blk=blockedAt(v,nx,nz);
+    if(blk&&blk!==true&&!blk.def){const pc=staticPen(v,v.x,v.z);if(pc>0&&staticPen(v,nx,nz)<pc)blk=false;} /* already touching: any move that backs out is allowed */
     if(blk){if(!blockedAt(v,nx,v.z)){nz=v.z;v.speed*=.85;}else if(!blockedAt(v,v.x,nz)){nx=v.x;v.speed*=.85;}else{nx=v.x;nz=v.z;
       if(blk.kind==='tree'&&(v.type==='tank'||v.type==='asv')&&Math.abs(v.speed)>3){damage(blk,40,v.team);} // heavy armor flattens trees
       v.speed*=-.25;}}
@@ -2830,7 +2845,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

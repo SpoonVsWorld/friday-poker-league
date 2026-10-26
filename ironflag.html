@@ -191,6 +191,7 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .tbtn.on{filter:brightness(1.5);transform:scale(.95)}
 .tair{right:calc(146px + var(--sar));bottom:calc(122px + var(--sab));width:60px;height:60px;font-size:12px;background:rgba(59,111,214,.6)}
 .tpause{position:absolute;right:calc(12px + var(--sar));top:calc(206px + var(--sat));pointer-events:auto;width:44px;height:36px;border-radius:3px;background:var(--panel);border:1px solid var(--line);color:var(--sand);font:700 14px var(--ui)}
+.tpause.tcam{top:calc(250px + var(--sat));font-size:11px;letter-spacing:.5px}.tpause.tcam.on{background:rgba(59,111,214,.6)}
 .touchnote{margin:0;font-size:12px;color:var(--khaki);line-height:1.45}
 body.touchui .hud .stock{bottom:auto;top:calc(118px + var(--sat));left:calc(12px + var(--sal));gap:4px}body.touchui .stock div{padding:3px 6px;font-size:10px}
 body.touchui .hud .flagbox{bottom:auto;top:calc(150px + var(--sat));font-size:10px;padding:5px 8px}
@@ -235,7 +236,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
   <div class="help">
     <h3>Field manual</h3>
     <div class="cols">
-      <div><b>Controls</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>Mouse aims the tank turret, click to fire. <kbd>F</kbd> calls an air strike (Campaign, Operation 15 on). Gamepads work too; on a phone, switch Controls to Touch</div>
+      <div><b>Controls</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>Mouse aims the tank turret, click to fire. <kbd>F</kbd> calls an air strike (Campaign, Operation 15 on). <kbd>V</kbd> switches between the overhead and chase (behind-the-vehicle) camera — the CAM button on a phone. Gamepads work too; on a phone, switch Controls to Touch</div>
       <div><b>Online</b><br>Host a match and wait in the open lobby, or tap someone else's game to join. Both sides get a full base with turrets, gates, bridges and infantry, same as Skirmish, and the enemy bunker is across the water. Same controls as above. Your name shows in the lobby so friends can find your game</div>
       <div><b>How to win</b><br>One enemy building hides their flag. Destroy buildings to expose it, then drive a <b>jeep</b> over it and back onto your bunker pad. Park on your bunker pad to swap vehicles, or stop beside a fuel depot or ammo tent to top up. Park next to a <b>hospital</b> (red cross on the roof) to repair, an <b>ammo depot</b> for a fast full rearm, or a <b>gas station</b> for a fast refuel — yours or the enemy's. With the jeep, <kbd>Shift</kbd> inflates its tires to float across deep water. Stray out to sea and a submarine will find you. Base gates open only for their own side, so blast the enemy's open first. Explosives drop bridges, and soldiers can be run over. Point the tank turret at a drone and the shell aims up to hit it. <kbd>Esc</kbd> pauses, <kbd>M</kbd> music.</div>
     </div>
@@ -258,7 +259,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <div id="pause" class="screen" hidden><div class="box"><h2>Paused</h2><div class="btns"><button id="pResume">Resume</button><button id="pMusic">Music on/off</button><button id="pRestart">Restart map</button><button id="pQuit">Quit to title</button></div></div></div>
 <div id="over" class="screen" hidden><canvas id="confetti"></canvas><div class="box"><h2 id="oTitle">Victory</h2><p id="oText"></p><div class="btns"><button id="oNext" hidden>Next operation</button><button id="oAgain">Rematch</button><button id="oNew">New map</button><button id="oOps" hidden>Operations</button><button id="oQuit">Title screen</button></div></div></div>
 <div id="touch" hidden><div class="tzone" id="tzone"><div class="sbase" id="sbase" hidden><div class="sknob" id="sknob"></div></div></div>
-  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button></div>
+  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button></div>
 <div id="loading">LOADING ARMOR…</div>
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -1900,7 +1901,8 @@ addEventListener('keydown',e=>{audioInit();if(GAME_KEYS.has(e.code)&&state!=='ti
   if(/^Digit[1-4]$/.test(e.code)&&G&&G.views.length===1&&G.views[0].team.human)G.views[0].digit=+e.code[5];
   if(e.code==='Escape'&&G&&!G.demo&&!G.over)togglePause();
   if(e.code==='KeyM'&&state!=='title')setMusic(!AU.music);
-  if(e.code==='KeyF'&&G&&G.air&&state==='play')callStrike();});
+  if(e.code==='KeyF'&&G&&G.air&&state==='play')callStrike();
+  if(e.code==='KeyV'&&G&&!G.demo&&state==='play')toggleChase();});
 addEventListener('keyup',e=>keys.delete(e.code));
 addEventListener('blur',()=>keys.clear());
 const mouse={x:0,y:0,moved:-99,l:false,r:false};
@@ -1919,7 +1921,7 @@ function readHuman(view,inp){
   if(opts.touch&&view.ctrl===0){
     const v=view.team.vehicle;Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:TOUCH.fire,special:TOUCH.special,abandon:false,aimYaw:null});view.menuEdge=null;
     if(v){const mag=Math.min(1,Math.hypot(TOUCH.ax,TOUCH.ay));
-      if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn);const da=angDiff(v.heading,want);
+      if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=CHASE.on&&view.cy!=null?view.cy-Math.PI+Math.atan2(TOUCH.ax,TOUCH.ay):Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn); // chase cam: stick is relative to the cameraconst da=angDiff(v.heading,want);
         inp.turn=clamp(-da*2.4,-1,1);inp.thr=mag*(Math.abs(da)<1.2?1:.35);}
       if(v.type==='tank'){const t=autoAimTarget(v);inp.aimYaw=t?Math.atan2(t.x-v.x,t.z-v.z):v.heading;}}
     return;}
@@ -1934,7 +1936,8 @@ function readHuman(view,inp){
     fire=fire||bt(7)||bt(0);special=special||bt(6)||bt(1)||bt(5);abandon=abandon||bt(8);if(bt(4))tur=-1;
     view.padMenu={l:bt(14)||ax[0]<-.5,r:bt(15)||ax[0]>.5,ok:bt(0)};
     if(bt(9)&&!view.prevStart&&!G.over)setTimeout(togglePause);view.prevStart=bt(9);
-    if(bt(3)&&!view.prevY&&G.air)setTimeout(callStrike);view.prevY=bt(3);}
+    if(bt(3)&&!view.prevY&&G.air)setTimeout(callStrike);view.prevY=bt(3);
+    const cb=bt(10)||bt(11);if(cb&&!view.prevCam)setTimeout(toggleChase);view.prevCam=cb;}
   const v=view.team.vehicle;
   if(solo&&opts.mouse&&v&&(performance.now()-mouse.moved<4000||mouse.l||mouse.r)){
     fire=fire||mouse.l;special=special||mouse.r;
@@ -2190,6 +2193,22 @@ function step(dt){
   updateTurrets(dt);updateGates(dt);updateSoldiers(dt);updateDrones(dt);updateAir(dt);updateSub(dt);updateProjectiles(dt);updateMines(dt);updateFlags(dt);
   if((G.time*2|0)!==((G.time-dt)*2|0))checkLose();
 }
+// ---- chase (3rd-person) camera: V key / CAM button / gamepad stick click toggles; remembered per device
+const CHASE={on:false};try{CHASE.on=localStorage.getItem('ironflag.chase')==='1';}catch(e){}
+function toggleChase(){CHASE.on=!CHASE.on;try{localStorage.setItem('ironflag.chase',CHASE.on?'1':'0');}catch(e){}
+  const b=document.getElementById('tCam');if(b)b.classList.toggle('on',CHASE.on);sfx('click');
+  const vw=G&&G.views&&G.views[0];if(vw&&!G.demo)note(vw.team.team,CHASE.on?'Chase camera (V to switch back)':'Overhead camera','info');}
+const CH_D={tank:[13,5.5],asv:[13.5,6],jeep:[10,4.2],heli:[15,6.5]};
+function chaseCam(view,v,dt){
+  const [d,hgt]=CH_D[v.type]||[13,5.5];
+  if(view.cy==null)view.cy=v.heading;view.cy+=angDiff(view.cy,v.heading)*(1-Math.exp(-dt*3.2));
+  const fx=Math.sin(view.cy),fz=Math.cos(view.cy);
+  const px=v.x-fx*d,pz=v.z-fz*d,py=Math.max(v.y+hgt,groundAt(px,pz)+2.2,1.6);
+  if(!view.cpos)view.cpos=new V3(px,py,pz);else view.cpos.lerp(_ft.set(px,py,pz),1-Math.exp(-dt*9));
+  view.cam.position.copy(view.cpos);if(view.shake>0){view.cam.position.x+=rr(-.4,.4)*view.shake;view.cam.position.y+=rr(-.4,.4)*view.shake;}
+  view.cam.lookAt(v.x+fx*9,v.y+1.6,v.z+fz*9);
+  view.focus.set(v.x+fx*22,v.def.air?v.y*.25:v.y,v.z+fz*22); // keeps the sun's shadow box over what's ahead of you
+}
 function render(dt){
   const w=innerWidth,h=innerHeight;
   renderer.setScissorTest(G.views.length>1);
@@ -2207,6 +2226,7 @@ function render(dt){
     view.cam.position.set(cx,view.focus.y+up,cz);
     if(view.shake>0){view.cam.position.x+=rr(-1,1)*view.shake;view.cam.position.z+=rr(-1,1)*view.shake;view.shake=Math.max(0,view.shake-dt*3);}
     view.cam.lookAt(view.focus.x,view.focus.y,view.focus.z);
+    if(CHASE.on&&v&&!G.demo&&v.state!=='dead')chaseCam(view,v,dt);else{view.cy=null;view.cpos=null;}
     if(G.debugCam){const d=G.debugCam;view.cam.position.set(d.x,d.h,d.z+(d.back??d.h*.35));view.cam.lookAt(d.x,d.y||0,d.z);view.focus.set(d.x,0,d.z);}
     sun.position.copy(view.focus).addScaledVector(SUN_DIR,140);sun.target.position.copy(view.focus);sun.target.updateMatrixWorld();
     const r=view.rect;renderer.setViewport(r.x,0,r.w,h);renderer.setScissor(r.x,0,r.w,h);
@@ -2497,6 +2517,7 @@ $('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dat
  hold($('#tFire'),'fire');hold($('#tSpec'),'special');
  $('#tAir').addEventListener('pointerdown',e=>{audioInit();e.preventDefault();callStrike();});
  $('#tPause').addEventListener('click',()=>{if(G&&!G.demo&&!G.over)togglePause();});
+ $('#tCam').addEventListener('click',()=>{if(G&&!G.demo)toggleChase();});$('#tCam').classList.toggle('on',CHASE.on);
  $('#touch').addEventListener('contextmenu',e=>e.preventDefault());}
 $('#pMusic').onclick=()=>setMusic(!AU.music);
 $('#pResume').onclick=()=>togglePause();

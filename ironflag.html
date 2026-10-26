@@ -326,6 +326,9 @@ const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=
 // trees everywhere (pines/dead trees on the beaches too). Kenney trees stay as the fallback if a file fails to load.
 const RT_MAP={tree:'tree_rt_2',oak:'tree_rt_4',pine:'tree_rt_3',treeD:'tree_rt_2_1',palm:'tree_rt_1',palmBend:'tree_rt_3',palmShort:'dead_tree_rt_2'};
 PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetchBin('trees/'+f+'.glb').catch(e=>{console.warn('tree',f,e);return null;})]));
+// Grasslands props (CC0, Matt's Kenney folder -> SP_Plants.glb): real-looking bushes/ferns replace the cartoon bush, and grass,
+// straw and wildflowers are scattered as cosmetic ground cover
+PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
 function prefetchAudio(){if(PRE.audio)return;PRE.audio={};for(const k of [...SFX_KEYS,...MUS_KEYS])PRE.audio[k]=fetchBin('audio/'+k+'.ogg').catch(e=>{console.warn('audio',k,e);return null;});}
 async function loadAssets(){
   const bin=await PRE.assets;
@@ -353,6 +356,11 @@ async function loadAssets(){
       if(!done.has(m)){done.add(m);m.color.multiplyScalar(m.alphaTest?2.3:1.6);m.side=THREE.DoubleSide;}
       if(m.alphaTest&&!o.userData.up){o.userData.up=1;const n=o.geometry.attributes.normal;if(n){for(let i=0;i<n.count;i++)n.setXYZ(i,0,1,0);n.needsUpdate=true;}}});
   }catch(e){console.warn('retro trees',e);}
+  try{const pb=await PRE.plants;if(pb){const ps=(await new Promise((res,rej)=>new GLTFLoader().parse(pb,'',res,rej))).scene;const fixed=new Set();
+    for(const c of [...ps.children]){if(!c.name.startsWith('P_'))continue;
+      c.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(fixed.has(m))return;fixed.add(m); // alpha-cut instead of blended: no sorting problems when instanced
+        m.transparent=false;m.alphaTest=.45;m.depthWrite=true;m.side=THREE.DoubleSide;if(/flower|lilly/i.test(m.name))m.color.multiplyScalar(1.1);else if(/grass-sheet|S11_A/i.test(m.name))m.color.multiply(new THREE.Color(1.15,1.6,.85));else m.color.multiplyScalar(1.45);}); // grass sheet is straw-coloured: green it up to sit on the game's turf
+      A[c.name]=c;}}}catch(e){console.warn('plants',e);}
   // realistic soldier (three.js example Soldier.glb / Mixamo rig): model faces -Z, turn it to face +Z like the old one
   for(const c of sg.scene.children)c.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(UP,Math.PI));let bm=null;sg.scene.traverse(o=>{if(o.isMesh&&!bm)bm=o.material;});
   for(const T of [0,1]){const m=bm.clone();m.color.setRGB(...(T===0?[.8,.9,1.1]:[1.1,.86,.78]));m.roughness=.85;m.metalness=0;SOLDIER_MAT[T]=m;
@@ -1228,6 +1236,9 @@ function scatterNature(){
   const B=G.batches;const tries=4200;const n4=makeNoise(G.seed+33);
   const kinds=[['palm',6.5],['palmBend',6.5],['palmShort',6],['tree',5.5],['oak',6.2],['pine',6],['treeD',6]];
   for(const k of kinds)B[k[0]]=new Batch(proto(k[0],1),500);
+  const BUSHES=['P_bush-live-bright','P_bush-live-dark','P_Foliage-big-bright','P_Foliage-big-dark','P_bush-live-bright','P_bush-dry'].filter(k=>A[k]);
+  const bushB=BUSHES.length?[...new Set(BUSHES)].map(k=>{const pr=plantProto(k,proto('bush',1).userData.size);return new Batch(pr,260);}):null;
+  const bushPick=(x,z)=>{const h=Math.abs(Math.sin(x*12.9898+z*78.233)*43758.5453)%1;const k=BUSHES[(h*BUSHES.length)|0];return bushB[[...new Set(BUSHES)].indexOf(k)];};
   B.rockA=new Batch(proto('rockA',1),60);B.rockC=new Batch(proto('rockC',1),60);B.rockT=new Batch(proto('rockT',1),40);B.bush=new Batch(proto('bush',1),400);
   for(let i=0;i<tries;i++){const x=rr(X0+20,-X0-20),z=rr(Z0+20,-Z0-20);const h=H(x,z);if(h<.9||h>13)continue;
     const cd=G.corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)];if(cd<10)continue;if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<75))continue;
@@ -1235,11 +1246,34 @@ function scatterNature(){
     if(r<.55&&forest>.5||r<.12){let nm;if(h<2.6)nm=['palm','palmBend','palmShort'][(RND()*3)|0];else nm=['tree','oak','pine','treeD','palm'][(RND()*5)|0];
       const sc=kinds.find(k=>k[0]===nm)[1]*rr(.65,1);const yaw=RND()*TAU;const idx=B[nm].add(x,h-.1,z,yaw,sc);if(idx<0)continue;
       addStatic({kind:'tree',team:-1,x,z,y0:h,h:9,hp:22,r:1.1,batch:B[nm],idx});}
-    else if(r<.6){const idx=B.bush.add(x,h-.1,z,RND()*TAU,rr(5,8));}
+    else if(r<.6){const idx=(bushB?bushPick(x,z):B.bush).add(x,h-.1,z,RND()*TAU,rr(5,8));}
     else if(r<.63){const nm=['rockA','rockC','rockT'][(RND()*3)|0];const sc=rr(3.5,5.5);const yaw=RND()*TAU;const idx=B[nm].add(x,h-.3,z,yaw,sc);if(idx<0)continue;
       const sz=proto(nm,1).userData.size;addStatic({kind:'rock',team:-1,x,z,y0:h,h:sz.y*sc,hp:Infinity,batch:B[nm],idx,pts:footprint(x,z,sz.x*sc*.8,sz.z*sc*.8,yaw,1)});}
   }
-  for(const k in B)B[k].done();
+  for(const k in B)B[k].done();if(bushB)bushB.forEach(b=>b.done());
+  scatterGroundCover();
+}
+function plantProto(name,ref){ // grasslands prop sized to the footprint of the Kenney prop it stands in for (ref = that prop's size at scale 1)
+  const key='plant:'+name;if(protoCache.has(key))return protoCache.get(key);
+  const c=A[name].clone(true);c.position.set(0,0,0);c.updateMatrixWorld(true);tmpBox.setFromObject(c);const sz=tmpBox.getSize(new V3()),ctr=tmpBox.getCenter(new V3());
+  const k=Math.max(ref.x,ref.z)/Math.max(sz.x,sz.z)*1.15;c.position.set(-ctr.x*k,-tmpBox.min.y*k,-ctr.z*k);c.scale.multiplyScalar(k);
+  const w=new THREE.Group();w.add(c);w.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});w.updateMatrixWorld(true);protoCache.set(key,w);return w;
+}
+function scatterGroundCover(){ // cosmetic grass / straw / wildflowers / small ferns: no collision, own PRNG so the seeded map layout is untouched
+  const kinds=[['P_grass-big',2.4,30],['P_grass-generic',1.5,16],['P_grass-tall',1.1,10],['P_Straw-grn',1.7,9],['P_Straw-ylw',1.7,7],['P_Foliage-medium-bright',2.1,7],['P_Foliage-medium-dark',2.1,5],
+    ['P_flower-big-pink',1.3,3],['P_flower-big-white',1.3,3],['P_flower-big-ylw',1.3,3],['P_flower-medium-pink',1,2],['P_flower-medium-white',1,2],['P_flower-medium-ylw',1,3]].filter(k=>A[k[0]]);
+  if(!kinds.length)return;
+  let st=(G.seed*2654435761>>>0)^0x9e3779b9;const R=()=>{st=(st+0x6D2B79F5)>>>0;let t=st;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};
+  const tot=kinds.reduce((a,k)=>a+k[2],0),bat={};
+  const CAP=7000;for(const [nm,w,wt] of kinds){const pr=plantProto(nm,{x:w*1.25/1.15,z:w*1.25/1.15,y:1});const b=new Batch(pr,Math.ceil(CAP*wt/tot*1.4)+60);b.parts.forEach(p=>{p.im.castShadow=false;});bat[nm]=b;}
+  const n4=makeNoise(G.seed+77);let placed=0;
+  for(let i=0;i<16000&&placed<CAP;i++){const x=X0+20+R()*(-2*X0-40),z=Z0+20+R()*(-2*Z0-40);const h=H(x,z);if(h<2.2||h>13)continue; /* turf only: not on beach sand */
+    const cd=G.corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)];if(cd<5)continue;if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<62))continue;
+    const meadow=n4(x*.02,z*.02);if(R()>(meadow>.42?.97:.5))continue;
+    let r=R()*tot,k=kinds[0];for(const kk of kinds){r-=kk[2];if(r<=0){k=kk;break;}}
+    const n=k[0].includes('flower')?1+((R()*3)|0):1; // flowers come in little patches
+    for(let j=0;j<n;j++){const px=x+(j?(R()-.5)*3:0),pz=z+(j?(R()-.5)*3:0);if(bat[k[0]].add(px,H(px,pz)-.05,pz,R()*TAU,.75+R()*.6)>=0)placed++;}}
+  for(const k in bat)bat[k].done();
 }
 
 // ============================================================ vehicles

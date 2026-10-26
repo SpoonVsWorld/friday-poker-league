@@ -238,7 +238,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
     <div class="cols">
       <div><b>Controls</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>Mouse aims the tank turret, click to fire. <kbd>F</kbd> calls an air strike (Campaign, Operation 15 on). <kbd>V</kbd> switches between the overhead and chase (behind-the-vehicle) camera — the CAM button on a phone. Gamepads work too; on a phone, switch Controls to Touch</div>
       <div><b>Online</b><br>Host a match and wait in the open lobby, or tap someone else's game to join. Both sides get a full base with turrets, gates, bridges and infantry, same as Skirmish, and the enemy bunker is across the water. Same controls as above. Your name shows in the lobby so friends can find your game</div>
-      <div><b>How to win</b><br>One enemy building hides their flag. Destroy buildings to expose it, then drive a <b>jeep</b> over it and back onto your bunker pad. Park on your bunker pad to swap vehicles, or stop beside a fuel depot or ammo tent to top up. Park next to a <b>hospital</b> (red cross on the roof) to repair, an <b>ammo depot</b> for a fast full rearm, or a <b>gas station</b> for a fast refuel — yours or the enemy's. With the jeep, <kbd>Shift</kbd> inflates its tires to float across deep water. Stray out to sea and a submarine will find you. Base gates open only for their own side, so blast the enemy's open first. Explosives drop bridges, and soldiers can be run over. Point the tank turret at a drone and the shell aims up to hit it. <kbd>Esc</kbd> pauses, <kbd>M</kbd> music.</div>
+      <div><b>How to win</b><br>One enemy building hides their flag. Destroy buildings to expose it, then drive a <b>jeep</b> over it and back onto your bunker pad. Park on your bunker pad to swap vehicles, or stop beside a fuel depot or ammo tent to top up. Park next to a <b>hospital</b> (red cross on the roof) to repair, an <b>ammo depot</b> for a fast full rearm, or a <b>gas station</b> for a fast refuel — yours or the enemy's. With the jeep, <kbd>Shift</kbd> inflates its tires to float across deep water. Stop or creep the jeep next to your own soldiers and up to 3 hop in and shoot out of the windows, but every hit the jeep takes kills one of them. Stray out to sea and a submarine will find you. Base gates open only for their own side, so blast the enemy's open first. Explosives drop bridges, and soldiers can be run over. Point the tank turret at a drone and the shell aims up to hit it. <kbd>Esc</kbd> pauses, <kbd>M</kbd> music.</div>
     </div>
   </div>
 </div>
@@ -328,6 +328,9 @@ const RT_MAP={tree:'tree_rt_2',oak:'tree_rt_4',pine:'tree_rt_3',treeD:'tree_rt_2
 PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetchBin('trees/'+f+'.glb').catch(e=>{console.warn('tree',f,e);return null;})]));
 // Grasslands props (CC0, Matt's Kenney folder -> SP_Plants.glb): real-looking bushes/ferns replace the cartoon bush, and grass,
 // straw and wildflowers are scattered as cosmetic ground cover
+// jeep crew (Blender, Kenney\SpoonPlatoon_Buildings\jeep_crew): the Humvee with its passenger windows opened + a dark cab, and the
+// two seated lean-out-and-aim poses (jeepAimR / jeepAimL) for riflemen riding in it - see JEEP CREW
+PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
 const TEXD={}; // linear data textures (detail / weathering masks generated for the building shader)
 PRE.texd=Promise.all(['concrete','metal','roof','grime'].map(k=>new THREE.TextureLoader().loadAsync(DATA+'tex/'+k+'.jpg?v='+DATA_V).then(t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.NoColorSpace;t.anisotropy=4;TEXD[k]=t;}).catch(e=>console.warn('texd',k,e))));
@@ -346,6 +349,8 @@ async function loadAssets(){
   const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;
   const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));
   A.soldier={scene:sg.scene,idle:sg.animations.find(a=>a.name==='idle'),run:sg.animations.find(a=>a.name==='run')};
+  try{const jb=await PRE.jeepOpen;if(jb){const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
+  try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));const R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
   // YF-23 (from Matt's Kenney folder, cgtrader_optimized_YF23-FBX.fbx -> glb): campaign air strikes, see updateAir
   if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
   // hospital + ammo depot (built in Blender for Matt, SpoonPlatoon_Buildings/*_web.glb): field repair / rearm, see field supply
@@ -397,9 +402,10 @@ async function loadAssets(){
     const gripW=cp.clone().addScaledVector(fwd,.24).addScaledVector(sR,.13).addScaledVector(UP,-.24);
     const originW=gripW.clone().sub(RIFLE.grip.clone().applyQuaternion(qw));
     const qc=new THREE.Quaternion();cb.getWorldQuaternion(qc);GUN_MOUNT.quat=qc.clone().invert().multiply(qw);GUN_MOUNT.pos=cb.worldToLocal(originW.clone());GUN_MOUNT.scale=1/ws.x;
+    {const qh=new THREE.Quaternion();tpl.getObjectByName('mixamorigHead').getWorldQuaternion(qh);qh.premultiply(qm.clone().invert()).invert();HEAD_REF.up=UP.clone().applyQuaternion(qh);HEAD_REF.fwd=new V3(0,0,1).applyQuaternion(qh);} // head's own up/forward axes (jeep crew keep their heads level)
     mx.stopAllAction();mx.uncacheRoot(tpl);tpl.scale.setScalar(1);}
 }
-const SOLDIER_MAT=[],HELMET_MAT=[],GUN_MOUNT={pos:null,quat:null,scale:1};
+const SOLDIER_MAT=[],HELMET_MAT=[],GUN_MOUNT={pos:null,quat:null,scale:1},HEAD_REF={up:null,fwd:null};
 // assault rifle built from primitives, metres, muzzle along +Z; grip = right-hand point, fore = left-hand point on the handguard
 const RIFLE={grip:new V3(0,-.06,-.1),fore:new V3(0,-.045,.26),rightSign:1,tpl:null};
 function rifleModel(){
@@ -1466,7 +1472,7 @@ const VDEF={
   tank:{name:'Tank',hp:220,speed:13,turn:1.25,fuel:130,ammo:40,ammo2:0,r:3.3,h:3.1,air:false,desc:'Heavy armor. Turret swivels independently.',w1:'Shells',w2:''},
   heli:{name:'Helicopter',hp:90,speed:30,turn:2.1,fuel:80,ammo:300,ammo2:12,r:3.2,h:3.2,air:true,desc:'Fast, flies over water. Thirsty and fragile.',w1:'Gun',w2:'Rockets'},
   asv:{name:'ASV',hp:290,speed:9.5,turn:1.05,fuel:140,ammo:16,ammo2:6,r:3.2,h:3,air:false,desc:'Homing missiles hit air. Lays mines.',w1:'Missiles',w2:'Mines'},
-  jeep:{name:'Jeep',hp:10,speed:27,turn:2.3,fuel:110,ammo:30,ammo2:0,r:2.3,h:2,air:false,desc:'Carries the flag. Very fragile. Floats with tires inflated.',w1:'Grenades',w2:''},
+  jeep:{name:'Jeep',hp:10,speed:27,turn:2.3,fuel:110,ammo:30,ammo2:0,r:2.3,h:2,air:false,desc:'Carries the flag and 3 riflemen. Very fragile. Floats with tires inflated.',w1:'Grenades',w2:''},
 };
 const VORDER=['tank','heli','asv','jeep'];
 function buildVehicleObj(type,T){
@@ -1498,7 +1504,7 @@ function spawnVehicle(T,type){
 function removeVehicle(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);}
 
 function bailOut(v){
-  if(v.state==='dead')return;v.state='dead';const team=G.teams[v.team];if(v.carrying)dropFlag(v.carrying,v.x,v.z);
+  if(v.state==='dead')return;crewUnload(v);v.state='dead';const team=G.teams[v.team];if(v.carrying)dropFlag(v.carrying,v.x,v.z);
   world.remove(v.parts.ring);tintObj(v.obj,'wreck',c=>c.color.multiplyScalar(.45));G.vehicles.splice(G.vehicles.indexOf(v),1);
   for(let i=0;i<6;i++)puff(v.x,v.y+1.5,v.z,C_SMK0,2,2,.5);
   const sd=spawnSoldier(v.team,v.x+3,v.z+3,'flee');if(sd){sd.wp=[G.bases[v.team].x,G.bases[v.team].z];sd.fleeT=90;sd.goHome=true;}
@@ -1510,6 +1516,7 @@ function destroyVehicle(v,by){
   const air=v.def.air&&v.y-Math.max(groundAt(v.x,v.z),0)>1.8; // a helicopter hit in the air spins out and explodes when it hits the ground (see wreckVehicle)
   explosion(v.x,v.y+1,v.z,air?1:v.type==='jeep'?1.3:2);sfx(air?'boom':'bigboom',v.x,v.z);
   if(v.carrying){dropFlag(v.carrying,v.x,v.z);}
+  crewAllDie(v,by); // riders are thrown out dead (before the wreck is cloned from the model)
   if(G.net&&G.net.host)G.net.events.push({k:'wreck',id:v.netId,vx:Math.round((v.vx||0)*10)/10,vz:Math.round((v.vz||0)*10)/10});
   let W=null;try{W=wreckVehicle(v);}catch(e){console.warn('wreck',e);}
   if(team.view&&!G.demo){if(W)deathCam(team.view,W);else skullFor(team.view);}
@@ -1593,7 +1600,10 @@ function hitTest(p){
     const y0=v.def.air?v.y-1.2:v.y,y1=v.def.air?v.y+2.4:v.y+v.def.h;if(p.y>=y0-.3&&p.y<=y1+.3)return v;}
   for(const j of G.jets){if(!j.alive||j.team===p.team)continue;const dx=j.x-p.x,dz=j.z-p.z;if(dx*dx+dz*dz<18&&Math.abs(p.y-j.y)<2.6)return j;}
   for(const dr of G.drones){if(!dr.alive||dr.team===p.team)continue;const dx=dr.x-p.x,dz=dr.z-p.z;if(dx*dx+dz*dz<2.6&&Math.abs(p.y-dr.y)<1.3)return dr;}
-  for(const sd of G.soldiers){if(!sd.alive||sd.team===p.team)continue;const dx=sd.x-p.x,dz=sd.z-p.z;if(dx*dx+dz*dz>.42)continue;if(p.y>=sd.y-.2&&p.y<=sd.y+1.9)return sd;}
+  const seg=p.kind==='rifle'&&p.px!==undefined; // rifle rounds move ~1.8 m a sub-step: test the whole path so they can't skip past a man
+  for(const sd of G.soldiers){if(!sd.alive||sd.team===p.team||sd.ride)continue;let dx=sd.x-p.x,dz=sd.z-p.z;
+    if(seg){const sx=p.x-p.px,sz=p.z-p.pz,l2=sx*sx+sz*sz||1,t=clamp(((sd.x-p.px)*sx+(sd.z-p.pz)*sz)/l2,0,1);dx=sd.x-(p.px+sx*t);dz=sd.z-(p.pz+sz*t);}
+    if(dx*dx+dz*dz>.42)continue;if(p.y>=sd.y-.2&&p.y<=sd.y+1.9)return sd;}
   staticsNear(p.x,p.z,_near);
   for(const s of _near){if(s.team===p.team)continue;if(p.y<s.y0-.5||p.y>s.y0+s.h)continue;for(const q of s.pts){const dx=q[0]-p.x,dz=q[1]-p.z;if(dx*dx+dz*dz<q[2]*q[2])return s;}}
   return null;
@@ -1608,7 +1618,7 @@ function updateProjectiles(dt){
           const n=Math.hypot(p.vx,p.vy,p.vz)||1;p.vx*=p.sp/n;p.vy*=p.sp/n;p.vz*=p.sp/n;}}
       else if(p.k.accel){const n=Math.hypot(p.vx,p.vy,p.vz)||1;p.vx*=p.sp/n;p.vy*=p.sp/n;p.vz*=p.sp/n;}
       if(p.k.grav)p.vy-=p.k.grav*h;
-      p.x+=p.vx*h;p.z+=p.vz*h;
+      p.px=p.x;p.pz=p.z;p.x+=p.vx*h;p.z+=p.vz*h;
       if(p.follow){p.y=lerp(p.y,groundAt(p.x,p.z)+p.follow,1-Math.exp(-h*20));}else p.y+=p.vy*h;
       if(p.fuse&&p.target&&p.target.alive&&Math.hypot(p.target.x-p.x,p.target.y-p.y,p.target.z-p.z)<p.fuse){impact(p,p.target);dead=true;break;}
       p.life-=h;
@@ -1638,7 +1648,7 @@ function splashDamage(x,y,z,R,dmg,team,skip){
   for(const m of G.mines){if(m.team!==team&&Math.hypot(m.x-x,m.z-z)<R)m.boom=true;}
   for(const j of G.jets){if(j.alive&&j.team!==team&&Math.hypot(j.x-x,j.z-z)<R+3&&Math.abs(j.y-y)<R+2)damage(j,dmg,team);}
   for(const dr of G.drones){if(dr.alive&&dr.team!==team&&Math.hypot(dr.x-x,dr.z-z)<R+1.6&&Math.abs(dr.y-y)<R+1.5)damage(dr,dmg,team);}
-  for(const sd of G.soldiers){if(sd.alive&&sd.team!==team&&Math.hypot(sd.x-x,sd.z-z)<R+.8&&Math.abs(sd.y-y)<R+2)killSoldier(sd,team,'blast');}
+  for(const sd of G.soldiers){if(sd.alive&&!sd.ride&&sd.team!==team&&Math.hypot(sd.x-x,sd.z-z)<R+.8&&Math.abs(sd.y-y)<R+2)killSoldier(sd,team,'blast');}
   if(dmg>=12&&y<BRIDGE_Y+4)for(const sp of G.bridgeSpans){if(!sp.alive||Math.abs(sp.x-x)>22||Math.abs(sp.z-z)>22)continue;
     if(sp.segs.some(q=>Math.hypot(q.cx-x,q.cz-z)<R+5)){sp.hp-=dmg;if(sp.hp<=0)collapseSpan(sp,team);}}
 }
@@ -1653,7 +1663,7 @@ function collapseSpan(sp,byTeam){
   sfx('bigboom',sp.x,sp.z);sfx('waterboom',sp.x,sp.z);
   G.corrBroken[sp.corrIdx]=true;
   for(const v of [...G.vehicles]){if(!v.def.air&&v.state==='active'&&!onBridge(v.x,v.z)&&H(v.x,v.z)<-1.3)destroyVehicle(v);}
-  for(const sd of G.soldiers)if(sd.alive&&!onBridge(sd.x,sd.z)&&H(sd.x,sd.z)<-1.3)killSoldier(sd,undefined,'fall');
+  for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&!onBridge(sd.x,sd.z)&&H(sd.x,sd.z)<-1.3)killSoldier(sd,undefined,'fall');
   for(const T of [0,1])note(T,'A bridge has been destroyed','warn');
 }
 function damage(e,amount,byTeam){
@@ -1661,7 +1671,7 @@ function damage(e,amount,byTeam){
   if(e.drone){e.hp-=amount;e.hitT=.12;if(e.hp<=0)killDrone(e,byTeam);return;}
   if(e.soldier){e.hp-=amount;if(e.hp<=0)killSoldier(e,byTeam);return;}
   if(e.state!==undefined){ // vehicle
-    if(e.state!=='active')return;e.hp-=amount*(G.dmgMul[e.team]||1);e.hitFlash=.15;if(e.hp<=0)destroyVehicle(e,byTeam);return;}
+    if(e.state!=='active')return;if(e.crew)crewHit(e,byTeam);e.hp-=amount*(G.dmgMul[e.team]||1);e.hitFlash=.15;if(e.hp<=0)destroyVehicle(e,byTeam);return;}
   if(!e.alive||e.hp===Infinity)return;e.hp-=amount;if(G.net&&G.net.host&&e.netIdx!==undefined)G.net.dirty.add(e.netIdx);if(e.hp<=0)destroyStatic(e,byTeam);
 }
 function collapseSafe(s){try{return collapseBuilding(s);}catch(e){console.warn('collapse',e);return false;}}
@@ -2057,6 +2067,105 @@ function killSoldier(sd,byTeam,how='shot'){
   gore(sd.x,sd.y,sd.z,how);
   if(how==='crush')sfx('squish',sd.x,sd.z);else{sfx('splat',sd.x,sd.z);if(Math.random()<.65)sfx('scream',sd.x,sd.z);}
 }
+// ============================================================ JEEP CREW
+// (Matt, 26 Oct 2026) A jeep picks up to 3 of its own soldiers: they jog over when it stops or creeps near them and hop in.
+// They ride leaning out of the opened passenger windows (SP_Jeep_Open.glb) in the seated aim poses posed in Blender
+// (crew.glb: jeepAimR leans out of a right-hand window, jeepAimL the left), turn at the waist to track targets in their
+// window's arc and shoot. Every hit the jeep takes throws one of them out dead; if the jeep is destroyed they all die.
+// Stowing the jeep in the bunker lets them climb out alive at the pad. Riders stay in G.soldiers (minimap, soldier cap).
+const CREW_SEATS=[{x:-.49,y:.03,z:.242,s:'R'},{x:.51,y:.03,z:-.538,s:'L'},{x:-.49,y:.03,z:-.538,s:'R'}]; // jeep-local: front passenger, rear left, rear right (jeep faces +z, its right is -x)
+const CREW_YAW={R:-1.28,L:1.28},CREW_ARC=1.12,CREW_RANGE=34; // window aim centre relative to the jeep heading (the Blender pose aims ~17 deg forward of square)
+const _cm2=new THREE.Matrix4(),_cq=new THREE.Quaternion(),_cq2=new THREE.Quaternion(),_cm=new THREE.Matrix4(),_cv=new V3(),_cv2=new V3(),_cA=new V3(),_cS=new V3(),_cB=new V3(),_cX=new V3(),_cY=new V3();
+function crewSeatFree(v){if(!v.crew)v.crew=[null,null,null];return v.crew.findIndex(c=>!c);}
+function crewCount(v){return v.crew?v.crew.filter(Boolean).length:0;}
+function boardJeep(v,sd,i){
+  if(!A.crew||!v.obj)return;if(!v.crew)v.crew=[null,null,null];const S=CREW_SEATS[i];
+  v.crew[i]=sd;sd.ride=v;sd.seat=i;sd.wp=null;sd.target=null;sd.mode='ride';sd.aimOff=sd.aimOff||0;sd.aimPitch=0;sd.cd=rr(.3,.9);sd.think=0;sd.idleT=0;
+  sd.idle.stop();sd.run.stop();if(sd.crewAct)sd.crewAct.stop();sd.crewAct=sd.mx.clipAction(A.crew[S.s]);sd.crewAct.reset().play();
+  v.obj.add(sd.obj);sd.obj.position.set(S.x,S.y,S.z);sd.obj.rotation.set(0,0,0);sd.obj.scale.setScalar(SOLDIER_SCALE);
+}
+function crewLeave(sd,x,z,heading){ // back on foot (alive, or about to play its death) at x,z
+  const v=sd.ride;if(v&&v.crew&&v.crew[sd.seat]===sd)v.crew[sd.seat]=null;sd.ride=null;
+  if(sd.crewAct){sd.crewAct.stop();sd.crewAct=null;}sd.idle.reset().play();sd.run.reset().play();sd.run.setEffectiveWeight(0);
+  if(sd.gun&&GUN_MOUNT.pos){sd.gun.position.copy(GUN_MOUNT.pos);sd.gun.quaternion.copy(GUN_MOUNT.quat);sd.gun.scale.setScalar(GUN_MOUNT.scale);}
+  world.add(sd.obj);sd.x=x;sd.z=z;sd.y=groundAt(x,z);sd.heading=heading;sd.obj.position.set(x,sd.y,z);sd.obj.rotation.set(0,heading,0);
+  sd.mode='patrol';sd.wp=null;sd.target=null;sd.moving=0;
+  sd.obj.updateMatrixWorld(true);sd.mx.update(0);soldierArms(sd); // apply the standing pose now (stopping the seat pose would otherwise leave the bind T-pose until the next mixer update)
+}
+function crewOutSpot(v,sd,d){ // just outside the rider's window
+  const S=CREW_SEATS[sd.seat];_cv.set(S.s==='R'?-d:d,0,S.z);v.obj.localToWorld(_cv);return _cv;}
+function crewEject(v,i,byTeam){ // a hit throws this rider out dead
+  const sd=v.crew&&v.crew[i];if(!sd)return;const p=crewOutSpot(v,sd,1.9+Math.random()*.8);const side=CREW_SEATS[i].s==='R'?-1:1;
+  crewLeave(sd,p.x,p.z,v.heading+side*Math.PI/2);killSoldier(sd,byTeam,'shot');
+}
+function crewHit(v,byTeam){ // each hit on the jeep kills one rider (one per ~0.2 s so a shell's direct hit + its splash count once)
+  if(!crewCount(v)||G.time-(v.crewHitT??-9)<.2)return;v.crewHitT=G.time;
+  const occ=[];v.crew.forEach((c,i)=>{if(c)occ.push(i);});crewEject(v,occ[(Math.random()*occ.length)|0],byTeam);
+  note(v.team,'A rider was hit','bad');
+}
+function crewAllDie(v,byTeam){if(v.crew)for(let i=0;i<3;i++)if(v.crew[i])crewEject(v,i,byTeam);}
+function crewUnload(v){ // stowed in the bunker / driver bailed out: riders climb out alive
+  if(!v.crew)return;for(let i=0;i<3;i++){const sd=v.crew[i];if(!sd)continue;const p=crewOutSpot(v,sd,2.6);const side=CREW_SEATS[i].s==='R'?-1:1;
+    crewLeave(sd,p.x+rr(-1,1),p.z+rr(-1,1),v.heading+side*Math.PI/2);}
+}
+function crewBoardable(sd){ // a slow friendly jeep with a free seat nearby
+  if(!A.crew||sd.goHome||sd.mode==='flee')return null;let best=null,bd=14;
+  for(const v of G.vehicles){if(v.type!=='jeep'||v.team!==sd.team||v.state!=='active'||crewSeatFree(v)<0)continue;
+    if(Math.hypot(v.vx||0,v.vz||0)>3.5)continue;const d=Math.hypot(v.x-sd.x,v.z-sd.z);if(d<bd){bd=d;best=v;}}
+  return best;
+}
+function crewTargetPt(t,out){
+  if(t.soldier)return out.set(t.x,t.y+1.15,t.z);if(t.drone)return out.set(t.x,t.y,t.z);
+  if(t.state!==undefined)return out.set(t.x,t.def.air?t.y+.5:t.y+1.1,t.z);return out.set(t.x,t.y0+Math.min(t.h*.6,2.4),t.z);}
+function crewTarget(sd,v){
+  const c=v.heading+CREW_YAW[CREW_SEATS[sd.seat].s];let best=null,bs=1e9;
+  const consider=(e,x,z,w)=>{const d=Math.hypot(x-v.x,z-v.z);if(d>CREW_RANGE||d<1)return;if(Math.abs(angDiff(c,Math.atan2(x-v.x,z-v.z)))>CREW_ARC)return;const sc=d+w;if(sc<bs){bs=sc;best=e;}};
+  for(const o of G.soldiers)if(o.alive&&o.team!==v.team&&!o.ride)consider(o,o.x,o.z,0);
+  for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr,dr.x,dr.z,4);
+  for(const o of G.vehicles)if(o.team!==v.team&&o.state==='active')consider(o,o.x,o.z,6);
+  staticsNear(v.x,v.z,_near);for(const s of _near)if(s.alive&&s.kind==='turret'&&s.team!==v.team)consider(s,s.x,s.z,10);
+  return best;
+}
+function rotBoneWorld(b,q){b.getWorldQuaternion(_cq);_cq.premultiply(q);b.parent.getWorldQuaternion(_cq2);b.quaternion.copy(_cq2.invert().multiply(_cq));b.updateMatrixWorld(true);}
+function basisQ(fwd,up,out){_cY.copy(up);_cA.copy(fwd).addScaledVector(_cY,-fwd.dot(_cY)).normalize();_cX.crossVectors(_cY,_cA).normalize();_cY.crossVectors(_cA,_cX);return out.setFromRotationMatrix(_cm.makeBasis(_cX,_cY,_cA));}
+function crewPose(sd,dt){ // seated aim pose + waist twist toward the target, head kept level, rifle shouldered, hands on it
+  const v=sd.ride;if(!v||!sd.crewAct)return;sd.mx.update(dt);const o=sd.obj;o.updateMatrixWorld(true);
+  const bn=sd.bones||(sd.bones={sp:o.getObjectByName('mixamorigSpine'),sp1:o.getObjectByName('mixamorigSpine1'),neck:o.getObjectByName('mixamorigNeck'),head:o.getObjectByName('mixamorigHead')});
+  if(!bn.sp||!bn.neck)return;
+  _cq2.setFromAxisAngle(UP,sd.aimOff*.5);rotBoneWorld(bn.sp,_cq2);_cq2.setFromAxisAngle(UP,sd.aimOff*.5);rotBoneWorld(bn.sp1,_cq2);
+  const yaw=v.heading+CREW_YAW[CREW_SEATS[sd.seat].s]+sd.aimOff,cp=Math.cos(sd.aimPitch||0);
+  _cA.set(Math.sin(yaw)*cp,Math.sin(sd.aimPitch||0),Math.cos(yaw)*cp);const aim=_cS.copy(_cA);
+  if(HEAD_REF.up&&bn.head){ // level the head and look along the rifle
+    bn.head.getWorldQuaternion(_cq);_cv.copy(HEAD_REF.fwd).applyQuaternion(_cq);_cv2.copy(HEAD_REF.up).applyQuaternion(_cq);
+    const qc=basisQ(_cv,_cv2,new THREE.Quaternion());_cB.copy(aim).setY(aim.y-.12).normalize();const qd=basisQ(_cB,UP,new THREE.Quaternion());
+    rotBoneWorld(bn.neck,qd.multiply(qc.invert()));}
+  if(!sd.gun||!sd.arms)return;
+  const a=sd.arms,rs=a.R[0].getWorldPosition(new V3()),ls=a.L[0].getWorldPosition(new V3());
+  const butt=rs.clone().addScaledVector(aim,.06).addScaledVector(UP,-.03).addScaledVector(_cv.copy(ls).sub(rs).normalize(),.05);
+  const org=butt.addScaledVector(aim,.55),qr=basisQ(aim,UP,new THREE.Quaternion());
+  _cm.compose(org,qr,_cv.set(1,1,1));_cm.premultiply(_cm2.copy(sd.gun.parent.matrixWorld).invert());_cm.decompose(sd.gun.position,sd.gun.quaternion,sd.gun.scale);sd.gun.updateMatrixWorld(true);
+  const side=_cB.crossVectors(aim,UP).normalize();
+  _pl.copy(rs).addScaledVector(side,.4).addScaledVector(UP,-.5);ik2(a.R[0],a.R[1],a.R[2],sd.gun.localToWorld(_tg.copy(RIFLE.grip)),_pl);
+  _pl.copy(ls).addScaledVector(UP,-.6).addScaledVector(side,-.2).addScaledVector(aim,.2);ik2(a.L[0],a.L[1],a.L[2],sd.gun.localToWorld(_tg.copy(RIFLE.fore)),_pl);
+}
+function updateCrew(sd,dt,near){
+  const v=sd.ride;
+  if(!v||v.state==='dead'||!G.vehicles.includes(v)){const p=v?crewOutSpot(v,sd,2.4):{x:sd.x,z:sd.z};crewLeave(sd,p.x,p.z,sd.heading);return;}
+  if(v.state==='lowering'){crewUnload(v);return;}
+  sd.x=v.x;sd.z=v.z;sd.y=v.y;sd.heading=v.heading;
+  sd.think-=dt;if(sd.think<=0){sd.think=.3;sd.target=crewTarget(sd,v);}
+  const t=sd.target;let want=0,pitch=0;
+  if(t&&(t.alive||t.state==='active')){const tp=crewTargetPt(t,_cv2);const d=Math.hypot(tp.x-v.x,tp.z-v.z);
+    want=clamp(angDiff(v.heading+CREW_YAW[CREW_SEATS[sd.seat].s],Math.atan2(tp.x-v.x,tp.z-v.z)),-CREW_ARC,CREW_ARC);pitch=clamp(Math.atan2(tp.y-(v.y+1.35),d),-.4,.5);}
+  else sd.target=null;
+  const k=1-Math.exp(-dt*7);sd.aimOff+=(want-sd.aimOff)*k;sd.aimPitch+=(pitch-sd.aimPitch)*k;
+  if(near)crewPose(sd,dt);
+  sd.cd-=dt;
+  if(sd.target&&sd.cd<=0&&Math.abs(want-sd.aimOff)<.18){sd.cd=rr(.75,1.35);const tp=crewTargetPt(sd.target,_cv2);
+    const m=near&&sd.gun?sd.gun.localToWorld(_cv.set(0,.005,.7)):_cv.set(v.x,v.y+1.4,v.z);const mx=m.x,my=m.y,mz=m.z;
+    fire('rifle',v.team,mx,my,mz,tp.x-mx+rr(-.5,.5),tp.y-my+rr(-.35,.35),tp.z-mz+rr(-.5,.5),{mul:G.infMul[v.team]});sfx('rifle',mx,mz);
+    FIRE.spawn(mx,my,mz,0,0,0,.05,.8,.3,C_FIRE0,C_FIRE1);}
+}
 function updateSoldiers(dt){
   // reinforcements walk out of surviving buildings
   for(const T of [0,1]){G.soldierT[T]-=dt;if(G.soldierT[T]>0)continue;G.soldierT[T]=14;
@@ -2068,6 +2177,7 @@ function updateSoldiers(dt){
       if(sd.crushed){const k=1-Math.exp(-dt*16);o.scale.y=lerp(o.scale.y,SOLDIER_SCALE*.07,k);o.scale.x=lerp(o.scale.x,SOLDIER_SCALE*1.6,k);o.scale.z=lerp(o.scale.z,SOLDIER_SCALE*1.6,k);} // flattened into the dirt
       else{o.rotation.order='YXZ';o.rotation.x=lerp(o.rotation.x,-sd.fallDir*Math.PI/2,1-Math.exp(-dt*9));}
       if(sd.deadT>3.5)o.position.y-=dt*.6;if(sd.deadT>5.5){world.remove(o);G.soldiers.splice(i,1);}continue;}
+    if(sd.ride){updateCrew(sd,dt,near(sd,140));continue;} // riding in a jeep (JEEP CREW)
     // crushed by enemy ground vehicles
     let crushed=false;for(const v of G.vehicles){if(v.team!==sd.team&&!v.def.air&&v.state==='active'&&Math.abs(v.speed)>1.5&&Math.hypot(v.x-sd.x,v.z-sd.z)<v.r+.3){crushed=true;break;}}
     if(crushed){killSoldier(sd,1-sd.team,'crush');continue;}
@@ -2082,6 +2192,7 @@ function updateSoldiers(dt){
     if(sd.goHome&&Math.hypot(sd.x-G.bases[sd.team].x,sd.z-G.bases[sd.team].z)<11){world.remove(sd.obj);G.soldiers.splice(i,1);continue;}
     if(sd.goHome&&!sd.wp)sd.wp=[G.bases[sd.team].x,G.bases[sd.team].z];
     if(sd.idleT>0){sd.idleT-=dt;}
+    if(A.crew){const j=crewBoardable(sd);if(j){const d=Math.hypot(j.x-sd.x,j.z-sd.z),si=crewSeatFree(j);if(d<j.r+1.4&&si>=0){boardJeep(j,sd,si);sfx('click',sd.x,sd.z);continue;}sd.wp=[j.x,j.z];sd.idleT=0;if(sd.mode==='patrol')sd.mode='board';}else if(sd.mode==='board')sd.mode='patrol';} // hop into a stopped/slow friendly jeep
     // move
     let moving=0;
     if(sd.wp&&!(sd.idleT>0)){sd.wpT+=dt;const dx=sd.wp[0]-sd.x,dz=sd.wp[1]-sd.z,d=Math.hypot(dx,dz);
@@ -2333,7 +2444,7 @@ function updateHud(view){
   let s;
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
     q.fuel.style.width=(v.fuel/d.fuel*100).toFixed(1)+'%';
-    s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.carrying?'<div style="color:var(--signal)">FLAG ABOARD</div>':'');
+    s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.type==='jeep'&&A.crew?`<div>Riflemen <span>${crewCount(v)}/3</span></div>`:'')+(v.carrying?'<div style="color:var(--signal)">FLAG ABOARD</div>':'');
     q.warn.textContent=v.scuttle>0?'SCUTTLING…':v.supplyMsg?v.supplyMsg:v.floats?'TIRES INFLATED':v.fuel<d.fuel*.2?(v.fuel<=0?'OUT OF FUEL':'LOW FUEL'):'';q.warn.style.color=v.supplyMsg||v.floats?'var(--ok)':'';}
   else{q.vn.textContent='In bunker';q.hp.style.width='0';q.fuel.style.width='0';s='';q.warn.textContent='';}
   if(lastHud.get(q.ammo)!==s){q.ammo.innerHTML=s;lastHud.set(q.ammo,s);}
@@ -2347,7 +2458,7 @@ function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat i
   let best=null,bs=1e9;const consider=(e,x,z,w)=>{const d=Math.hypot(x-v.x,z-v.z);if(d>78)return;const a=Math.abs(angDiff(v.heading,Math.atan2(x-v.x,z-v.z)));if(a>1.9)return;const sc=d*w*(1+a*.5);if(sc<bs){bs=sc;best={x,z};}};
   for(const o of G.vehicles)if(o.team!==v.team&&o.state==='active'&&!o.def.air)consider(o,o.x,o.z,.6);
   for(const s of G.statics)if(s.alive&&s.team===1-v.team&&(s.kind==='turret'||s.kind==='gate'||s.kind==='building'))consider(s,s.x,s.z,s.kind==='turret'?.7:s.kind==='gate'?.9:1.3);
-  for(const sd of G.soldiers)if(sd.alive&&sd.team!==v.team)consider(sd,sd.x,sd.z,1.1);
+  for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&sd.team!==v.team)consider(sd,sd.x,sd.z,1.1);
   for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr,dr.x,dr.z,.55);
   return best;}
 function launchFromMenu(view){const t=view.team;const k=VORDER[view.sel];if(view.watch||view.hold>0)return;if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
@@ -2684,6 +2795,7 @@ function netGuestTick(dt){
   if(NET.lastRecv&&performance.now()-NET.lastRecv>12000&&!G.over){note(NET.myTeam,'Connection to the host was lost.','bad',true);NET.lastRecv=performance.now()+1e9;}
 }
 function netCosmeticTick(dt){
+  for(const sd of G.soldiers)if(sd.alive&&sd.ride)crewPose(sd,dt); // jeep riders: seated aim pose + waist twist from the host's aim
   // dead soldiers: same fall / flatten as updateSoldiers on the host, run locally
   for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];if(sd.alive)continue;sd.deadT+=dt;const o=sd.obj;
     if(sd.crushed){const k=1-Math.exp(-dt*16);o.scale.y=lerp(o.scale.y,SOLDIER_SCALE*.07,k);o.scale.x=lerp(o.scale.x,SOLDIER_SCALE*1.6,k);o.scale.z=lerp(o.scale.z,SOLDIER_SCALE*1.6,k);}
@@ -2704,7 +2816,7 @@ function netBuildSnapshot(){
   const r1=n=>Math.round(n*100)/100,r2=n=>Math.round(n*1000)/1000;
   const vt=T=>{const t=G.teams[T],v=t.vehicle;
     return {stock:t.stock,respawnT:r1(t.respawnT),v:v?{id:v.netId,type:v.type,x:r1(v.x),y:r1(v.y),z:r1(v.z),h:r2(v.heading),tur:r2(v.turret||0),hp:r1(v.hp),fuel:r1(v.fuel),ammo:v.ammo,ammo2:v.ammo2,carrying:!!v.carrying,state:v.state,sp:r1(v.speed||0),st:r2(v.steer||0),fl:!!v.floats}:null};};
-  const soldiers=G.soldiers.filter(s=>s.alive).map(s=>({id:s.netId,team:s.team,x:r1(s.x),z:r1(s.z),h:r2(s.heading)}));
+  const soldiers=G.soldiers.filter(s=>s.alive).map(s=>s.ride?{id:s.netId,team:s.team,x:r1(s.x),z:r1(s.z),h:r2(s.heading),r:s.seat,v:s.ride.netId,a:r2(s.aimOff||0),p:r2(s.aimPitch||0)}:{id:s.netId,team:s.team,x:r1(s.x),z:r1(s.z),h:r2(s.heading)});
   const turrets=G.statics.filter(s=>s.kind==='turret'&&s.alive).map(s=>({i:s.netIdx,yaw:r2(s.yaw||0)}));
   const dirty=[];NET.dirty.forEach(i=>{const s=G.statics[i];if(s)dirty.push({i,alive:s.alive,hp:r1(s.hp)});});NET.dirty.clear();
   const bridges=G.bridgeSpans.filter(s=>!s.alive).map(s=>s.netIdx); // full list every tick - see note in collapseSpan
@@ -2744,7 +2856,8 @@ function netSyncProjectiles(arr){
 }
 function netApplySnapshot(snap){
   for(const e of snap.fx){if(e.k==='note')note(e.T,e.text,e.kind,e.big);else if(e.k==='sfx')sfx(e.n,e.x,e.z);else if(e.k==='exp')explosion(e.x,e.y,e.z,e.size,e.water);else if(e.k==='gore')gore(e.x,e.y,e.z,e.how,e.dx,e.dz);
-    else if(e.k==='wreck'){const v=G.vehicles.find(x=>x.netId===e.id);if(v)try{const W=wreckVehicle(v,e);const tv=G.teams[v.team].view;if(tv&&W)deathCam(tv,W);}catch(err){console.warn('wreck',err);}}}
+    else if(e.k==='wreck'){const v=G.vehicles.find(x=>x.netId===e.id);if(v&&v.crew)for(const sd of v.crew)if(sd){const p=crewOutSpot(v,sd,2.2);crewLeave(sd,p.x,p.z,v.heading);sd.alive=false;sd.deadT=0;sd.fallDir=1;}
+      if(v)try{const W=wreckVehicle(v,e);const tv=G.teams[v.team].view;if(tv&&W)deathCam(tv,W);}catch(err){console.warn('wreck',err);}}}
   for(let T=0;T<2;T++){
     const t=G.teams[T],st=snap.teams[T];t.stock=st.stock;t.respawnT=st.respawnT;
     if(st.v){
@@ -2755,11 +2868,14 @@ function netApplySnapshot(snap){
   const seen=new Set();
   for(const s of snap.soldiers){seen.add(s.id);let sd=G.soldiers.find(x=>x.netId===s.id);
     if(!sd){sd=spawnSoldier(s.team,s.x,s.z,'patrol');sd.netId=s.id;}
+    if(s.r!=null){const jv=G.vehicles.find(x=>x.netId===s.v);if(jv&&jv.obj){if(sd.ride!==jv||sd.seat!==s.r){if(sd.ride)crewLeave(sd,s.x,s.z,s.h);boardJeep(jv,sd,s.r);}sd.aimOff=s.a||0;sd.aimPitch=s.p||0;sd.x=s.x;sd.z=s.z;sd.heading=s.h;continue;}}
+    else if(sd.ride)crewLeave(sd,s.x,s.z,s.h);
     sd.x=s.x;sd.z=s.z;sd.heading=s.h;const gy=groundAt(s.x,s.z);sd.y=gy;sd.obj.position.set(s.x,gy,s.z);sd.obj.rotation.y=s.h;}
   for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];if(seen.has(sd.netId))continue;
     if(!sd.alive)continue; // already playing its death locally (netCosmeticTick removes it when done)
     // Dropped out of the snapshot: killed (a gore fx event lands in this same tick, right where he stood) or walked home. Only the former gets a death animation.
-    const g=snap.fx.find(e=>e.k==='gore'&&e.how!=='hit'&&Math.hypot(e.x-sd.x,e.z-sd.z)<2);
+    const g=snap.fx.find(e=>e.k==='gore'&&e.how!=='hit'&&Math.hypot(e.x-sd.x,e.z-sd.z)<(sd.ride?4.5:2));
+    if(sd.ride)crewLeave(sd,g?g.x:sd.x,g?g.z:sd.z,sd.heading);
     if(g){sd.alive=false;sd.deadT=0;sd.fallDir=Math.random()<.5?1:-1;sd.crushed=g.how==='crush';}
     else{world.remove(sd.obj);G.soldiers.splice(i,1);}}
   for(const d of snap.dirty){const s=G.statics[d.i];if(!s)continue;const wasAlive=s.alive;s.hp=d.hp;

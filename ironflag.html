@@ -1164,6 +1164,28 @@ function exposeFlag(f,x,z){musicSting();f.state='exposed';f.x=x;f.z=z;f.obj.visi
   note(f.team,'Your flag has been exposed!','bad',true);note(1-f.team,'Enemy flag found! Send a jeep.','good',true);sfx('alarm');}
 function dropFlag(f,x,z){f.carrier=null;f.state='exposed';world.attach(f.obj);f.x=x;f.z=z;const gy=Math.max(groundAt(x,z),0);f.obj.position.set(x,gy,z);f.obj.rotation.set(0,0,0);f.obj.scale.setScalar(1);
   note(f.team,'Your flag was dropped in the field','warn');note(1-f.team,'The flag was dropped! Recover it.','warn');}
+// exposed / dropped flag beacon: tall team-coloured light pillar, pulsing ground ring and a bobbing marker,
+// so the flag is easy to spot through dust and rubble when you go in with the jeep (cosmetic, every client)
+function makeBeacon(T){
+  const col=new THREE.Color(T===0?0x4d8ae6:0xe5544a),g=new THREE.Group();
+  const pm=new THREE.ShaderMaterial({uniforms:{c:{value:col},a:{value:.6}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+    vertexShader:'varying float vy;void main(){vy=uv.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'uniform vec3 c;uniform float a;varying float vy;void main(){gl_FragColor=vec4(c*a*pow(1.-vy,1.6)*1.4+vec3(.25)*a*pow(1.-vy,6.),1.);}'});
+  const pil=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,70,16,1,true),pm);pil.position.y=35;pil.renderOrder=4;g.add(pil);
+  const core=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,70,10,1,true),pm.clone());core.material.uniforms.c.value=col.clone().lerp(new THREE.Color(1,1,1),.6);core.position.y=35;core.renderOrder=4;g.add(core);
+  const rm=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+  const rings=[0,1].map(()=>{const r=new THREE.Mesh(new THREE.RingGeometry(.86,1,48),rm.clone());r.rotation.x=-Math.PI/2;r.position.y=.25;r.renderOrder=4;g.add(r);return r;});
+  const arrow=new THREE.Mesh(new THREE.ConeGeometry(1.3,2.6,4),new THREE.MeshBasicMaterial({color:col.clone().lerp(new THREE.Color(1,1,1),.25),fog:false}));arrow.rotation.x=Math.PI;g.add(arrow);
+  g.visible=false;world.add(g);return {g,pm,core,rings,arrow,t:0};
+}
+function updateFlagBeacons(dt){
+  if(!G||!G.flags)return;if(!G.beacons)G.beacons=[makeBeacon(0),makeBeacon(1)];
+  for(const f of G.flags){const b=G.beacons[f.team],on=f.state==='exposed'&&f.obj.visible;b.g.visible=on;if(!on)continue;
+    b.t+=dt;const p=f.obj.position;b.g.position.set(p.x,p.y,p.z);f.obj.scale.setScalar(1.5); // bigger flag while it's lying out in the open
+    const pulse=.75+.25*Math.sin(b.t*4);b.pm.uniforms.a.value=.5*pulse;b.core.material.uniforms.a.value=.65*pulse;
+    b.rings.forEach((r,i)=>{const k=(b.t*.7+i*.5)%1;r.scale.setScalar(1.5+k*7);r.material.opacity=.85*(1-k);});
+    b.arrow.position.y=12+Math.sin(b.t*3)*1.2;b.arrow.rotation.y+=dt*2.5;}
+}
 function updateFlags(dt){
   for(const f of G.flags){
     if(f.state==='exposed'){f.bob+=dt;f.obj.rotation.y+=dt*.8;
@@ -1872,7 +1894,7 @@ function drawMini(view){
     const [px,py]=P(j.x,j.z),hx=j.dx*112/W,hz=j.dz*188/L,hl=Math.hypot(hx,hz)||1,ux=hx/hl,uz=hz/hl;x.fillStyle=col;x.beginPath();x.moveTo(px+ux*5,py+uz*5);x.lineTo(px-ux*3-uz*3,py-uz*3+ux*3);x.lineTo(px-ux*3+uz*3,py-uz*3-ux*3);x.closePath();x.fill();}
   for(const sd of G.soldiers){if(!sd.alive)continue;const [px,py]=P(sd.x,sd.z);x.fillStyle=sd.team===T?'rgba(170,200,255,.8)':'rgba(255,170,160,.8)';x.fillRect(px-.5,py-.5,1,1);}
   for(const v of G.vehicles){const [px,py]=P(v.x,v.z);x.fillStyle=TEAMS[v.team].css;x.beginPath();x.arc(px,py,v===view.team.vehicle?3.2:2.4,0,TAU);x.fill();if(v===view.team.vehicle){x.strokeStyle='#fff';x.lineWidth=1;x.stroke();}}
-  const blink=(G.time*3|0)%2;for(const f of G.flags){if(f.state==='hidden'||f.state==='captured')continue;const p=f.state==='carried'?f.carrier:f;const [px,py]=P(p.x,p.z);if(blink){x.fillStyle='#f2b632';x.beginPath();x.moveTo(px,py-6);x.lineTo(px+5,py-3.5);x.lineTo(px,py-1);x.fill();x.fillRect(px-.5,py-6,1.2,7);}}
+  const blink=(G.time*3|0)%2;for(const f of G.flags){if(f.state==='hidden'||f.state==='captured')continue;const p=f.state==='carried'?f.carrier:f;const [px,py]=P(p.x,p.z);if(f.state==='exposed'){const k=(G.time*1.2)%1;x.strokeStyle=f.team===0?'rgba(90,150,255,'+(1-k)+')':'rgba(255,90,80,'+(1-k)+')';x.lineWidth=2;x.beginPath();x.arc(px,py-3,4+k*9,0,TAU);x.stroke();}if(blink){x.fillStyle='#f2b632';x.beginPath();x.moveTo(px,py-6);x.lineTo(px+5,py-3.5);x.lineTo(px,py-1);x.fill();x.fillRect(px-.5,py-6,1.2,7);}}
   x.restore();
 }
 const lastHud=new WeakMap();
@@ -2088,7 +2110,7 @@ function loop(now){
     if(!paused&&state!=='over')step(dt);else if(state==='over')step(dt*.3);
     if(G.net&&G.net.host)netHostTick(dt);
   }
-  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);
+  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);updateFlagBeacons(dt);
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
   const showAir=showT&&!!G.air&&G.air.left[0]>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;

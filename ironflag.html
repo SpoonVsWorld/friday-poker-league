@@ -227,7 +227,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
         <div class="seg" id="diff"><button data-v="0">Easy</button><button data-v="1" aria-pressed="true">Normal</button><button data-v="2">Hard</button></div></div>
       <div class="row"><span class="lbl">Controls</span>
         <div class="seg" id="ctl"><button data-v="kb" aria-pressed="true">Keyboard &amp; mouse</button><button data-v="touch">Touch</button></div></div>
-      <p class="touchnote" id="touchNote" hidden>Touch: put your left thumb anywhere on the lower left to steer (the vehicle drives toward where you push). Hold <b>Fire</b> on the right; <b>Special</b> drops mines, fires rockets or inflates the jeep's tires. The tank's turret aims itself.</p>
+      <p class="touchnote" id="touchNote" hidden>Touch: put your left thumb anywhere on the lower left to steer (the vehicle drives toward where you push; push back toward its tail to reverse). Hold <b>Fire</b> on the right; <b>Special</b> drops mines, fires rockets or inflates the jeep's tires. The tank's turret aims itself.</p>
       <div class="row"><span class="lbl">Options</span>
         <div style="display:flex;gap:6px"><button class="tog" id="tShadow" aria-pressed="true">Shadows</button><button class="tog" id="tMusic" aria-pressed="true">Music</button><button class="tog" id="tMouse" aria-pressed="true">Mouse aim</button></div></div>
     </div>
@@ -2232,7 +2232,10 @@ function readHuman(view,inp){
     const v=view.team.vehicle;Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:TOUCH.fire,special:TOUCH.special,abandon:false,aimYaw:null});view.menuEdge=null;
     if(v){const mag=Math.min(1,Math.hypot(TOUCH.ax,TOUCH.ay));
       if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=CHASE.on&&view.cy!=null?view.cy-Math.PI+Math.atan2(TOUCH.ax,TOUCH.ay):Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn);/* chase cam: stick is relative to the camera */const da=angDiff(v.heading,want);
-        inp.turn=clamp(-da*2.4,-1,1);inp.thr=mag*(Math.abs(da)<1.2?1:.35);}
+        const db=angDiff(v.heading+Math.PI,want),back=Math.abs(db);/* stick pointing at the vehicle's tail: back up (always in chase cam, or when slow/stuck), keep reversing while it stays roughly behind */
+        const rev=!v.def.air&&(view.touchRev?back<1.35:back<.9&&(CHASE.on||(v.vx!=null?Math.hypot(v.vx,v.vz):Math.abs(v.speed||0))<3||v.speed<0));view.touchRev=rev;
+        if(rev){inp.turn=clamp(-db*2.4,-1,1)*(v.type==='jeep'&&v.speed<0?-1:1);inp.thr=-mag;}
+        else{inp.turn=clamp(-da*2.4,-1,1);inp.thr=mag*(Math.abs(da)<1.2?1:.35);}}else view.touchRev=false;
       if(v.type==='tank'){const t=autoAimTarget(v);inp.aimYaw=t?Math.atan2(t.x-v.x,t.z-v.z):v.heading;}}
     return;}
   const km=KEYMAP[view.ctrl];

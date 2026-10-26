@@ -382,16 +382,60 @@ async function loadAssets(){
   for(const c of sg.scene.children)c.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(UP,Math.PI));let bm=null;sg.scene.traverse(o=>{if(o.isMesh&&!bm)bm=o.material;});
   for(const T of [0,1]){const m=bm.clone();m.color.setRGB(...(T===0?[.8,.9,1.1]:[1.1,.86,.78]));m.roughness=.85;m.metalness=0;SOLDIER_MAT[T]=m;
     HELMET_MAT[T]=new THREE.MeshStandardMaterial({color:T===0?0x3f7fe0:0xd8432f,roughness:.6});}
-  { // rifle mount: chest bone, pointing forward, measured once in the idle pose
+  { // rifle: carried at low ready in front of the chest (mounted on the chest bone so it stays steady while running); both hands are
+    // pulled onto it every frame by two-bone IK (soldierArms). Everything measured once in the idle pose.
     const tpl=sg.scene;tpl.scale.setScalar(SOLDIER_SCALE);const mx=new THREE.AnimationMixer(tpl);mx.clipAction(A.soldier.idle).play();mx.setTime(0);tpl.updateMatrixWorld(true);
     const cb=tpl.getObjectByName('mixamorigSpine2'),qm=new THREE.Quaternion();tpl.getWorldQuaternion(qm);
-    const fwd=new V3(0,0,1).applyQuaternion(qm),right=new V3(1,0,0).applyQuaternion(qm),cp=new V3();cb.getWorldPosition(cp);const k=SOLDIER_SCALE;
-    const wp=cp.clone().addScaledVector(fwd,.28*k).addScaledVector(right,-.12*k).add(new V3(0,-.15*k,0));
-    const qw=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(new V3(),fwd.clone().multiplyScalar(-1),UP));
-    const qc=new THREE.Quaternion();cb.getWorldQuaternion(qc);GUN_MOUNT.quat=qc.clone().invert().multiply(qw);GUN_MOUNT.pos=cb.worldToLocal(wp.clone());
+    const fwd=new V3(0,0,1).applyQuaternion(qm),cp=new V3(),rh=new V3(),lh=new V3(),ws=new V3();cb.getWorldPosition(cp);cb.getWorldScale(ws);
+    tpl.getObjectByName('mixamorigRightHand').getWorldPosition(rh);tpl.getObjectByName('mixamorigLeftHand').getWorldPosition(lh);
+    const sR=rh.clone().sub(lh);sR.addScaledVector(UP,-sR.dot(UP)).addScaledVector(fwd,-sR.dot(fwd)).normalize(); // soldier's right
+    RIFLE.rightSign=Math.sign(new V3(1,0,0).applyQuaternion(qm).dot(sR))||1;
+    const dir=fwd.clone().multiplyScalar(Math.cos(.22)).addScaledVector(UP,-Math.sin(.22)).addScaledVector(sR,-.2).normalize();
+    const qw=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(new V3(),dir.clone().multiplyScalar(-1),UP));
+    const gripW=cp.clone().addScaledVector(fwd,.24).addScaledVector(sR,.13).addScaledVector(UP,-.24);
+    const originW=gripW.clone().sub(RIFLE.grip.clone().applyQuaternion(qw));
+    const qc=new THREE.Quaternion();cb.getWorldQuaternion(qc);GUN_MOUNT.quat=qc.clone().invert().multiply(qw);GUN_MOUNT.pos=cb.worldToLocal(originW.clone());GUN_MOUNT.scale=1/ws.x;
     mx.stopAllAction();mx.uncacheRoot(tpl);tpl.scale.setScalar(1);}
 }
-const SOLDIER_MAT=[],HELMET_MAT=[],GUN_MOUNT={pos:null,quat:null};
+const SOLDIER_MAT=[],HELMET_MAT=[],GUN_MOUNT={pos:null,quat:null,scale:1};
+// assault rifle built from primitives, metres, muzzle along +Z; grip = right-hand point, fore = left-hand point on the handguard
+const RIFLE={grip:new V3(0,-.06,-.1),fore:new V3(0,-.045,.26),rightSign:1,tpl:null};
+function rifleModel(){
+  if(RIFLE.tpl)return RIFLE.tpl;const g=new THREE.Group();
+  const metal=new THREE.MeshStandardMaterial({color:0x1d1f1c,roughness:.45,metalness:.55}),poly=new THREE.MeshStandardMaterial({color:0x2c2f27,roughness:.8});
+  const box=(w,h,d,x,y,z,m,rx=0)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);b.rotation.x=rx;b.castShadow=true;g.add(b);};
+  box(.05,.1,.26,0,-.01,-.42,poly);box(.045,.06,.14,0,.02,-.26,poly);  // stock + buffer tube
+  box(.06,.085,.34,0,0,-.04,metal);                                       // receiver
+  box(.04,.1,.045,0,-.085,-.12,poly,-.3);                                 // pistol grip
+  box(.035,.15,.065,0,-.11,.04,metal,.22);                                // magazine
+  box(.06,.065,.27,0,.005,.27,poly);                                      // handguard
+  box(.03,.045,.12,0,.065,-.02,metal);box(.04,.035,.05,0,.1,-.02,metal);   // optic
+  const brl=new THREE.Mesh(new THREE.CylinderGeometry(.011,.011,.26,8),metal);brl.rotation.x=Math.PI/2;brl.position.set(0,.005,.52);brl.castShadow=true;g.add(brl);
+  box(.022,.022,.05,0,.005,.66,metal);box(.012,.05,.02,0,.045,.39,metal); // muzzle brake, front sight
+  return RIFLE.tpl=g;
+}
+const _ia=new V3(),_ib=new V3(),_ic=new V3(),_it=new V3(),_ip=new V3(),_ie=new V3(),_r1=new V3(),_r2=new V3(),_iq=new THREE.Quaternion(),_iq2=new THREE.Quaternion(),_iq3=new THREE.Quaternion();
+function rotBoneTo(bone,p,cur,want){ // turn bone (about its own joint p) so its child moves from cur toward want
+  _r1.copy(cur).sub(p).normalize();_r2.copy(want).sub(p).normalize();_iq.setFromUnitVectors(_r1,_r2);
+  bone.getWorldQuaternion(_iq2);_iq2.premultiply(_iq);bone.parent.getWorldQuaternion(_iq3);_iq3.invert();bone.quaternion.copy(_iq3.multiply(_iq2));bone.updateMatrixWorld(true);
+}
+function ik2(b1,b2,b3,target,pole){ // classic two-bone IK: shoulder -> elbow -> wrist onto target, elbow bent toward pole
+  b1.getWorldPosition(_ia);b2.getWorldPosition(_ib);b3.getWorldPosition(_ic);
+  const l1=_ia.distanceTo(_ib),l2=_ib.distanceTo(_ic);_it.copy(target).sub(_ia);let d=_it.length();if(d<1e-5)return;_it.divideScalar(d);
+  d=clamp(d,Math.abs(l1-l2)+1e-4,l1+l2-1e-4);const ca=clamp((l1*l1+d*d-l2*l2)/(2*l1*d),-1,1),sa=Math.sqrt(1-ca*ca);
+  _ip.copy(pole).sub(_ia);_ip.addScaledVector(_it,-_ip.dot(_it));if(_ip.lengthSq()<1e-8)return;_ip.normalize();
+  _ie.copy(_ia).addScaledVector(_it,l1*ca).addScaledVector(_ip,l1*sa);rotBoneTo(b1,_ia,_ib,_ie);
+  b2.getWorldPosition(_ib);b3.getWorldPosition(_ic);_ie.copy(_ia).addScaledVector(_it,d);rotBoneTo(b2,_ib,_ic,_ie);
+}
+const _sf=new V3(),_sr=new V3(),_sq=new THREE.Quaternion(),_tg=new V3(),_pl=new V3();
+function soldierArms(sd){ // after the walk/idle animation: put both hands on the rifle
+  const a=sd.arms;if(!a||!sd.gun)return;sd.obj.updateMatrixWorld(true);sd.obj.getWorldQuaternion(_sq);
+  _sf.set(0,0,1).applyQuaternion(_sq);_sr.set(RIFLE.rightSign,0,0).applyQuaternion(_sq);
+  a.R[0].getWorldPosition(_pl);_pl.addScaledVector(UP,-1).addScaledVector(_sr,.55).addScaledVector(_sf,-.25);
+  ik2(a.R[0],a.R[1],a.R[2],sd.gun.localToWorld(_tg.copy(RIFLE.grip)),_pl);
+  a.L[0].getWorldPosition(_pl);_pl.addScaledVector(UP,-1).addScaledVector(_sr,-.6).addScaledVector(_sf,-.1);
+  ik2(a.L[0],a.L[1],a.L[2],sd.gun.localToWorld(_tg.copy(RIFLE.fore)),_pl);
+}
 const protoCache=new Map();
 function proto(name,s){
   const key=name+'@'+s;if(protoCache.has(key))return protoCache.get(key);
@@ -1342,7 +1386,7 @@ function plantProto(name,ref){ // grasslands prop sized to the footprint of the 
 }
 function scatterGroundCover(){ // cosmetic grass / straw / wildflowers / small ferns: no collision, own PRNG so the seeded map layout is untouched
   const kinds=[['P_grass-big',2.4,30],['P_grass-generic',1.5,16],['P_grass-tall',1.1,10],['P_Straw-grn',1.7,9],['P_Straw-ylw',1.7,7],['P_Foliage-medium-bright',2.1,7],['P_Foliage-medium-dark',2.1,5],
-    ['P_flower-big-pink',1.3,3],['P_flower-big-white',1.3,3],['P_flower-big-ylw',1.3,3],['P_flower-medium-pink',1,2],['P_flower-medium-white',1,2],['P_flower-medium-ylw',1,3]].filter(k=>A[k[0]]);
+    ['P_flower-big-pink',.33,3],['P_flower-big-white',.33,3],['P_flower-big-ylw',.33,3],['P_flower-medium-pink',.25,2],['P_flower-medium-white',.25,2],['P_flower-medium-ylw',.25,3]].filter(k=>A[k[0]]);
   if(!kinds.length)return;
   let st=(G.seed*2654435761>>>0)^0x9e3779b9;const R=()=>{st=(st+0x6D2B79F5)>>>0;let t=st;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};
   const tot=kinds.reduce((a,k)=>a+k[2],0),bat={};
@@ -1352,8 +1396,8 @@ function scatterGroundCover(){ // cosmetic grass / straw / wildflowers / small f
     const cd=G.corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)];if(cd<5)continue;if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<62))continue;
     const meadow=n4(x*.02,z*.02);if(R()>(meadow>.42?.97:.5))continue;
     let r=R()*tot,k=kinds[0];for(const kk of kinds){r-=kk[2];if(r<=0){k=kk;break;}}
-    const n=k[0].includes('flower')?1+((R()*3)|0):1; // flowers come in little patches
-    for(let j=0;j<n;j++){const px=x+(j?(R()-.5)*3:0),pz=z+(j?(R()-.5)*3:0);if(bat[k[0]].add(px,H(px,pz)-.05,pz,R()*TAU,.75+R()*.6)>=0)placed++;}}
+    const fl=k[0].includes('flower'),n=fl?2+((R()*4)|0):1; // flowers come in little patches
+    for(let j=0;j<n;j++){const px=x+(j?(R()-.5)*(fl?1.4:3):0),pz=z+(j?(R()-.5)*(fl?1.4:3):0);if(bat[k[0]].add(px,H(px,pz)-.05,pz,R()*TAU,.75+R()*.6)>=0)placed++;}}
   for(const k in bat)bat[k].done();
 }
 
@@ -1924,11 +1968,12 @@ function spawnSoldier(T,x,z,mode){
   if(!A.soldier||soldierBlocked(x,z,T)){const p=patrolPoint(G.bases[T]);x=p[0];z=p[1];}
   const o=SkeletonUtils.clone(A.soldier.scene);o.scale.setScalar(SOLDIER_SCALE);
   o.traverse(m=>{if(m.isMesh){m.material=SOLDIER_MAT[T];m.castShadow=true;m.frustumCulled=false;}});
-  const gun=new THREE.Mesh(GUN_GEO,GUN_MAT);gun.scale.setScalar(.5);gun.castShadow=true;const chest=o.getObjectByName('mixamorigSpine2');if(chest&&GUN_MOUNT.pos){gun.position.copy(GUN_MOUNT.pos);gun.quaternion.copy(GUN_MOUNT.quat);chest.add(gun);}else o.add(gun);
+  const gun=rifleModel().clone();gun.scale.setScalar(GUN_MOUNT.scale);const chest=o.getObjectByName('mixamorigSpine2');if(chest&&GUN_MOUNT.pos){gun.position.copy(GUN_MOUNT.pos);gun.quaternion.copy(GUN_MOUNT.quat);chest.add(gun);}else o.add(gun);
+  const bn=n=>o.getObjectByName('mixamorig'+n),arms={R:['RightArm','RightForeArm','RightHand'].map(bn),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   const head=o.getObjectByName('mixamorigHead');if(head){const hp=new THREE.Mesh(HELMET_GEO,HELMET_MAT[T]);hp.position.set(0,21,0);head.add(hp);}
   const mx=new THREE.AnimationMixer(o);const idle=mx.clipAction(A.soldier.idle),run=mx.clipAction(A.soldier.run);idle.play();run.play();run.setEffectiveWeight(0);idle.time=RND();run.time=RND()*.6;
   o.position.set(x,groundAt(x,z),z);world.add(o);
-  const sd={soldier:true,team:T,x,z,y:o.position.y,heading:RND()*TAU,hp:8,alive:true,mode,obj:o,mx,idle,run,moving:0,wp:null,cd:rr(.5,2),think:RND()*.4,target:null,deadT:0,
+  const sd={soldier:true,team:T,x,z,y:o.position.y,heading:RND()*TAU,hp:8,alive:true,mode,obj:o,mx,idle,run,gun:chest?gun:null,arms:arms.R.every(Boolean)&&arms.L.every(Boolean)?arms:null,moving:0,wp:null,cd:rr(.5,2),think:RND()*.4,target:null,deadT:0,
     fleeT:mode==='flee'?3:0,wpT:0};
   if(mode==='flee'){const a=RND()*TAU;sd.wp=[x+Math.cos(a)*22,z+Math.sin(a)*22];}
   sd.netId=++G.netSeq;G.soldiers.push(sd);return sd;
@@ -1987,7 +2032,7 @@ function updateSoldiers(dt){
       else sd.gcd=.5;}
     sd.y=groundAt(sd.x,sd.z);const o=sd.obj;o.position.set(sd.x,sd.y,sd.z);o.rotation.y=lerpAngle(o.rotation.y,sd.heading,1-Math.exp(-dt*10));
     sd.moving=lerp(sd.moving,moving?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(sd.moving);sd.idle.setEffectiveWeight(1-sd.moving);sd.run.timeScale=moving>3?1.15:.75;
-    if(near(sd,140))sd.mx.update(dt);
+    if(near(sd,140)){sd.mx.update(dt);soldierArms(sd);}
   }
 }
 function lerpAngle(a,b,t){return a+angDiff(a,b)*t;}

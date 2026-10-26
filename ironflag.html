@@ -329,6 +329,10 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // Grasslands props (CC0, Matt's Kenney folder -> SP_Plants.glb): real-looking bushes/ferns replace the cartoon bush, and grass,
 // straw and wildflowers are scattered as cosmetic ground cover
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
+PRE.props2=fetchBin('props2.glb').catch(e=>{console.warn('props2',e);return null;}); // grasslands pines, bushy trees, wooden crates/barrels, lily pads
+// grasslands surface textures: terrain detail (grass/dirt/sand/rock), stone for rocks and bridge piers, wood for decks, crates and barrels
+const TEX={},TEX_MEAN={"g1":[0.082,0.0684,0.0058],"g2":[0.0644,0.0488,0.0114],"dirt":[0.122,0.0751,0.0325],"sand":[0.1258,0.1044,0.0502],"rock":[0.1504,0.1219,0.0913],"gravel":[0.0712,0.0508,0.0307],"crate":[0.0847,0.0577,0.0393],"planks":[0.1116,0.0725,0.0456],"planksD":[0.046,0.0382,0.0311],"woodplain":[0.1232,0.0846,0.0574],"woodplainD":[0.0511,0.0426,0.0349],"planks2":[0.1088,0.0732,0.0477],"planks2D":[0.0461,0.0389,0.032],"deck":[0.1086,0.073,0.0476],"stone":[0.1846,0.1625,0.1419]};
+PRE.tex=Promise.all(Object.keys(TEX_MEAN).map(k=>new THREE.TextureLoader().loadAsync(DATA+'tex/'+k+'.jpg?v='+DATA_V).then(t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;TEX[k]=t;}).catch(e=>console.warn('tex',k,e))));
 function prefetchAudio(){if(PRE.audio)return;PRE.audio={};for(const k of [...SFX_KEYS,...MUS_KEYS])PRE.audio[k]=fetchBin('audio/'+k+'.ogg').catch(e=>{console.warn('audio',k,e);return null;});}
 async function loadAssets(){
   const bin=await PRE.assets;
@@ -361,6 +365,19 @@ async function loadAssets(){
       c.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(fixed.has(m))return;fixed.add(m); // alpha-cut instead of blended: no sorting problems when instanced
         m.transparent=false;m.alphaTest=.45;m.depthWrite=true;m.side=THREE.DoubleSide;if(/flower|lilly/i.test(m.name))m.color.multiplyScalar(1.1);else if(/grass-sheet|S11_A/i.test(m.name))m.color.multiply(new THREE.Color(1.15,1.6,.85));else m.color.multiplyScalar(1.45);}); // grass sheet is straw-coloured: green it up to sit on the game's turf
       A[c.name]=c;}}}catch(e){console.warn('plants',e);}
+  await PRE.tex;
+  try{const pb=await PRE.props2;if(pb){const ps=(await new Promise((res,rej)=>new GLTFLoader().parse(pb,'',res,rej))).scene;const fixed=new Set();
+    const WOODMAP={'Wood-crates':'crate','wood-planks':'planks','wood-material-plain':'woodplain','wood-planks-continuous':'planks2','Dark-wood-planks':'planksD','Dark-wood-material-plain':'woodplainD','Dark-wood-planks-continuous':'planks2D'};
+    for(const c of [...ps.children]){if(!c.name.startsWith('G_'))continue;
+      c.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(fixed.has(m))return;fixed.add(m);
+        if(WOODMAP[m.name]){if(TEX[WOODMAP[m.name]]){m.map=TEX[WOODMAP[m.name]];m.color.setRGB(2,1.95,1.85);m.needsUpdate=true;}} /* wood textures didn't survive the glTF export: re-attach them */
+        else if(m.map&&/leave|lilly/i.test(m.name)){m.transparent=false;m.alphaTest=.45;m.depthWrite=true;m.side=THREE.DoubleSide;if(/lilly/i.test(m.name))m.color.multiply(new THREE.Color(.95,1.55,.8));else if(/bush/i.test(m.name))m.color.multiply(new THREE.Color(1.15,1.6,.85));else m.color.multiplyScalar(1.55);}
+        else if(m.map)m.color.multiplyScalar(1.3);});
+      A[c.name]=c;}
+    // wooden supply crates and barrels in the bases, same footprint as the Kenney ones they replace
+    const swap=(k,g)=>{if(!A[g]||!A[k])return;const rb=new THREE.Box3().setFromObject(A[k]),src=A[g].clone(true),gb=new THREE.Box3().setFromObject(src);
+      src.scale.multiplyScalar((rb.max.y-rb.min.y)/(gb.max.y-gb.min.y));const w=new THREE.Group();w.add(src);w.name=k;A[k]=w;};
+    swap('crate','G_box-1');swap('barrel','G_Wooden-barrel-bright');}}catch(e){console.warn('props2',e);}
   // realistic soldier (three.js example Soldier.glb / Mixamo rig): model faces -Z, turn it to face +Z like the old one
   for(const c of sg.scene.children)c.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(UP,Math.PI));let bm=null;sg.scene.traverse(o=>{if(o.isMesh&&!bm)bm=o.material;});
   for(const T of [0,1]){const m=bm.clone();m.color.setRGB(...(T===0?[.8,.9,1.1]:[1.1,.86,.78]));m.roughness=.85;m.metalness=0;SOLDIER_MAT[T]=m;
@@ -1077,8 +1094,42 @@ function generate(seed){
   return bases;
 }
 
+function terrainMaterial(){ // grasslands ground textures add real surface detail on top of the game's own colour palette
+  const ok=['g1','g2','dirt','sand','rock'].every(k=>TEX[k]);
+  const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,flatShading:!ok});if(!ok)return mat;
+  const L=k=>{const m=TEX_MEAN[k];return (m[0]*.2126+m[1]*.7152+m[2]*.0722).toFixed(5);};
+  mat.onBeforeCompile=sh=>{
+    for(const k of ['g1','g2','dirt','sand','rock'])sh.uniforms['t_'+k]={value:TEX[k]};
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 splat;attribute float gmix;varying vec4 vSplat;varying float vGmix;varying vec2 vWxz;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvSplat=splat;vGmix=gmix;vWxz=position.xz;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
+uniform sampler2D t_g1,t_g2,t_dirt,t_sand,t_rock;varying vec4 vSplat;varying float vGmix;varying vec2 vWxz;
+float tl(sampler2D t,vec2 uv,float m){return dot(texture2D(t,uv).rgb,vec3(.2126,.7152,.0722))/m;}`)
+      .replace('#include <color_fragment>',`#include <color_fragment>
+{vec2 uv=vWxz/7.0,uv2=vec2(vWxz.y,-vWxz.x)/23.0;
+ float g=mix(tl(t_g1,uv,${L('g1')}),tl(t_g2,uv,${L('g2')}),vGmix)*.6+mix(tl(t_g1,uv2,${L('g1')}),tl(t_g2,uv2,${L('g2')}),vGmix)*.4;
+ float d=vSplat.x*g+vSplat.y*tl(t_dirt,uv,${L('dirt')})+vSplat.z*tl(t_sand,uv*.8,${L('sand')})+vSplat.w*tl(t_rock,uv*.5,${L('rock')});
+ diffuseColor.rgb*=clamp(1.0+(d-1.0)*.85,.35,1.9);}`);};
+  return mat;
+}
+function triplanarStone(base){ // stone texture wrapped onto rocks / piers from world position (they have no usable UVs)
+  if(!TEX.stone)return base;const m=base.clone();m.map=null;m.color.setRGB(1,1,1);
+  m.onBeforeCompile=sh=>{sh.uniforms.t_stone={value:TEX.stone};
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vTpP;varying vec3 vTpN;')
+      .replace('#include <begin_vertex>',`#include <begin_vertex>
+mat4 tpM=modelMatrix;
+#ifdef USE_INSTANCING
+tpM=modelMatrix*instanceMatrix;
+#endif
+vTpP=(tpM*vec4(position,1.0)).xyz;vTpN=normalize(mat3(tpM)*normal);`);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D t_stone;varying vec3 vTpP;varying vec3 vTpN;')
+      .replace('#include <color_fragment>',`#include <color_fragment>
+{vec3 b=pow(abs(normalize(vTpN)),vec3(4.0));b/=(b.x+b.y+b.z);vec3 p=vTpP/3.5;
+ vec3 c=texture2D(t_stone,p.yz).rgb*b.x+texture2D(t_stone,p.xz).rgb*b.y+texture2D(t_stone,p.xy).rgb*b.z;diffuseColor.rgb=c*1.35;}`);};
+  return m;
+}
 function buildTerrain(){
-  const t=G.terr;const g=new THREE.BufferGeometry();const pos=new Float32Array(NX*NZ*3),col=new Float32Array(NX*NZ*3);const n3=makeNoise(G.seed+5);
+  const t=G.terr;const g=new THREE.BufferGeometry();const pos=new Float32Array(NX*NZ*3),col=new Float32Array(NX*NZ*3),spl=new Float32Array(NX*NZ*4),gm=new Float32Array(NX*NZ);const n3=makeNoise(G.seed+5);
   const c=new THREE.Color(),sand=new THREE.Color(0xd8c48c),wet=new THREE.Color(0xa99566),deep=new THREE.Color(0x2c5a5c),grass=new THREE.Color(0x76984a),grass2=new THREE.Color(0x5a7c3c),
     rock=new THREE.Color(0x8a8270),dirt=new THREE.Color(0xa88d5d),base=new THREE.Color(0x9a8c6c);
   for(let j=0;j<NZ;j++)for(let i=0;i<NX;i++){const k=j*NX+i,x=X0+i*CELL,z=Z0+j*CELL,h=t.h[k];pos[k*3]=x;pos[k*3+1]=h;pos[k*3+2]=z;
@@ -1087,15 +1138,24 @@ function buildTerrain(){
     else{c.copy(grass).lerp(grass2,n3(x*.02,z*.02));c.lerp(sand,smooth(1.8,1.0,h));
       const sl=Math.abs(H(x+2,z)-H(x-2,z))+Math.abs(H(x,z+2)-H(x,z-2));c.lerp(rock,smooth(2.5,5,sl)*.8+smooth(10,13,h)*.6);}
     if(h>0){c.lerp(dirt,t.road[k]*.75);c.lerp(base,t.base[k]*.7);}
-    const jit=(n3(x*.15,z*.15)-.5)*.08;col[k*3]=c.r+jit;col[k*3+1]=c.g+jit;col[k*3+2]=c.b+jit;}
+    const jit=(n3(x*.15,z*.15)-.5)*.08;col[k*3]=c.r+jit;col[k*3+1]=c.g+jit;col[k*3+2]=c.b+jit;
+    { /* texture weights follow the same blend as the colours above: grass -> sand -> rock -> dirt road / base */
+      let w=[1,0,0,0];const to=(i,a)=>{if(a<=0)return;for(let q=0;q<4;q++)w[q]*=1-a;w[i]+=a;};
+      if(h<1.0)to(2,1);else{to(2,smooth(1.8,1.0,h));const sl=Math.abs(H(x+2,z)-H(x-2,z))+Math.abs(H(x,z+2)-H(x,z-2));to(3,Math.min(1,smooth(2.5,5,sl)*.8+smooth(10,13,h)*.6));}
+      if(h>0){to(1,t.road[k]*.75);to(1,t.base[k]*.7);}
+      spl[k*4]=w[0];spl[k*4+1]=w[1];spl[k*4+2]=w[2];spl[k*4+3]=w[3];gm[k]=n3(x*.02,z*.02);}}
   const idx=[];for(let j=0;j<NZ-1;j++)for(let i=0;i<NX-1;i++){const a=j*NX+i,b=a+1,cc=a+NX,d=cc+1;if((i+j)%2){idx.push(a,cc,b,b,cc,d);}else{idx.push(a,cc,d,a,d,b);}}
   g.setIndex(idx);g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));g.computeVertexNormals();
-  const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,flatShading:true}));m.receiveShadow=true;world.add(m);
+  g.setAttribute('splat',new THREE.BufferAttribute(spl,4));g.setAttribute('gmix',new THREE.BufferAttribute(gm,1));
+  const m=new THREE.Mesh(g,terrainMaterial());m.receiveShadow=true;world.add(m);
   // water
   const wn=waterNormal();const wm=new THREE.MeshStandardMaterial({color:0x2a7f9e,roughness:.18,metalness:.15,transparent:true,opacity:.8,normalMap:wn,normalScale:new THREE.Vector2(.5,.5)});
   wn.repeat.set(60,60);const water=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),wm);water.rotation.x=-Math.PI/2;water.position.y=-.05;water.receiveShadow=true;world.add(water);G.water=wn;
   // bridges
-  const deckM=new THREE.MeshStandardMaterial({color:0x7a5a3a,roughness:.9}),railM=new THREE.MeshStandardMaterial({color:0x4b3a28,roughness:.9}),pilM=new THREE.MeshStandardMaterial({color:0x6b6458,roughness:1});
+  const deckM=new THREE.MeshStandardMaterial({color:0x7a5a3a,roughness:.9}),railM=new THREE.MeshStandardMaterial({color:0x4b3a28,roughness:.9}),pilM0=new THREE.MeshStandardMaterial({color:0x6b6458,roughness:1});
+  if(TEX.deck){deckM.map=TEX.deck.clone();deckM.map.repeat.set(2.5,8);deckM.map.needsUpdate=true;deckM.color.setRGB(1.2,1.2,1.2);}
+  if(TEX.planksD){railM.map=TEX.planksD.clone();railM.map.repeat.set(4,1);railM.map.needsUpdate=true;railM.color.setRGB(1.3,1.3,1.3);}
+  const pilM=triplanarStone(pilM0);
   for(const sg of G.bridgeSegs){const yaw=Math.atan2(sg.ux,sg.uz);
       const deck=new THREE.Mesh(new THREE.BoxGeometry(10.4,.5,sg.len+.4),deckM);deck.position.set(sg.cx,BRIDGE_Y-.25,sg.cz);deck.rotation.y=yaw;deck.castShadow=deck.receiveShadow=true;world.add(deck);sg.span.meshes.push(deck);
       for(const s of [-1,1]){const rl=new THREE.Mesh(new THREE.BoxGeometry(.35,.7,sg.len+.4),railM);rl.position.set(s*5.1,.5,0);deck.add(rl);rl.castShadow=true;}
@@ -1239,19 +1299,40 @@ function scatterNature(){
   const BUSHES=['P_bush-live-bright','P_bush-live-dark','P_Foliage-big-bright','P_Foliage-big-dark','P_bush-live-bright','P_bush-dry'].filter(k=>A[k]);
   const bushB=BUSHES.length?[...new Set(BUSHES)].map(k=>{const pr=plantProto(k,proto('bush',1).userData.size);return new Batch(pr,260);}):null;
   const bushPick=(x,z)=>{const h=Math.abs(Math.sin(x*12.9898+z*78.233)*43758.5453)%1;const k=BUSHES[(h*BUSHES.length)|0];return bushB[[...new Set(BUSHES)].indexOf(k)];};
-  B.rockA=new Batch(proto('rockA',1),60);B.rockC=new Batch(proto('rockC',1),60);B.rockT=new Batch(proto('rockT',1),40);B.bush=new Batch(proto('bush',1),400);
+  B.rockA=new Batch(proto('rockA',1),60);B.rockC=new Batch(proto('rockC',1),60);B.rockT=new Batch(proto('rockT',1),40);
+  for(const k of ['rockA','rockC','rockT'])for(const pt of B[k].parts)pt.im.material=triplanarStone(pt.im.material);B.bush=new Batch(proto('bush',1),400);
   for(let i=0;i<tries;i++){const x=rr(X0+20,-X0-20),z=rr(Z0+20,-Z0-20);const h=H(x,z);if(h<.9||h>13)continue;
     const cd=G.corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)];if(cd<10)continue;if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<75))continue;
     const forest=n4(x*.012,z*.012);const r=RND();
     if(r<.55&&forest>.5||r<.12){let nm;if(h<2.6)nm=['palm','palmBend','palmShort'][(RND()*3)|0];else nm=['tree','oak','pine','treeD','palm'][(RND()*5)|0];
-      const sc=kinds.find(k=>k[0]===nm)[1]*rr(.65,1);const yaw=RND()*TAU;const idx=B[nm].add(x,h-.1,z,yaw,sc);if(idx<0)continue;
-      addStatic({kind:'tree',team:-1,x,z,y0:h,h:9,hp:22,r:1.1,batch:B[nm],idx});}
+      const sc=kinds.find(k=>k[0]===nm)[1]*rr(.65,1);const yaw=RND()*TAU;const bt=treeVariant(B,nm,x,z);const idx=bt.add(x,h-.1,z,yaw,sc);if(idx<0)continue;
+      addStatic({kind:'tree',team:-1,x,z,y0:h,h:9,hp:22,r:1.1,batch:bt,idx});}
     else if(r<.6){const idx=(bushB?bushPick(x,z):B.bush).add(x,h-.1,z,RND()*TAU,rr(5,8));}
     else if(r<.63){const nm=['rockA','rockC','rockT'][(RND()*3)|0];const sc=rr(3.5,5.5);const yaw=RND()*TAU;const idx=B[nm].add(x,h-.3,z,yaw,sc);if(idx<0)continue;
       const sz=proto(nm,1).userData.size;addStatic({kind:'rock',team:-1,x,z,y0:h,h:sz.y*sc,hp:Infinity,batch:B[nm],idx,pts:footprint(x,z,sz.x*sc*.8,sz.z*sc*.8,yaw,1)});}
   }
   for(const k in B)B[k].done();if(bushB)bushB.forEach(b=>b.done());
-  scatterGroundCover();
+  scatterGroundCover();scatterLilies();
+}
+// forest variety: grasslands pines / bushy trees mixed in with the Retro trees; picked by position hash so the seeded layout is unchanged
+const TREE_VAR={tree:['G_Bushy-tree-bright','G_Pine-tree-bright_alt'],oak:['G_Bushy-tree-dark','G_Bushy-tree-bright-straight'],pine:['G_Pine-tree-dark','G_Pine-tree-bright'],treeD:['G_Pine-tree-dark_alt','G_Bushy-tree-dark-straight'],palm:['G_Pine-tree-bright_alt']};
+function treeVariant(B,nm,x,z){
+  const vs=(TREE_VAR[nm]||[]).filter(v=>A[v]);if(!vs.length)return B[nm];
+  const h=Math.abs(Math.sin(x*91.17+z*47.31)*24634.6345)%1;if(h<.45)return B[nm];
+  const v=vs[Math.min(vs.length-1,((h-.45)/.55*vs.length)|0)],key=nm+'#'+v;
+  if(!B[key]){const ref=new THREE.Box3().setFromObject(proto(nm,1)),src=A[v].clone(true),gb=new THREE.Box3().setFromObject(src);
+    const k=(ref.max.y-ref.min.y)/(gb.max.y-gb.min.y);src.scale.multiplyScalar(k);const c=gb.getCenter(new V3());src.position.set(-c.x*k,-gb.min.y*k,-c.z*k);
+    const w=new THREE.Group();w.add(src);w.updateMatrixWorld(true);w.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});B[key]=new Batch(w,400);}
+  return B[key];
+}
+function scatterLilies(){ // lily pads in sheltered shallows along the shore
+  const kinds=['G_lily-big','G_lily-medium','G_lily-small'].filter(k=>A[k]);if(!kinds.length)return;
+  let st=(G.seed*40503>>>0)^0x5bd1e995;const R=()=>{st=(st+0x6D2B79F5)>>>0;let t=st;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};
+  const bat=kinds.map(k=>{const pr=plantProto(k,{x:1.6/1.15,z:1.6/1.15,y:.1});const b=new Batch(pr,260);b.parts.forEach(p=>{p.im.castShadow=false;});return b;});
+  let placed=0;for(let i=0;i<9000&&placed<600;i++){const x=X0+20+R()*(-2*X0-40),z=Z0+20+R()*(-2*Z0-40),h=H(x,z);if(h>-.25||h<-1.6)continue;
+    if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<70)||onBridge(x,z))continue;
+    const n=3+((R()*6)|0);for(let j=0;j<n;j++){const px=x+(R()-.5)*7,pz=z+(R()-.5)*7,hh=H(px,pz);if(hh>-.2||hh<-1.8)continue;if(bat[(R()*bat.length)|0].add(px,.01,pz,R()*TAU,.7+R()*.7)>=0)placed++;}}
+  bat.forEach(b=>b.done());
 }
 function plantProto(name,ref){ // grasslands prop sized to the footprint of the Kenney prop it stands in for (ref = that prop's size at scale 1)
   const key='plant:'+name;if(protoCache.has(key))return protoCache.get(key);

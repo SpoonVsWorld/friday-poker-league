@@ -1921,7 +1921,7 @@ function readHuman(view,inp){
   if(opts.touch&&view.ctrl===0){
     const v=view.team.vehicle;Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:TOUCH.fire,special:TOUCH.special,abandon:false,aimYaw:null});view.menuEdge=null;
     if(v){const mag=Math.min(1,Math.hypot(TOUCH.ax,TOUCH.ay));
-      if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=CHASE.on&&view.cy!=null?view.cy-Math.PI+Math.atan2(TOUCH.ax,TOUCH.ay):Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn); // chase cam: stick is relative to the cameraconst da=angDiff(v.heading,want);
+      if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=CHASE.on&&view.cy!=null?view.cy-Math.PI+Math.atan2(TOUCH.ax,TOUCH.ay):Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn);/* chase cam: stick is relative to the camera */const da=angDiff(v.heading,want);
         inp.turn=clamp(-da*2.4,-1,1);inp.thr=mag*(Math.abs(da)<1.2?1:.35);}
       if(v.type==='tank'){const t=autoAimTarget(v);inp.aimYaw=t?Math.atan2(t.x-v.x,t.z-v.z):v.heading;}}
     return;}

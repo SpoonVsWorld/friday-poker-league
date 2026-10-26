@@ -465,6 +465,8 @@ function sfx(kind,x,z){
     case 'click':tone(.15,.05,1200,900,'square');break;
     case 'jet':noiseHit(.75*g,2.4,500,2600,'bandpass',.9);noiseHit(.5*g,2.2,2600,400,'bandpass',1.1,.6);tone(.12*g,2,160,60,'sawtooth');break; // YF-23 flyby roar
     case 'whistle':tone(.1*g,.75,1900,420,'sine');break; // falling bomb
+    case 'collapse':noiseHit(1.1*g,3.4,420,32,'lowpass',.8,.15);tone(.55*g,2.6,58,24,'sine',.18);noiseHit(.5*g,2.4,1800,160,'lowpass',.7,.3); // building coming down: long rumble
+      for(let i=0;i<9;i++)noiseHit(mr(.18,.42)*g,mr(.12,.3),mr(700,2600),mr(150,400),'bandpass',mr(.6,1.4),.3+i*mr(.12,.26));break; // + crunching concrete
   }
 }
 // engine: recorded loops (tank/ASV heavy engine, jeep fast engine, helicopter rotor); synth if not decoded
@@ -611,6 +613,228 @@ function explosion(x,y,z,size=1,water=false){
   if(G)for(const v of G.views){const d=Math.hypot(v.focus.x-x,v.focus.z-z);v.shake=Math.max(v.shake,clamp(size*.9-d/60,0,1.5));}
 }
 function puff(x,y,z,c=C_SMK0,s=2,life=1.2,a=.6){SMOKE.spawn(x,y,z,rr(-.6,.6),rr(.8,2.2),rr(-.6,.6),life,s*.6,s*1.6,c,C_SMK1,a,-.5,1);}
+// ============================================================ building collapse
+// When a building dies its real mesh is cut into irregular wall / roof / floor
+// fragments (repeated random-plane splits, a cheap stand-in for a Voronoi
+// fracture), which then drop, lean, tumble and settle onto a rubble heap,
+// with crushed-concrete chunks and a rolling dust cloud. Purely cosmetic:
+// runs locally on every client (online guests too) and never touches gameplay.
+const mr=(a,b)=>a+(b-a)*Math.random(); // cosmetic randomness: keep the seeded RND stream untouched
+const RUB_MAT=new Map(),TEX_SAMP=new Map(),_rc=new THREE.Color(),_rq=new THREE.Quaternion(),_rv=new V3(),_rw=new V3();
+function rubMat(m){let c=RUB_MAT.get(m.uuid);if(!c){c=m.clone();c.side=THREE.FrontSide;c.color.multiplyScalar(.8);RUB_MAT.set(m.uuid,c);}return c;}
+function texSampler(tex){
+  if(!tex||!tex.image)return null;let s=TEX_SAMP.get(tex.uuid);if(s!==undefined)return s;
+  try{const W=64,cv=document.createElement('canvas');cv.width=cv.height=W;const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(tex.image,0,0,W,W);const d=cx.getImageData(0,0,W,W).data;
+    s=(u,v)=>{u-=Math.floor(u);v-=Math.floor(v);const i=(Math.min(W-1,v*W|0)*W+Math.min(W-1,u*W|0))*4;return [d[i]/255,d[i+1]/255,d[i+2]/255];};}catch(e){s=null;}
+  TEX_SAMP.set(tex.uuid,s);return s;
+}
+function collectPolys(obj){
+  obj.updateMatrixWorld(true);const polys=[],mats=[],matIdx=new Map(),cols=[];let hasN=true,hasUV=true;
+  const nm=new THREE.Matrix3(),p=new V3(),n=new V3();
+  obj.traverseVisible(o=>{if(!o.isMesh)return;const g=o.geometry,pos=g.attributes.position,nor=g.attributes.normal,uv=g.attributes.uv,idx=g.index;
+    if(!nor)hasN=false;if(!uv)hasUV=false;nm.getNormalMatrix(o.matrixWorld);const ms=Array.isArray(o.material)?o.material:[o.material];
+    const groups=g.groups.length?g.groups:[{start:0,count:idx?idx.count:pos.count,materialIndex:0}];
+    for(const gr of groups){const m=ms[gr.materialIndex]||ms[0];let mi=matIdx.get(m);if(mi===undefined){mi=mats.length;mats.push(m);matIdx.set(m,mi);}
+      const samp=m.map&&uv?texSampler(m.map):null;
+      for(let t=gr.start;t+2<gr.start+gr.count;t+=3){const v=[];
+        for(let k=0;k<3;k++){const i=idx?idx.getX(t+k):t+k;p.fromBufferAttribute(pos,i).applyMatrix4(o.matrixWorld);const q={x:p.x,y:p.y,z:p.z};
+          if(nor){n.fromBufferAttribute(nor,i).applyMatrix3(nm).normalize();q.nx=n.x;q.ny=n.y;q.nz=n.z;}if(uv){q.u=uv.getX(i);q.v=uv.getY(i);}v.push(q);}
+        polys.push({v,m:mi});
+        if(Math.random()<.12){let c=[m.color.r,m.color.g,m.color.b];if(samp){const s=samp(v[0].u,v[0].v);_rc.setRGB(s[0],s[1],s[2],THREE.SRGBColorSpace);c=[c[0]*_rc.r,c[1]*_rc.g,c[2]*_rc.b];}cols.push(c);}}}});
+  return {polys,mats,cols,hasN,hasUV};
+}
+function lerpQ(a,c,t){const q={x:a.x+(c.x-a.x)*t,y:a.y+(c.y-a.y)*t,z:a.z+(c.z-a.z)*t};
+  if(a.nx!==undefined){q.nx=a.nx+(c.nx-a.nx)*t;q.ny=a.ny+(c.ny-a.ny)*t;q.nz=a.nz+(c.nz-a.nz)*t;}if(a.u!==undefined){q.u=a.u+(c.u-a.u)*t;q.v=a.v+(c.v-a.v)*t;}return q;}
+function splitPolys(polys,nx,ny,nz,d){const F=[],B=[];
+  for(const P of polys){const vs=P.v,L=vs.length,ds=new Array(L);let pos=0,neg=0;
+    for(let i=0;i<L;i++){const s=vs[i].x*nx+vs[i].y*ny+vs[i].z*nz-d;ds[i]=s;if(s>1e-5)pos++;else if(s<-1e-5)neg++;}
+    if(!neg){F.push(P);continue;}if(!pos){B.push(P);continue;}
+    const f=[],b=[];for(let i=0;i<L;i++){const a=vs[i],c=vs[(i+1)%L],da=ds[i],dc=ds[(i+1)%L];
+      if(da>=0)f.push(a);if(da<=0)b.push(a);
+      if((da>0&&dc<0)||(da<0&&dc>0)){const q=lerpQ(a,c,da/(da-dc));f.push(q);b.push(q);}}
+    if(f.length>=3)F.push({v:f,m:P.m});if(b.length>=3)B.push({v:b,m:P.m});}
+  return [F,B];
+}
+function polyBox(polys){const b=new THREE.Box3();for(const P of polys)for(const q of P.v)b.expandByPoint(_rv.set(q.x,q.y,q.z));return b;}
+function fracture(polys,target){
+  const vol=b=>(b.max.x-b.min.x)*(b.max.y-b.min.y)*(b.max.z-b.min.z);
+  const pieces=[{polys,bb:polyBox(polys)}];let guard=0;
+  while(pieces.length<target&&guard++<target*4){
+    pieces.sort((a,b)=>(b.stuck?-1:vol(b.bb))-(a.stuck?-1:vol(a.bb)));const P=pieces[0];if(P.stuck)break;const bb=P.bb;
+    const ex=[bb.max.x-bb.min.x,(bb.max.y-bb.min.y)*1.25,bb.max.z-bb.min.z]; // slight bias to horizontal cuts: floors break apart
+    const ax=ex[0]>=ex[1]&&ex[0]>=ex[2]?0:ex[1]>=ex[2]?1:2;
+    _rw.set(ax===0?1:0,ax===1?1:0,ax===2?1:0);_rw.x+=mr(-.55,.55);_rw.y+=mr(-.35,.35);_rw.z+=mr(-.55,.55);_rw.normalize();
+    const cx=lerp(bb.min.x,bb.max.x,mr(.3,.7)),cy=lerp(bb.min.y,bb.max.y,mr(.3,.7)),cz=lerp(bb.min.z,bb.max.z,mr(.3,.7));
+    const [F,B]=splitPolys(P.polys,_rw.x,_rw.y,_rw.z,_rw.x*cx+_rw.y*cy+_rw.z*cz);
+    if(F.length<2||B.length<2){P.tries=(P.tries||0)+1;if(P.tries>4)P.stuck=true;continue;}
+    pieces.shift();pieces.push({polys:F,bb:polyBox(F)},{polys:B,bb:polyBox(B)});
+  }
+  return pieces;
+}
+const RUB_IN=new THREE.MeshStandardMaterial({color:0x8a847b,roughness:1,flatShading:true}),WALL_T=.24;
+function pieceMesh(pc,fr){
+  const c=pc.bb.getCenter(new V3()),byM=new Map();let total=0;
+  for(const P of pc.polys){let a=byM.get(P.m);if(!a)byM.set(P.m,a=[]);const v=P.v;for(let i=1;i<v.length-1;i++){a.push(v[0],v[i],v[i+1]);total+=3;}}
+  // every surface gets a concrete back face WALL_T behind it, so broken walls read as solid slabs instead of paper
+  const N2=total*2,pos=new Float32Array(N2*3),nor=new Float32Array(N2*3),uv=fr.hasUV?new Float32Array(N2*2):null;
+  const g=new THREE.BufferGeometry(),ml=[];let o=0;const fn=new V3(),e1=new V3(),e2=new V3(),tn=new V3(),ref=new V3();let refA=0;
+  const inner=[];
+  for(const [mi,a] of byM){g.addGroup(o,a.length,ml.length);ml.push(rubMat(fr.mats[mi]));
+    for(let t=0;t<a.length;t+=3){const A=a[t],B=a[t+1],D=a[t+2];e1.set(B.x-A.x,B.y-A.y,B.z-A.z);e2.set(D.x-A.x,D.y-A.y,D.z-A.z);fn.crossVectors(e1,e2);const ar=fn.length();if(ar>1e-9)fn.divideScalar(ar);
+      if(ar>refA){refA=ar;ref.copy(fn);}inner.push([A,B,D,fn.x,fn.y,fn.z,ar]);
+      for(const q of [A,B,D]){pos[o*3]=q.x-c.x;pos[o*3+1]=q.y-c.y;pos[o*3+2]=q.z-c.z;
+        if(fr.hasN){nor[o*3]=q.nx;nor[o*3+1]=q.ny;nor[o*3+2]=q.nz;}else{nor[o*3]=fn.x;nor[o*3+1]=fn.y;nor[o*3+2]=fn.z;}
+        if(uv){uv[o*2]=q.u;uv[o*2+1]=q.v;}o++;}}}
+  g.addGroup(o,inner.length*3,ml.length);ml.push(RUB_IN);
+  for(const [A,B,D,nx,ny,nz,ar] of inner){const s=Math.sign(nx*ref.x+ny*ref.y+nz*ref.z)||1;tn.x+=nx*ar*s;tn.y+=ny*ar*s;tn.z+=nz*ar*s;
+    for(const q of [A,D,B]){pos[o*3]=q.x-c.x-nx*WALL_T;pos[o*3+1]=q.y-c.y-ny*WALL_T;pos[o*3+2]=q.z-c.z-nz*WALL_T;nor[o*3]=-nx;nor[o*3+1]=-ny;nor[o*3+2]=-nz;if(uv){uv[o*2]=q.u;uv[o*2+1]=q.v;}o++;}}
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));if(uv)g.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+  const mesh=new THREE.Mesh(g,ml);mesh.position.copy(c);mesh.receiveShadow=true;
+  // a few dozen hull-ish sample points for cheap ground contact (lowest point after rotation)
+  const smp=[],step=Math.max(1,Math.floor(N2/48));for(let i=0;i<N2;i+=step)smp.push(new V3(pos[i*3],pos[i*3+1],pos[i*3+2]));
+  if(tn.lengthSq()<1e-8)tn.set(0,1,0);tn.normalize(); // "thin axis": the piece wants to come to rest lying on its broad face
+  g.computeBoundingSphere();mesh.castShadow=g.boundingSphere.radius>1.1; // small bits skip the shadow pass (phones)
+  return {mesh,smp,home:c.clone(),polys:pc.polys,R:Math.max(.3,g.boundingSphere.radius),tn};
+}
+// rubble heap: rounded-rectangle mound over the footprint, a little wider than the building
+function heapH(C,x,z){const u=(x-C.x)/C.hx,v=(z-C.z)/C.hz;const d=Math.pow(u**4+v**4,.25);const p=clamp((1.22-d)/1.22,0,1);return C.H*Math.pow(p,.75);}
+function makeHeap(C,pal){
+  const N=20,R=1.3,geo=new THREE.PlaneGeometry(2,2,N,N);geo.rotateX(-Math.PI/2);geo.deleteAttribute('uv');
+  const pa=geo.attributes.position,col=new Float32Array(pa.count*3);C.gy=new Float32Array(pa.count);C.hv=new Float32Array(pa.count);
+  for(let i=0;i<pa.count;i++){const x=C.x+pa.getX(i)*R*C.hx,z=C.z+pa.getZ(i)*R*C.hz;
+    const edge=Math.abs(pa.getX(i))>.999||Math.abs(pa.getZ(i))>.999;C.gy[i]=groundAt(x,z);C.hv[i]=edge?-.15:heapH(C,x,z)*mr(.6,1.25)+mr(-.12,.18);
+    pa.setXYZ(i,x,C.gy[i]-.15,z);const b=pal[(Math.random()*pal.length)|0],k=mr(.62,1),dm=mr(.35,.6);
+    for(let j=0;j<3;j++)col[i*3+j]=lerp(b[j],[.5,.47,.42][j],dm)*k;}
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const g2=geo.toNonIndexed();g2.computeVertexNormals();
+  const mesh=new THREE.Mesh(g2,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true}));mesh.receiveShadow=true;mesh.castShadow=true;
+  C.heapSrc=geo;C.heap=mesh;world.add(mesh);
+}
+function growHeap(C,k){ // re-lift the heap vertices (heap rises while the building comes down)
+  const src=C.heapSrc.attributes.position,idx=C.heapSrc.index,dst=C.heap.geometry.attributes.position;
+  for(let i=0;i<src.count;i++)src.setY(i,C.gy[i]+C.hv[i]*k);
+  for(let i=0;i<idx.count;i++){const j=idx.getX(i);dst.setXYZ(i,src.getX(j),src.getY(j),src.getZ(j));}
+  dst.needsUpdate=true;C.heap.geometry.computeVertexNormals();C.heap.geometry.computeBoundingSphere();
+}
+// crushed-concrete chunks (instanced, persistent for the match)
+function rubRocks(){
+  if(G.rocks)return G.rocks;const MAX=2400;
+  const geo=new THREE.DodecahedronGeometry(.5,0);const im=new THREE.InstancedMesh(geo,new THREE.MeshStandardMaterial({roughness:1,flatShading:true}),MAX);
+  im.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAX*3),3);im.castShadow=im.receiveShadow=true;im.frustumCulled=false;im.count=0;world.add(im);
+  return G.rocks={im,max:MAX,n:0,live:[]};
+}
+function spawnRock(C,x,y,z,vx,vy,vz,delay,sz,c){
+  const R=rubRocks(),i=R.n%R.max;R.n++;R.im.count=Math.min(R.n,R.max);
+  R.im.setColorAt(i,_rc.setRGB(c[0],c[1],c[2]));R.im.instanceColor.needsUpdate=true;
+  const r={i,C,x,y,z,vx,vy,vz,delay,sx:sz*mr(.7,1.5),sy:sz*mr(.45,.9),sz:sz*mr(.7,1.4),rx:mr(0,TAU),ry:mr(0,TAU),rz:mr(0,TAU),wx:mr(-9,9),wz:mr(-9,9),rest:0};
+  R.live.push(r);_m4.compose(_v.set(x,delay>0?-500:y,z),_q.setFromEuler(_e.set(r.rx,r.ry,r.rz)),_s.set(r.sx,r.sy,r.sz));R.im.setMatrixAt(i,_m4);R.im.instanceMatrix.needsUpdate=true;
+}
+function collapseBuilding(s){
+  const obj=s.obj;const fr=collectPolys(obj);if(fr.polys.length<8)return false;
+  const bb=new THREE.Box3().setFromObject(obj),ctr=bb.getCenter(new V3());
+  const y0=s.y0,h=Math.max(2,bb.max.y-y0),hx=(bb.max.x-bb.min.x)/2,hz=(bb.max.z-bb.min.z)/2;
+  const target=Math.round(clamp(hx*hz*h/7,14,40));
+  const C={x:ctr.x,z:ctr.z,hx,hz,H:clamp(h*.2,1,2.4),t:0,grow:0,pieces:[],y0,h,merged:false,dust:0,fr,nSplit:0,maxSplit:40};
+  const pal=fr.cols.length?fr.cols:[[.5,.5,.5]];C.pal=pal;
+  makeHeap(C,pal);
+  // blast side: the face that took the killing hit (we don't track it, so pick one), and a lean direction
+  const ba=mr(0,TAU),bx=C.x+Math.cos(ba)*hx*.9,bz=C.z+Math.sin(ba)*hz*.9,by=y0+h*mr(.15,.4);
+  const la=mr(0,TAU),lx=Math.cos(la),lz=Math.sin(la),lean=mr(.6,2.2);
+  for(const pc of fracture(fr.polys,target)){
+    if(!pc.polys.length)continue;const P=pieceMesh(pc,fr);world.add(P.mesh);
+    const c=P.home,hr=clamp((c.y-y0)/h,0,1);let ox=c.x-C.x,oz=c.z-C.z;const ol=Math.hypot(ox,oz)||1;ox/=ol;oz/=ol;
+    const db=Math.hypot(c.x-bx,c.y-by,c.z-bz),blown=db<Math.max(hx,hz)*.55&&Math.random()<.85;
+    const p={...P,ox,oz,hr,rest:0,hit:false,sleep:false,q:new THREE.Quaternion(),w:new V3()};
+    if(blown){const k=mr(5,10)/Math.max(1,db*.35);p.t0=mr(0,.06);p.v=new V3((c.x-bx)/db*k,mr(3,8),(c.z-bz)/db*k);p.w.set(mr(-5,5),mr(-3,3),mr(-5,5));}
+    else{p.t0=.16+mr(0,.12)+hr*.06;const sp=mr(.3,1.9)*(1-hr*.45);p.v=new V3(ox*sp+lx*lean*hr,mr(-1.2,.6),oz*sp+lz*lean*hr);
+      // walls peel outward: spin about the horizontal axis that tips them away from the middle
+      const tip=mr(.4,1.7)*(.45+hr);p.w.set(oz*tip+mr(-.4,.4),mr(-.5,.5),-ox*tip+mr(-.4,.4));}
+    C.pieces.push(p);
+  }
+  if(!C.pieces.length){world.remove(C.heap);return false;}
+  obj.visible=false;
+  // crushed concrete: a burst out of the base, then a shower inside the footprint as the floors pancake
+  for(let i=0;i<30;i++){const a=mr(0,TAU),ex=C.x+Math.cos(a)*hx*mr(.7,1.05),ez=C.z+Math.sin(a)*hz*mr(.7,1.05),sp=mr(3,10);
+    spawnRock(C,ex,y0+mr(.3,2.2),ez,Math.cos(a)*sp*.7,mr(2,6),Math.sin(a)*sp*.7,mr(.18,.55),mr(.25,.8),pal[(Math.random()*pal.length)|0].map((v,j)=>lerp(v,[.52,.5,.46][j],.5)*mr(.7,1)));}
+  for(let i=0;i<44;i++){spawnRock(C,C.x+mr(-hx,hx)*.85,y0+h*mr(.25,.95),C.z+mr(-hz,hz)*.85,mr(-1.5,1.5),mr(-1,1),mr(-1.5,1.5),mr(.3,1.1),mr(.3,1.15),pal[(Math.random()*pal.length)|0].map((v,j)=>lerp(v,[.52,.5,.46][j],.4)*mr(.7,1)));}
+  (G.collapses||(G.collapses=[])).push(C);s.collapse=C;
+  if(!(G.net&&!G.net.host))sfx('collapse',C.x,C.z); // online guests hear it via the host's relayed sfx event
+  return true;
+}
+function rubbleDust(C){ // rolling ground-hugging cloud + rising column
+  const dc0=[.58,.54,.48],dc1=[.7,.67,.62];
+  for(let i=0;i<40;i++){const a=i/40*TAU+mr(-.08,.08),r=Math.max(C.hx,C.hz)*mr(.75,1.05),sp=mr(6,13);
+    SMOKE.spawn(C.x+Math.cos(a)*r,C.y0+mr(.4,2),C.z+Math.sin(a)*r,Math.cos(a)*sp,mr(.3,2),Math.sin(a)*sp,mr(3.5,5.5),mr(3,5),mr(10,16),dc0,dc1,mr(.6,.8),-.35,1.3);}
+  for(let i=0;i<24;i++)SMOKE.spawn(C.x+mr(-C.hx,C.hx)*.8,C.y0+mr(1,C.h),C.z+mr(-C.hz,C.hz)*.8,mr(-1.5,1.5),mr(2.5,7),mr(-1.5,1.5),mr(3,4.5),mr(4,7),mr(10,15),dc0,dc1,mr(.55,.75),-.2,.9);
+}
+const _low=new V3(),DOWN=new V3(0,-1,0);
+function lowestPt(p){let m=1e9;for(const v of p.smp){_rv.copy(v).applyQuaternion(p.mesh.quaternion);if(_rv.y<m){m=_rv.y;_low.copy(_rv);}}return _low;}
+function shatter(C,p,impact){ // a big fragment slams down and breaks into smaller ones
+  const m=p.mesh;m.updateMatrix();const M=new THREE.Matrix4().makeTranslation(-p.home.x,-p.home.y,-p.home.z).premultiply(m.matrix),nm=new THREE.Matrix3().setFromMatrix4(m.matrix);
+  const polys=p.polys.map(P=>({m:P.m,v:P.v.map(q=>{_rv.set(q.x,q.y,q.z).applyMatrix4(M);const o={x:_rv.x,y:_rv.y,z:_rv.z};
+    if(q.nx!==undefined){_rw.set(q.nx,q.ny,q.nz).applyMatrix3(nm);o.nx=_rw.x;o.ny=_rw.y;o.nz=_rw.z;}if(q.u!==undefined){o.u=q.u;o.v=q.v;}return o;})}));
+  world.remove(m);m.geometry.dispose();p.sleep=p.dead=true;
+  const at=m.position;
+  for(const pc of fracture(polys,Math.round(clamp(p.R/1.05,2,5)))){if(!pc.polys.length)continue;const P=pieceMesh(pc,C.fr);world.add(P.mesh);
+    const c=P.home;let ox=c.x-at.x,oz=c.z-at.z;const ol=Math.hypot(ox,oz)||1;ox/=ol;oz/=ol;const sp=mr(.5,2)+impact*.06;
+    C.pieces.push({...P,ox,oz,hr:0,rest:0,hit:true,sleep:false,t0:0,v:new V3(p.v.x*.4+ox*sp,mr(1,3)+impact*.12,p.v.z*.4+oz*sp),w:new V3(mr(-4,4),mr(-2,2),mr(-4,4))});}
+  for(let i=0;i<5;i++)SMOKE.spawn(at.x+mr(-1.5,1.5),at.y+mr(-.5,1),at.z+mr(-1.5,1.5),mr(-3,3),mr(1,3),mr(-3,3),mr(2,3.2),2.5,8,[.6,.56,.5],[.7,.67,.62],.6,-.2,1.2);
+  for(let i=0;i<5;i++){const c=C.pal[(Math.random()*C.pal.length)|0];spawnRock(C,at.x+mr(-1,1),at.y,at.z+mr(-1,1),mr(-5,5),mr(2,6),mr(-5,5),0,mr(.18,.45),c.map((v,j)=>lerp(v,[.52,.5,.46][j],.4)*mr(.7,1)));}
+}
+function updateCollapses(dt){
+  if(!G||!G.collapses||dt<=0)return;
+  for(const C of G.collapses){if(C.merged)continue;C.t+=dt;
+    if(C.grow<1){const k=clamp((C.t-.3)/1.9,0,1);C.grow=k*k*(3-2*k);growHeap(C,C.grow);}
+    if(!C.dust&&C.t>.22){C.dust=1;rubbleDust(C);}
+    if(C.t<2.4&&Math.random()<dt*28)SMOKE.spawn(C.x+mr(-C.hx,C.hx),C.y0+mr(.5,3),C.z+mr(-C.hz,C.hz),mr(-2,2),mr(.5,3),mr(-2,2),mr(2.5,4),mr(3,5),mr(8,12),[.6,.56,.5],[.7,.67,.62],.55,-.3,1);
+    let awake=0;
+    for(let pi=0;pi<C.pieces.length;pi++){const p=C.pieces[pi];if(p.sleep)continue;awake++;const m=p.mesh;
+      if(C.t<p.t0){const k=.06*(C.t/p.t0);m.position.set(p.home.x+mr(-k,k),p.home.y+mr(-k,k)*.5,p.home.z+mr(-k,k));continue;}
+      p.v.y-=30*dt;m.position.addScaledVector(p.v,dt);
+      const wl=p.w.length();if(wl>1e-4){_rq.setFromAxisAngle(_rw.copy(p.w).divideScalar(wl),wl*dt);m.quaternion.premultiply(_rq);}
+      const floor=groundAt(m.position.x,m.position.z)+heapH(C,m.position.x,m.position.z)*C.grow,low=lowestPt(p);
+      if(m.position.y+low.y<floor){const impact=-p.v.y;m.position.y=floor-low.y;
+        if(!p.hit){p.hit=true;const im=Math.min(14,Math.abs(impact));p.v.x+=p.ox*im*.1;p.v.z+=p.oz*im*.1;
+          if(Math.random()<.7)for(let i=0;i<3;i++)SMOKE.spawn(m.position.x+mr(-1,1),floor+.4,m.position.z+mr(-1,1),mr(-2,2),mr(.5,2),mr(-2,2),mr(1.5,2.5),2,6,[.6,.56,.5],[.7,.67,.62],.5,-.2,1.2);}
+        if(impact>5&&p.R>1.25&&C.nSplit<C.maxSplit){C.nSplit++;shatter(C,p,impact);awake--;continue;}
+        p.v.y=impact>3?impact*.15:0;const f=Math.pow(.03,dt);p.v.x*=f;p.v.z*=f;
+        // tipping: the ground pushes up at the lowest corner, rolling the piece over toward its centre of mass until it lies on a face
+        _rw.set(-low.z,0,low.x);p.w.addScaledVector(_rw,dt*30/(p.R*p.R*.4));
+        _rv.copy(p.tn).applyQuaternion(m.quaternion);const fy=Math.abs(_rv.y);if(fy<.97){_rw.crossVectors(_rv,_rv.y>=0?UP:DOWN);p.w.addScaledVector(_rw,dt*16);}
+        p.w.multiplyScalar(Math.pow(.1,dt));
+        p.rest+=dt;if(C.t>1.4&&p.rest>.35&&Math.hypot(p.v.x,p.v.z)<.8&&p.w.length()<.7&&(fy>.8||p.rest>2.5))p.sleep=true;}
+      else p.rest=Math.max(0,p.rest-dt);
+      if(m.position.y<-8)p.sleep=true;}
+    if(C.t>5||(awake===0&&C.t>2.6&&C.grow>=1))mergeRubble(C); // then freeze whatever is still twitching
+  }
+  const R=G.rocks;if(R&&R.live.length){
+    for(let k=R.live.length-1;k>=0;k--){const r=R.live[k];
+      if(r.delay>0){r.delay-=dt;if(r.delay>0)continue;}
+      r.vy-=30*dt;r.x+=r.vx*dt;r.y+=r.vy*dt;r.z+=r.vz*dt;r.rx+=r.wx*dt;r.rz+=r.wz*dt;
+      const fl=groundAt(r.x,r.z)+heapH(r.C,r.x,r.z)*r.C.grow+r.sy*.32;
+      if(r.y<fl){r.y=fl;r.vy=r.vy<-3?-r.vy*.25:0;r.vx*=.5;r.vz*=.5;r.wx*=.4;r.wz*=.4;r.rest+=dt;}
+      _m4.compose(_v.set(r.x,r.y,r.z),_q.setFromEuler(_e.set(r.rx,r.ry,r.rz)),_s.set(r.sx,r.sy,r.sz));R.im.setMatrixAt(r.i,_m4);
+      if((r.rest>.4&&Math.hypot(r.vx,r.vz)<.6&&r.C.grow>=1)||r.y<-8)R.live.splice(k,1);}
+    R.im.instanceMatrix.needsUpdate=true;}
+}
+function mergeRubble(C){ // settled fragments -> one static mesh (one draw call per material), for phones
+  C.merged=true;const per=new Map();let mats=new Map();const nm=new THREE.Matrix3();
+  for(const p of C.pieces){if(p.dead)continue;const m=p.mesh;m.updateMatrix();nm.getNormalMatrix(m.matrix);const g=m.geometry,pos=g.attributes.position,nor=g.attributes.normal,uv=g.attributes.uv;
+    g.groups.forEach((gr,gi)=>{const mat=m.material[gr.materialIndex];let a=per.get(mat);if(!a){per.set(mat,a={p:[],n:[],u:[]});}
+      for(let i=gr.start;i<gr.start+gr.count;i++){_rv.fromBufferAttribute(pos,i).applyMatrix4(m.matrix);a.p.push(_rv.x,_rv.y,_rv.z);_rw.fromBufferAttribute(nor,i).applyMatrix3(nm).normalize();a.n.push(_rw.x,_rw.y,_rw.z);if(uv)a.u.push(uv.getX(i),uv.getY(i));}});
+    world.remove(m);m.geometry.dispose();}
+  const g=new THREE.BufferGeometry(),P=[],N=[],U=[],ml=[];let o=0,allUV=true;for(const a of per.values())if(!a.u.length)allUV=false;
+  for(const [mat,a] of per){const n=a.p.length/3;g.addGroup(o,n,ml.length);ml.push(mat);P.push(...a.p);N.push(...a.n);if(allUV)U.push(...a.u);o+=n;}
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));if(allUV)g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));
+  const mesh=new THREE.Mesh(g,ml);mesh.castShadow=mesh.receiveShadow=true;world.add(mesh);C.rubble=mesh;C.pieces=[];
+}
+// where an exposed flag lands: thrown clear of the heap on the side facing away from its base (stays reachable / visible)
+function rubbleFlagSpot(s){
+  const C=s.collapse;if(!C)return [s.x,s.z];const b=G.bases[s.team];let a=Math.atan2(s.z-b.z,s.x-b.x);
+  for(let k=0;k<8;k++){const aa=a+[0,Math.PI/2,-Math.PI/2,Math.PI,Math.PI/4,-Math.PI/4,3*Math.PI/4,-3*Math.PI/4][k];const r=Math.hypot(Math.cos(aa)*C.hx,Math.sin(aa)*C.hz)*1.32+1.2;
+    const x=s.x+Math.cos(aa)*r,z=s.z+Math.sin(aa)*r;if(H(x,z)>.6&&!G.statics.some(t=>t.alive&&t.kind!=='hedge'&&Math.hypot(t.x-x,t.z-z)<(t.r||3.5)))return [x,z];}
+  return [s.x,s.z];
+}
 // ---- blood: a spray of heavy droplets (SMOKE particles with real gravity) plus
 // long-lived splatter decals on the ground (instanced flat discs, pooled like debris).
 const C_BLOOD0=[.5,.04,.03],C_BLOOD1=[.2,.02,.02];
@@ -1056,17 +1280,18 @@ function damage(e,amount,byTeam){
     if(e.state!=='active')return;e.hp-=amount*(G.dmgMul[e.team]||1);e.hitFlash=.15;if(e.hp<=0)destroyVehicle(e,byTeam);return;}
   if(!e.alive||e.hp===Infinity)return;e.hp-=amount;if(G.net&&G.net.host&&e.netIdx!==undefined)G.net.dirty.add(e.netIdx);if(e.hp<=0)destroyStatic(e,byTeam);
 }
+function collapseSafe(s){try{return collapseBuilding(s);}catch(e){console.warn('collapse',e);return false;}}
 function destroyStatic(s,byTeam){
   s.alive=false;const y=s.y0+Math.min(s.h*.4,4);
   if(s.batch)s.batch.hide(s.idx);
   switch(s.kind){
     case 'tree':debris(s.x,y,s.z,3,5);for(let i=0;i<8;i++)puff(s.x,y+rr(0,4),s.z,[.25,.4,.2],2.2,1);break;
-    case 'building':{explosion(s.x,y,s.z,2.6);sfx('bigboom',s.x,s.z);s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);s.smoke=18;G.smokers.push(s);
+    case 'building':{explosion(s.x,y,s.z,2.6);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=18;G.smokers.push(s);
       for(let i=0;i<3;i++){const a=RND()*TAU;spawnSoldier(s.team,s.x+Math.cos(a)*8,s.z+Math.sin(a)*8,'flee');}
-      if(s.hasFlag)exposeFlag(G.flags[s.team],s.x,s.z);else note(byTeam,'Building destroyed — no flag inside','info');break;}
+      if(s.hasFlag){const [fx,fz]=rubbleFlagSpot(s);exposeFlag(G.flags[s.team],fx,fz);}else note(byTeam,'Building destroyed — no flag inside','info');break;}
     case 'gate':{explosion(s.x,y+1,s.z,2.2);sfx('bigboom',s.x,s.z);s.panel.visible=false;tintObj(s.obj,'rubble',darken);s.smoke=12;G.smokers.push(s);debris(s.x,y,s.z,8,9);
       note(s.team,'Your base gate was blown open!','bad',true);note(1-s.team,'Enemy gate breached!','good',true);break;}
-    case 'hospital':case 'depot':case 'gas':{const dep=s.kind!=='hospital';explosion(s.x,y,s.z,dep?3.4:2.6);sfx('bigboom',s.x,s.z);s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);s.smoke=dep?26:18;G.smokers.push(s);debris(s.x,y,s.z,10,12);
+    case 'hospital':case 'depot':case 'gas':{const dep=s.kind!=='hospital';explosion(s.x,y,s.z,dep?3.4:2.6);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=dep?26:18;G.smokers.push(s);debris(s.x,y,s.z,10,12);
       if(dep){splashDamage(s.x,y,s.z,15,95,-2,s);for(let i=0;i<4;i++)explosion(s.x+rr(-6,6),y+rr(0,2),s.z+rr(-6,6),rr(1.2,1.8));}
       const nm={hospital:'hospital',depot:'ammo depot',gas:'gas station'}[s.kind];note(s.team,'Your '+nm+' was destroyed!','bad',true);note(1-s.team,'Enemy '+nm+' destroyed','good');break;}
     case 'turret':{explosion(s.x,y,s.z,1.8);sfx('boom',s.x,s.z);s.head.visible=false;tintObj(s.obj,'rubble',darken);s.smoke=10;G.smokers.push(s);note(s.team,'A turret was destroyed','warn');break;}
@@ -1846,7 +2071,7 @@ function render(dt){
     view.cam.position.set(cx,view.focus.y+up,cz);
     if(view.shake>0){view.cam.position.x+=rr(-1,1)*view.shake;view.cam.position.z+=rr(-1,1)*view.shake;view.shake=Math.max(0,view.shake-dt*3);}
     view.cam.lookAt(view.focus.x,view.focus.y,view.focus.z);
-    if(G.debugCam){const d=G.debugCam;view.cam.position.set(d.x,d.h,d.z+d.h*.35);view.cam.lookAt(d.x,0,d.z);view.focus.set(d.x,0,d.z);}
+    if(G.debugCam){const d=G.debugCam;view.cam.position.set(d.x,d.h,d.z+(d.back??d.h*.35));view.cam.lookAt(d.x,d.y||0,d.z);view.focus.set(d.x,0,d.z);}
     sun.position.copy(view.focus).addScaledVector(SUN_DIR,140);sun.target.position.copy(view.focus);sun.target.updateMatrixWorld();
     const r=view.rect;renderer.setViewport(r.x,0,r.w,h);renderer.setScissor(r.x,0,r.w,h);
     const sc=r.h/(2*Math.tan(THREE.MathUtils.degToRad(view.cam.fov/2)))*renderer.getPixelRatio()*.02;FIRE.mat.uniforms.scale.value=SMOKE.mat.uniforms.scale.value=sc*50;
@@ -1863,7 +2088,7 @@ function loop(now){
     if(!paused&&state!=='over')step(dt);else if(state==='over')step(dt*.3);
     if(G.net&&G.net.host)netHostTick(dt);
   }
-  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);
+  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
   const showAir=showT&&!!G.air&&G.air.left[0]>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;

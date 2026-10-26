@@ -371,7 +371,7 @@ async function loadAssets(){
     for(const c of [...ps.children]){if(!c.name.startsWith('G_'))continue;
       c.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(fixed.has(m))return;fixed.add(m);
         if(WOODMAP[m.name]){if(TEX[WOODMAP[m.name]]){m.map=TEX[WOODMAP[m.name]];m.color.setRGB(2,1.95,1.85);m.needsUpdate=true;}} /* wood textures didn't survive the glTF export: re-attach them */
-        else if(m.map&&/leave|lilly/i.test(m.name)){m.transparent=false;m.alphaTest=.45;m.depthWrite=true;m.side=THREE.DoubleSide;if(/lilly/i.test(m.name))m.color.multiply(new THREE.Color(.95,1.55,.8));else if(/bush/i.test(m.name))m.color.multiply(new THREE.Color(1.15,1.6,.85));else m.color.multiplyScalar(1.55);}
+        else if(m.map&&/leave|lilly/i.test(m.name)){m.transparent=false;m.alphaTest=.45;m.depthWrite=true;m.side=THREE.DoubleSide;if(/lilly/i.test(m.name))m.color.multiply(new THREE.Color(.95,1.55,.8));else if(/bush|pine/i.test(m.name))m.color.multiply(/bright-pine/i.test(m.name)?new THREE.Color(.8,1.5,.7):new THREE.Color(1.15,1.6,.85));else m.color.multiplyScalar(1.55);}
         else if(m.map)m.color.multiplyScalar(1.3);});
       A[c.name]=c;}
     // wooden supply crates and barrels in the bases, same footprint as the Kenney ones they replace

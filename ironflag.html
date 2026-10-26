@@ -329,6 +329,8 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // Grasslands props (CC0, Matt's Kenney folder -> SP_Plants.glb): real-looking bushes/ferns replace the cartoon bush, and grass,
 // straw and wildflowers are scattered as cosmetic ground cover
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
+const TEXD={}; // linear data textures (detail / weathering masks generated for the building shader)
+PRE.texd=Promise.all(['concrete','metal','roof','grime'].map(k=>new THREE.TextureLoader().loadAsync(DATA+'tex/'+k+'.jpg?v='+DATA_V).then(t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.NoColorSpace;t.anisotropy=4;TEXD[k]=t;}).catch(e=>console.warn('texd',k,e))));
 PRE.props2=fetchBin('props2.glb').catch(e=>{console.warn('props2',e);return null;}); // grasslands pines, bushy trees, wooden crates/barrels, lily pads
 // grasslands surface textures: terrain detail (grass/dirt/sand/rock), stone for rocks and bridge piers, wood for decks, crates and barrels
 const TEX={},TEX_MEAN={"g1":[0.082,0.0684,0.0058],"g2":[0.0644,0.0488,0.0114],"dirt":[0.122,0.0751,0.0325],"sand":[0.1258,0.1044,0.0502],"rock":[0.1504,0.1219,0.0913],"gravel":[0.0712,0.0508,0.0307],"crate":[0.0847,0.0577,0.0393],"planks":[0.1116,0.0725,0.0456],"planksD":[0.046,0.0382,0.0311],"woodplain":[0.1232,0.0846,0.0574],"woodplainD":[0.0511,0.0426,0.0349],"planks2":[0.1088,0.0732,0.0477],"planks2D":[0.0461,0.0389,0.032],"deck":[0.1086,0.073,0.0476],"stone":[0.1846,0.1625,0.1419]};
@@ -365,7 +367,7 @@ async function loadAssets(){
       c.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(fixed.has(m))return;fixed.add(m); // alpha-cut instead of blended: no sorting problems when instanced
         m.transparent=false;m.alphaTest=.45;m.depthWrite=true;m.side=THREE.DoubleSide;if(/flower|lilly/i.test(m.name))m.color.multiplyScalar(1.1);else if(/grass-sheet|S11_A/i.test(m.name))m.color.multiply(new THREE.Color(1.15,1.6,.85));else m.color.multiplyScalar(1.45);}); // grass sheet is straw-coloured: green it up to sit on the game's turf
       A[c.name]=c;}}}catch(e){console.warn('plants',e);}
-  await PRE.tex;
+  await PRE.tex;await PRE.texd;
   try{const pb=await PRE.props2;if(pb){const ps=(await new Promise((res,rej)=>new GLTFLoader().parse(pb,'',res,rej))).scene;const fixed=new Set();
     const WOODMAP={'Wood-crates':'crate','wood-planks':'planks','wood-material-plain':'woodplain','wood-planks-continuous':'planks2','Dark-wood-planks':'planksD','Dark-wood-material-plain':'woodplainD','Dark-wood-planks-continuous':'planks2D'};
     for(const c of [...ps.children]){if(!c.name.startsWith('G_'))continue;
@@ -1138,6 +1140,61 @@ function generate(seed){
   return bases;
 }
 
+// ---- realistic building exteriors: one shader patch for every structure. From the existing albedo it sorts each pixel into
+// light wall (-> weathered concrete), dark trim/roof (-> corrugated metal / tar-gravel), glass (-> dark, glossy, reflects the sky)
+// or painted (keeps its colour, light wear); then adds grime at the foot of the walls, rain streaks and large stains, all in
+// world space so it lines up across meshes. Sky reflections come from a small prefiltered sky environment map.
+let SKY_ENV=null;
+function skyEnv(){
+  if(SKY_ENV)return SKY_ENV;const sc=new THREE.Scene();
+  const m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,vertexShader:'varying vec3 vP;void main(){vP=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'varying vec3 vP;void main(){float y=vP.y;vec3 top=vec3(.18,.36,.68),hor=vec3(.78,.84,.88),gnd=vec3(.24,.22,.18);vec3 c=y>0.?mix(hor,top,pow(y,.55)):mix(hor,gnd,pow(-y,.4));vec3 sd=normalize(vec3(-.5,1.,.42));c+=vec3(1.,.92,.75)*pow(max(dot(vP,sd),0.),180.)*6.;gl_FragColor=vec4(c,1.);}'});
+  sc.add(new THREE.Mesh(new THREE.SphereGeometry(10,32,16),m));const pm=new THREE.PMREMGenerator(renderer);SKY_ENV=pm.fromScene(sc,0).texture;pm.dispose();return SKY_ENV;
+}
+function realMat(base,baseY){
+  const ok=TEXD.concrete&&TEXD.metal&&TEXD.roof&&TEXD.grime;if(!ok||!base.isMeshStandardMaterial)return base;
+  const m=base.clone();m.envMap=skyEnv();m.envMapIntensity=.6;m.flatShading=base.flatShading;const uBase={value:baseY};m.userData.real=1;
+  m.customProgramCacheKey=()=>'realBld'+(m.map?1:0)+(m.vertexColors?1:0);
+  m.onBeforeCompile=sh=>{
+    sh.uniforms.t_conc={value:TEXD.concrete};sh.uniforms.t_metal={value:TEXD.metal};sh.uniforms.t_roof={value:TEXD.roof};sh.uniforms.t_grime={value:TEXD.grime};sh.uniforms.u_base=uBase;
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRP;varying vec3 vRN;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvRP=(modelMatrix*vec4(transformed,1.)).xyz;vRN=normalize(mat3(modelMatrix)*objectNormal);');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
+uniform sampler2D t_conc,t_metal,t_roof,t_grime;uniform float u_base;varying vec3 vRP;varying vec3 vRN;
+vec3 triS(sampler2D t,vec3 p,vec3 b,float s){return texture2D(t,p.zy*s).rgb*b.x+texture2D(t,p.xz*s).rgb*b.y+texture2D(t,p.xy*s).rgb*b.z;}`)
+    .replace('#include <color_fragment>',`#include <color_fragment>
+float rGlass=0.,rDark=0.,rUp=0.;
+{vec3 al=diffuseColor.rgb;float mx=max(al.r,max(al.g,al.b)),mn=min(al.r,min(al.g,al.b));float sat=(mx-mn)/(mx+1e-3);float lum=dot(al,vec3(.2126,.7152,.0722));
+ vec3 n=dot(vRN,vRN)>1e-6?normalize(vRN):vec3(0.,1.,0.);vec3 b=pow(abs(n),vec3(4.));b/=(b.x+b.y+b.z);rUp=b.y*step(0.,n.y);
+ rGlass=smoothstep(.035,.11,al.b-max(al.r,al.g))*smoothstep(.03,.09,lum)*(1.-rUp);
+ float painted=smoothstep(.3,.5,sat)*(1.-rGlass);
+ float light=(1.-painted)*(1.-rGlass)*smoothstep(.16,.38,lum);
+ rDark=(1.-painted)*(1.-rGlass)*(1.-light);
+ float conc=triS(t_conc,vRP,b,.27).r*2.,met=triS(t_metal,vRP,b,.42).r*2.,rf=triS(t_roof,vRP,b,.3).r*2.;
+ float det=light*mix(conc,rf,rUp)+rDark*mix(met,rf,rUp)+painted*mix(1.,conc,.55)+rGlass;
+ al*=mix(1.,det,.9);
+ al=mix(al,al*vec3(.87,.85,.79),light*.75);
+ vec3 g=triS(t_grime,vRP,b,.045);float hb=vRP.y-u_base;
+ float foot=(1.-smoothstep(0.,1.9,hb))*(1.-rUp);
+ float streak=texture2D(t_grime,vec2((vRP.x+vRP.z)*.085,vRP.y*.032)).g*(1.-rUp)*(1.-rGlass*.6);
+ float dirt=foot*.4+streak*.34+(g.r-.5)*.24+(g.b-.5)*.1*rUp;
+ al*=1.-clamp(dirt,-.08,.62);
+ al=mix(al,al*vec3(1.06,.95,.8),clamp(foot+streak*.5,0.,1.)*.55);
+ al=mix(al,al*.32+vec3(.01,.016,.024),rGlass);
+ diffuseColor.rgb=al;}`)
+    .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+roughnessFactor=mix(roughnessFactor,mix(.86,.5,rDark),1.-rGlass);roughnessFactor=mix(roughnessFactor,.05,rGlass);`)
+    .replace('#include <metalnessmap_fragment>',`#include <metalnessmap_fragment>
+metalnessFactor=mix(metalnessFactor,.4,rDark*(1.-rUp));metalnessFactor=mix(metalnessFactor,.1,rGlass);`);};
+  return m;
+}
+const REAL_KINDS=new Set(['building','hospital','depot','gas','radio','tower','gen','fuel','gate']);
+function realifyStructures(){
+  if(!(TEXD.concrete&&TEXD.metal&&TEXD.roof&&TEXD.grime))return;
+  for(const s of G.statics){if(!REAL_KINDS.has(s.kind)||!s.obj)continue;const cache=new Map();
+    s.obj.traverse(o=>{if(!o.isMesh||o.material.userData.real)return;if(!o.geometry.attributes.normal)o.geometry.computeVertexNormals(); /* the Blender support buildings ship without normals */const one=mt=>{let c=cache.get(mt.uuid);if(!c){c=realMat(mt,s.y0??s.obj.position.y);cache.set(mt.uuid,c);}return c;};
+      o.material=Array.isArray(o.material)?o.material.map(one):one(o.material);});}
+}
 function terrainMaterial(){ // grasslands ground textures add real surface detail on top of the game's own colour palette
   const ok=['g1','g2','dirt','sand','rock'].every(k=>TEX[k]);
   const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,flatShading:!ok});if(!ok)return mat;
@@ -2316,6 +2373,7 @@ function newGame(mode,seed,demo=false){
   G.batches.wall=new Batch(proto('barrierB',1),400);G.batches.hedge=new Batch(proto('hedgehog',1),100);G.batches.crate=new Batch(proto('crate',1),200);G.batches.barrel=new Batch(proto('barrel',1),200);
   for(const b of bases)buildBase(b);
   for(const k of ['wall','hedge','crate','barrel'])G.batches[k].done();
+  realifyStructures();
   scatterNature();
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}

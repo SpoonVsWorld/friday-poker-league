@@ -465,6 +465,7 @@ function sfx(kind,x,z){
     case 'click':tone(.15,.05,1200,900,'square');break;
     case 'jet':noiseHit(.75*g,2.4,500,2600,'bandpass',.9);noiseHit(.5*g,2.2,2600,400,'bandpass',1.1,.6);tone(.12*g,2,160,60,'sawtooth');break; // YF-23 flyby roar
     case 'whistle':tone(.1*g,.75,1900,420,'sine');break; // falling bomb
+    case 'spinout':tone(.2*g,2.8,1100,170,'sawtooth');noiseHit(.35*g,2.6,2600,300,'bandpass',1.2);[0,1,2,3,4].forEach(i=>tone(.1*g,.12,1500,1500,'square',i*.28));break; // stricken helicopter: falling whine + warning beeps
     case 'collapse':noiseHit(1.1*g,3.4,420,32,'lowpass',.8,.15);tone(.55*g,2.6,58,24,'sine',.18);noiseHit(.5*g,2.4,1800,160,'lowpass',.7,.3); // building coming down: long rumble
       for(let i=0;i<9;i++)noiseHit(mr(.18,.42)*g,mr(.12,.3),mr(700,2600),mr(150,400),'bandpass',mr(.6,1.4),.3+i*mr(.12,.26));break; // + crunching concrete
   }
@@ -835,6 +836,106 @@ function rubbleFlagSpot(s){
     const x=s.x+Math.cos(aa)*r,z=s.z+Math.sin(aa)*r;if(H(x,z)>.6&&!G.statics.some(t=>t.alive&&t.kind!=='hedge'&&Math.hypot(t.x-x,t.z-z)<(t.r||3.5)))return [x,z];}
   return [s.x,s.z];
 }
+// ============================================================ vehicle wrecks
+// A destroyed vehicle no longer just vanishes in a fireball: its real model becomes a cosmetic wreck that
+// reacts to how it died - helicopters spin out and auger in, tank turrets pop off, ASVs cook off their
+// missiles, jeeps flip and lose wheels - then the charred hulk burns, smokes and finally settles into the
+// ground. Gameplay (death, respawn timers, flag drop) is unchanged and instant; online guests build the same
+// wreck from the host's 'wreck' event.
+const WRECK_MAX=10,WRECK_LIFE=45;
+function fxLocal(fn){const n=G.net;G.net=null;try{fn();}finally{G.net=n;}} // effects every client plays itself (no relay)
+function wreckBody(o,v,w){ // rigid-body-lite over an Object3D parented to `world`
+  const q0=o.quaternion.clone();o.quaternion.identity();o.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(o);o.quaternion.copy(q0);o.updateMatrixWorld(true);
+  const p=o.position,smp=[],c=bb.getCenter(new V3());
+  for(const x of [bb.min.x,c.x,bb.max.x])for(const y of [bb.min.y,bb.max.y])for(const z of [bb.min.z,c.z,bb.max.z])smp.push(new V3(x-p.x,y-p.y,z-p.z));
+  return {o,v:v||new V3(),w:w||new V3(),smp,R:Math.max(.6,bb.getSize(new V3()).length()/2),rest:0,sleep:false,inWater:false,hits:0};
+}
+function stepWreckBody(b,dt,g=30){
+  if(b.sleep)return null;const o=b.o;
+  b.v.y-=g*dt;o.position.addScaledVector(b.v,dt);
+  const wl=b.w.length();if(wl>1e-4){_rq.setFromAxisAngle(_rw.copy(b.w).divideScalar(wl),wl*dt);o.quaternion.premultiply(_rq);}
+  const gy=groundAt(o.position.x,o.position.z);
+  if(gy<-.6){ // open water: one splash, then it sinks out of sight
+    if(!b.inWater&&o.position.y<.4){b.inWater=true;fxLocal(()=>{explosion(o.position.x,0,o.position.z,clamp(b.R*.45,.6,1.4),true);});b.v.multiplyScalar(.2);b.hits++;}
+    if(b.inWater){const k=Math.pow(.25,dt);b.v.x*=k;b.v.z*=k;b.v.y=Math.max(b.v.y,-1.4);b.w.multiplyScalar(k);
+      if(o.position.y>-3&&Math.random()<dt*12)SMOKE.spawn(o.position.x+mr(-1,1),.1,o.position.z+mr(-1,1),0,mr(.5,1.5),0,mr(.6,1),.4,1.4,C_WATER,C_WATER,.8,0,1);
+      if(o.position.y<-7)b.sleep=true;}
+    return null;}
+  let low=1e9;for(const s of b.smp){_rv.copy(s).applyQuaternion(o.quaternion);if(_rv.y<low){low=_rv.y;_low.copy(_rv);}}
+  if(o.position.y+low<gy){const impact=-b.v.y;o.position.y=gy-low;b.hits++;
+    b.v.y=impact>4?impact*.28:0;const f=Math.pow(.05,dt);b.v.x*=f;b.v.z*=f;
+    _rw.set(-_low.z,0,_low.x);b.w.addScaledVector(_rw,dt*30/(b.R*b.R*.35));b.w.multiplyScalar(Math.pow(.12,dt));
+    b.rest+=dt;if(b.rest>.7&&b.v.lengthSq()<.4&&b.w.lengthSq()<.25)b.sleep=true;
+    if(impact>6)for(let i=0;i<4;i++)SMOKE.spawn(o.position.x+mr(-1.5,1.5),gy+.3,o.position.z+mr(-1.5,1.5),mr(-2,2),mr(.5,2),mr(-2,2),mr(1,2),1.5,5,C_DUST,C_SMK1,.6,-.2,1.2);
+    return impact;}
+  b.rest=0;return null;
+}
+const charred=c=>{if(c.map)c.color.setRGB(.085,.08,.075);else c.color.setRGB(.03,.028,.026);if(c.emissive)c.emissive.setRGB(0,0,0);c.roughness=1;c.metalness=0;};
+function detachPart(o,W,v,w){if(!o)return null;world.attach(o);const b=wreckBody(o,v,w);W.bodies.push(b);W.objs.push(o);return b;}
+function wreckVehicle(v,info={}){
+  const o=v.obj;if(!o||!o.parent)return;v.obj=new THREE.Group(); // the vehicle code then removes this empty stand-in; the wreck keeps the real model
+  o.visible=true;world.attach(o);
+  const vx=info.vx??v.vx??0,vz=info.vz??v.vz??0,gy=groundAt(o.position.x,o.position.z),P=v.parts;
+  const W={type:v.type,team:v.team,t:0,bodies:[],objs:[o],main:null,burn:v.type==='jeep'?9:15,charred:false,mode:'',cook:0,rotor:P.rotor,rotorSpd:28};
+  const air=v.type==='heli'&&(o.position.y-Math.max(gy,0)>1.8);
+  if(v.type==='heli'&&air){ // spin-out: tail rotor gone, the airframe whirls and drops
+    W.mode='spin';W.main=wreckBody(o,new V3(vx*.85,mr(-1,2),vz*.85),new V3(0,mr(2,3)*(Math.random()<.5?-1:1),0));W.spinDir=Math.sign(W.main.w.y);
+    W.tilt=new V3(mr(-.5,.5),0,mr(-.5,.5));if(P.tail)P.tail.visible=false;
+    fxLocal(()=>{for(let i=0;i<5;i++)DEB.p&&debris(o.position.x,o.position.y,o.position.z,1,6);sfx('spinout',o.position.x,o.position.z);});
+  }else{
+    W.main=wreckBody(o,new V3(vx*.5,v.type==='jeep'?mr(8,12):mr(2.5,4.5),vz*.5),new V3(mr(-.6,.6),mr(-.8,.8),mr(-.6,.6)));
+    W.charred=true;tintObj(o,'wreck',charred);
+    if(v.type==='jeep'){ // flips over and sheds a couple of wheels
+      W.main.w.set(mr(5,9)*(Math.random()<.5?-1:1),mr(-2,2),mr(4,8)*(Math.random()<.5?-1:1));W.main.v.x+=mr(-3,3);W.main.v.z+=mr(-3,3);
+      for(const wh of (P.wheels||[]).filter(()=>Math.random()<.45).slice(0,2))detachPart(wh,W,new V3(mr(-7,7),mr(6,11),mr(-7,7)),new V3(mr(-12,12),mr(-12,12),mr(-12,12)));}
+    if(v.type==='tank'&&P.turret){const b=detachPart(P.turret,W,new V3(mr(-4,4)+vx*.3,mr(13,18),mr(-4,4)+vz*.3),new V3(mr(-4,4),mr(-6,6),mr(-4,4)));
+      W.jet=1.4; // fire jets out of the turret ring
+    }
+    if(v.type==='asv'){if(P.pod)detachPart(P.pod,W,new V3(mr(-3,3),mr(7,11),mr(-3,3)),new V3(mr(-3,3),mr(-2,2),mr(-3,3)));W.cook=7;W.cookT=.35;}
+    if(v.type==='heli'){if(P.rotor)P.rotor.visible=false;if(P.tail)P.tail.visible=false;W.main.w.set(mr(-2,2),mr(-1,1),mr(-2,2));}
+  }
+  W.bodies.unshift(W.main);
+  (G.wrecks||(G.wrecks=[])).push(W);
+  const live=G.wrecks.filter(x=>x.t<WRECK_LIFE);if(live.length>WRECK_MAX)live[0].t=WRECK_LIFE; // oldest starts settling away
+}
+function updateWrecks(dt){
+  if(!G||dt<=0)return;
+  if(G.wrecks)for(let i=G.wrecks.length-1;i>=0;i--){const W=G.wrecks[i];W.t+=dt;const m=W.main,o=m.o,p=o.position;
+    if(W.mode==='spin'){ // autorotating fall: spin winds up, nose drops, trailing smoke and fire
+      W.spinDir=W.spinDir||1;m.w.y=W.spinDir*Math.min(8.5,Math.abs(m.w.y)+dt*4.5);m.w.x=W.tilt.x*Math.min(1,W.t);m.w.z=W.tilt.z*Math.min(1,W.t);
+      m.v.x*=Math.pow(.7,dt);m.v.z*=Math.pow(.7,dt);
+      if(W.rotor){W.rotor.rotation.y+=dt*W.rotorSpd;W.rotorSpd=Math.max(6,W.rotorSpd-dt*6);}
+      const tail=_rv.set(0,1.2,-3).applyQuaternion(o.quaternion).add(p);
+      for(let k=0;k<2;k++)SMOKE.spawn(tail.x,tail.y,tail.z,mr(-.5,.5),mr(.5,1.5),mr(-.5,.5),mr(2,3.2),1.4,4.5,C_SMK0,[.12,.11,.1],.85,-.3,.6);
+      if(Math.random()<dt*30)FIRE.spawn(p.x+mr(-.4,.4),p.y+1.6,p.z+mr(-.4,.4),mr(-1,1),mr(1,3),mr(-1,1),mr(.2,.45),1.2,2.2,C_FIRE0,C_FIRE1,1,-2,1);
+      const hit=stepWreckBody(m,dt,15);
+      if(hit!==null||m.inWater||W.t>9){W.mode='';if(!m.inWater){ // auger in
+          fxLocal(()=>{explosion(p.x,p.y+1,p.z,2.2);sfx('bigboom',p.x,p.z);debris(p.x,p.y+1,p.z,10,10);});
+          if(W.rotor){world.attach(W.rotor);detachPart(W.rotor,W,new V3(mr(-8,8),mr(5,9),mr(-8,8)),new V3(mr(-3,3),mr(-14,14),mr(-3,3)));W.rotor=null;}
+          m.v.set(m.v.x*.4,mr(3,5),m.v.z*.4);m.w.set(mr(-3,3),m.w.y*.3,mr(-3,3));m.sleep=false;m.rest=0;}
+        else if(W.rotor){W.rotor=null;}
+        if(!W.charred){W.charred=true;tintObj(o,'wreck',charred);}}
+      continue;}
+    for(const b of W.bodies){const imp=stepWreckBody(b,dt);
+      if(imp>7&&b!==m&&b.hits<3)fxLocal(()=>{sfx('hit',b.o.position.x,b.o.position.z);});}
+    if(W.jet>0){W.jet-=dt;for(let k=0;k<3;k++)FIRE.spawn(p.x+mr(-.5,.5),p.y+1.8,p.z+mr(-.5,.5),mr(-1.5,1.5),mr(8,14),mr(-1.5,1.5),mr(.25,.5),1.4,3,C_FIRE0,C_FIRE1,1,-2,1.5);}
+    if(W.cook>0){W.cookT-=dt;if(W.cookT<=0){W.cook--;W.cookT=mr(.18,.55); // ASV missiles cooking off: pops + streaks
+        const sx=p.x+mr(-1,1),sy=p.y+2,sz=p.z+mr(-1,1);fxLocal(()=>{explosion(sx,sy,sz,mr(.35,.6));sfx(Math.random()<.5?'rocket':'hit',sx,sz);});
+        const a=mr(0,TAU),el=mr(.4,1.2),sp=mr(22,34),dx=Math.cos(a)*Math.cos(el),dy=Math.sin(el),dz=Math.sin(a)*Math.cos(el);
+        for(let k=0;k<14;k++){const d=k*.55;FIRE.spawn(sx+dx*d,sy+dy*d,sz+dz*d,dx*sp,dy*sp,dz*sp,mr(.35,.6),.9,.2,C_FIRE0,C_FIRE1,1,9,0);}}}
+    // burning hulk: flames for a while, then a long column of black smoke
+    if(!m.inWater){const top=p.y+(W.type==='jeep'?1:1.6);
+      if(W.t<W.burn&&Math.random()<dt*26)FIRE.spawn(p.x+mr(-1,1),top,p.z+mr(-1,1),mr(-.5,.5),mr(1.5,3.5),mr(-.5,.5),mr(.3,.7),mr(1.2,2),mr(2,3.2),C_FIRE0,C_FIRE1,1,-2.5,1);
+      if(W.t<W.burn*2.2&&Math.random()<dt*(W.t<W.burn?9:4))SMOKE.spawn(p.x+mr(-.8,.8),top+.5,p.z+mr(-.8,.8),mr(-.6,.6),mr(2,3.5),mr(-.6,.6),mr(3,4.5),1.6,6.5,[.1,.09,.08],[.32,.3,.28],.75,-.4,.5);}
+    if(W.t>WRECK_LIFE){const k=W.t-WRECK_LIFE;for(const b of W.bodies){b.sleep=true;b.o.position.y-=dt*.45;}
+      if(k>5){for(const x of W.objs)world.remove(x);G.wrecks.splice(i,1);}}
+  }
+  // damage you can see before it dies: grey smoke, then black smoke and sparks, then flames
+  for(const v of G.vehicles){if(v.state!=='active')continue;const r=v.hp/v.def.hp;if(r>.6)continue;const p=v.obj.position,top=p.y+v.def.h*.75;
+    if(Math.random()<dt*(r>.35?5:11)){const blk=r<=.35;SMOKE.spawn(p.x+mr(-.6,.6),top,p.z+mr(-.6,.6),mr(-.4,.4),mr(1,2.5),mr(-.4,.4),mr(1.6,2.8),.9,blk?4:3,blk?[.12,.11,.1]:[.5,.5,.5],blk?[.3,.29,.27]:[.7,.7,.7],blk?.75:.45,-.3,.5);}
+    if(r<=.35&&Math.random()<dt*4)FIRE.spawn(p.x+mr(-.6,.6),top,p.z+mr(-.6,.6),mr(-3,3),mr(2,5),mr(-3,3),mr(.15,.3),.35,.1,[1,.9,.5],[1,.5,.1],1,12,0);
+    if(r<=.18&&Math.random()<dt*20)FIRE.spawn(p.x+mr(-.5,.5),top-.2,p.z+mr(-.5,.5),mr(-.4,.4),mr(1.5,3),mr(-.4,.4),mr(.25,.5),.9,1.6,C_FIRE0,C_FIRE1,1,-2,1);}
+}
 // ---- blood: a spray of heavy droplets (SMOKE particles with real gravity) plus
 // long-lived splatter decals on the ground (instanced flat discs, pooled like debris).
 const C_BLOOD0=[.5,.04,.03],C_BLOOD1=[.2,.02,.02];
@@ -1148,8 +1249,11 @@ function bailOut(v){
 }
 function destroyVehicle(v,by){
   if(v.state==='dead')return;v.state='dead';const team=G.teams[v.team];
-  explosion(v.x,v.y+1,v.z,v.type==='jeep'?1.3:2);sfx('bigboom',v.x,v.z);
+  const air=v.def.air&&v.y-Math.max(groundAt(v.x,v.z),0)>1.8; // a helicopter hit in the air spins out and explodes when it hits the ground (see wreckVehicle)
+  explosion(v.x,v.y+1,v.z,air?1:v.type==='jeep'?1.3:2);sfx(air?'boom':'bigboom',v.x,v.z);
   if(v.carrying){dropFlag(v.carrying,v.x,v.z);}
+  if(G.net&&G.net.host)G.net.events.push({k:'wreck',id:v.netId,vx:Math.round((v.vx||0)*10)/10,vz:Math.round((v.vz||0)*10)/10});
+  try{wreckVehicle(v);}catch(e){console.warn('wreck',e);}
   if(team.view&&!G.demo)skullFor(team.view);
   removeVehicle(v);team.vehicle=null;team.respawnT=2.5;
   note(v.team,`${v.def.name} destroyed`,'bad');
@@ -2110,7 +2214,7 @@ function loop(now){
     if(!paused&&state!=='over')step(dt);else if(state==='over')step(dt*.3);
     if(G.net&&G.net.host)netHostTick(dt);
   }
-  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);updateFlagBeacons(dt);
+  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);updateWrecks(paused?0:dt);updateFlagBeacons(dt);
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
   const showAir=showT&&!!G.air&&G.air.left[0]>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;
@@ -2295,7 +2399,8 @@ function netSyncProjectiles(arr){
   for(const d of arr){const k=PK[d.k];if(!k)continue;const mesh=pmesh(k.geo);mesh.position.set(d.x,d.y,d.z);G.proj.push({kind:d.k,k,x:d.x,y:d.y,z:d.z,mesh,life:1});}
 }
 function netApplySnapshot(snap){
-  for(const e of snap.fx){if(e.k==='note')note(e.T,e.text,e.kind,e.big);else if(e.k==='sfx')sfx(e.n,e.x,e.z);else if(e.k==='exp')explosion(e.x,e.y,e.z,e.size,e.water);else if(e.k==='gore')gore(e.x,e.y,e.z,e.how,e.dx,e.dz);}
+  for(const e of snap.fx){if(e.k==='note')note(e.T,e.text,e.kind,e.big);else if(e.k==='sfx')sfx(e.n,e.x,e.z);else if(e.k==='exp')explosion(e.x,e.y,e.z,e.size,e.water);else if(e.k==='gore')gore(e.x,e.y,e.z,e.how,e.dx,e.dz);
+    else if(e.k==='wreck'){const v=G.vehicles.find(x=>x.netId===e.id);if(v)try{wreckVehicle(v,e);}catch(err){console.warn('wreck',err);}}}
   for(let T=0;T<2;T++){
     const t=G.teams[T],st=snap.teams[T];t.stock=st.stock;t.respawnT=st.respawnT;
     if(st.v){
@@ -2397,7 +2502,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   try{await loadAssets();}catch(e){$('#loading').textContent='Could not load models: '+e.message;return;}
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

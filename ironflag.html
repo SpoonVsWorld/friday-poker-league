@@ -202,6 +202,7 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .op{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:12px;color:var(--sand);text-align:left;display:grid;gap:4px;min-width:0}
 .op .no{font:400 13px var(--display);color:var(--khaki);letter-spacing:.1em}
 .op .nm{font:400 19px var(--display);letter-spacing:.03em}
+.op .ob{font-size:11px;color:var(--sand);opacity:.8;letter-spacing:.02em}
 .op .st{font-size:11.5px;color:var(--khaki);font-variant-numeric:tabular-nums}
 .op.done{border-color:rgba(123,201,107,.55)}.op.done .st{color:var(--ok)}
 .op.next{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
@@ -376,6 +377,7 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // REAL VEHICLES (Matt, 27 Oct 2026): PBR M1 Abrams -> tank, M2 Bradley -> ASV (from the FBX packs in his Kenney folder); see fitReal
 PRE.tank=fetchBin('tank.glb').catch(e=>{console.warn('tank',e);return null;}); // (Matt preferred the original ASV, so the Bradley in sp-data/asv.glb is unused)
 PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;});
+PRE.items1=fetchBin('items1.glb').catch(e=>{console.warn('items1',e);return null;}); // campaign objective items, Ops 1-5 (Blender, SpoonPlatoon_Items.blend)
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
@@ -415,6 +417,11 @@ async function loadAssets(){
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
   try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
     if(base&&ring&&pods.missile&&pods.gun&&pods.cannon){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;if(!o.material.map&&/^(GunMetal|Barrel|OliveSteel)/.test(o.material.name))o.material=vehRealMat(o.material,o);}});A.turrets={base,ring,pods,headY:ring.position.y};}}}catch(e){console.warn('turret models',e);}
+  try{const ib=await PRE.items1;if(ib){const ig=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(ib,'',res,rej));A.items=A.items||{};
+    for(const r of [...ig.scene.children]){const m=/^item(\d\d)$/.exec(r.name);if(!m)continue;r.position.set(0,0,0);r.updateMatrixWorld(true);
+      const bx=new THREE.Box3().setFromObject(r),sz=bx.getSize(new V3()),c=bx.getCenter(new V3()),k=ITEM_SIZE/Math.max(sz.x,sz.z);
+      r.position.set(-c.x,-bx.min.y,-c.z);const inner=new THREE.Group();inner.add(r);inner.scale.setScalar(k);const wrap=new THREE.Group();wrap.add(inner);wrap.userData.inner=inner;
+      r.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material)o.material.envMapIntensity=.7;}});A.items[+m[1]]=wrap;}}}catch(e){console.warn('items model',e);}
   try{const lb=await PRE.launcher;if(lb){const lg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(lb,'',res,rej));const L=lg.scene.getObjectByName('Launcher');
     if(L){L.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;const mn=o.material.name;if(/^Decal/.test(mn)){o.material.polygonOffset=true;o.material.polygonOffsetFactor=-2;o.material.depthWrite=false;o.renderOrder=2;}else if(!/Glass|Lamp/.test(mn)){if(/^Olive/.test(mn))o.material.userData.camo=1;o.material=vehRealMat(o.material,o);}else o.material.envMapIntensity=.6;}});A.launcher=L;}}}catch(e){console.warn('launcher model',e);}
   try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
@@ -2106,12 +2113,14 @@ function destroyVehicle(v,by){
 }
 
 // ============================================================ flags
-function makeFlag(T){const o=tintObj(proto('flag',5.5).clone(),'team'+T,teamRecolor(T));o.visible=false;world.add(o);
-  const f={team:T,state:'hidden',x:0,z:0,obj:o,carrier:null,bob:0};return f;}
+function makeFlag(T){
+  const it=G.op&&T===1&&A.items&&A.items[opIndex+1]; // campaign: the enemy 'flag' is this operation's intel item
+  const o=it?it.clone():tintObj(proto('flag',5.5).clone(),'team'+T,teamRecolor(T));o.visible=false;world.add(o);
+  const f={team:T,state:'hidden',x:0,z:0,obj:o,carrier:null,bob:0,item:it?OBJECTIVES[opIndex]:null};return f;}
 function exposeFlag(f,x,z){musicSting();f.state='exposed';f.x=x;f.z=z;f.obj.visible=true;world.attach(f.obj);f.obj.position.set(x,groundAt(x,z),z);f.obj.scale.setScalar(1);
-  note(f.team,'Your flag has been exposed!','bad',true);note(1-f.team,'Enemy flag found! Send a jeep.','good',true);sfx('alarm');}
+  note(f.team,'Your flag has been exposed!','bad',true);note(1-f.team,f.item?`${f.item.n} found! Send a jeep.`:'Enemy flag found! Send a jeep.','good',true);sfx('alarm');}
 function dropFlag(f,x,z){f.carrier=null;f.state='exposed';world.attach(f.obj);f.x=x;f.z=z;const gy=Math.max(groundAt(x,z),0);f.obj.position.set(x,gy,z);f.obj.rotation.set(0,0,0);f.obj.scale.setScalar(1);
-  note(f.team,'Your flag was dropped in the field','warn');note(1-f.team,'The flag was dropped! Recover it.','warn');}
+  note(f.team,'Your flag was dropped in the field','warn');note(1-f.team,f.item?`The ${f.item.n.toLowerCase()} was dropped! Recover it.`:'The flag was dropped! Recover it.','warn');}
 // exposed / dropped flag beacon: tall team-coloured light pillar, pulsing ground ring and a bobbing marker,
 // so the flag is easy to spot through dust and rubble when you go in with the jeep (cosmetic, every client)
 function makeBeacon(T){
@@ -2124,23 +2133,23 @@ function makeBeacon(T){
   const rm=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
   const rings=[0,1].map(()=>{const r=new THREE.Mesh(new THREE.RingGeometry(.86,1,48),rm.clone());r.rotation.x=-Math.PI/2;r.position.y=.25;r.renderOrder=4;g.add(r);return r;});
   const arrow=new THREE.Mesh(new THREE.ConeGeometry(1.3,2.6,4),new THREE.MeshBasicMaterial({color:col.clone().lerp(new THREE.Color(1,1,1),.25),fog:false}));arrow.rotation.x=Math.PI;g.add(arrow);
-  g.visible=false;world.add(g);return {g,pm,core,rings,arrow,t:0};
+  g.visible=false;world.add(g);return {g,pm,pil,core,rings,arrow,t:0};
 }
 function updateFlagBeacons(dt){
   if(!G||!G.flags)return;if(!G.beacons)G.beacons=[makeBeacon(0),makeBeacon(1)];
   for(const f of G.flags){const b=G.beacons[f.team],on=f.state==='exposed'&&f.obj.visible;b.g.visible=on;if(!on)continue;
-    b.t+=dt;const p=f.obj.position;b.g.position.set(p.x,p.y,p.z);f.obj.scale.setScalar(1.5); // bigger flag while it's lying out in the open
+    b.t+=dt;const p=f.obj.position;b.g.position.set(p.x,p.y,p.z);b.pil.position.y=b.core.position.y=f.item?37.5:35; /* the light column starts above an intel item so it doesn't hide it */f.obj.scale.setScalar(1.5); // bigger flag while it's lying out in the open
     const pulse=.75+.25*Math.sin(b.t*4);b.pm.uniforms.a.value=.5*pulse;b.core.material.uniforms.a.value=.65*pulse;
     b.rings.forEach((r,i)=>{const k=(b.t*.7+i*.5)%1;r.scale.setScalar(1.5+k*7);r.material.opacity=.85*(1-k);});
     b.arrow.position.y=12+Math.sin(b.t*3)*1.2;b.arrow.rotation.y+=dt*2.5;}
 }
 function updateFlags(dt){
   for(const f of G.flags){
-    if(f.state==='exposed'){f.bob+=dt;f.obj.rotation.y+=dt*.8;
-      if(Math.random()<dt*6)FIRE.spawn(f.x+rr(-.3,.3),groundAt(f.x,f.z)+5.6,f.z+rr(-.3,.3),0,2,0,.6,.6,.1,TEAMS[f.team].color===0x3f7fe0?[.4,.6,1]:[1,.4,.3],[1,1,1],.8);
+    if(f.state==='exposed'){f.bob+=dt;f.obj.rotation.y+=dt*.8;if(f.item)f.obj.position.y=Math.max(groundAt(f.x,f.z),0)+.45+Math.sin(f.bob*2.2)*.15; /* intel items hover and turn so they catch the eye */
+      if(Math.random()<dt*6)FIRE.spawn(f.x+rr(-.3,.3),groundAt(f.x,f.z)+(f.item?1.6:5.6),f.z+rr(-.3,.3),0,2,0,.6,.6,.1,TEAMS[f.team].color===0x3f7fe0?[.4,.6,1]:[1,.4,.3],[1,1,1],.8);
       for(const v of G.vehicles){if(v.type==='jeep'&&v.team!==f.team&&v.state==='active'&&!v.carrying&&Math.hypot(v.x-f.x,v.z-f.z)<4.2){
-        f.state='carried';f.carrier=v;v.carrying=f;v.obj.add(f.obj);f.obj.position.set(0,1.5,-1.4);f.obj.rotation.set(0,0,0);f.obj.scale.setScalar(.7);
-        note(v.team,'Flag secured! Get it home!','good',true);note(f.team,'The enemy has your flag!','bad',true);sfx('pick');if(G.teams[v.team].view?.index===0)musicPlay('tell');}}}
+        f.state='carried';f.carrier=v;v.carrying=f;v.obj.add(f.obj);f.obj.position.set(0,f.item?2.06:1.5,f.item?-.55:-1.4);f.obj.rotation.set(0,f.item?.3:0,0);f.obj.scale.setScalar(f.item?.68:.7); /* intel items ride strapped to the jeep's roof */
+        note(v.team,f.item?`${f.item.n} secured! Get it home!`:'Flag secured! Get it home!','good',true);note(f.team,'The enemy has your flag!','bad',true);sfx('pick');if(G.teams[v.team].view?.index===0)musicPlay('tell');}}}
     if(f.state==='carried'){const v=f.carrier;const b=G.bases[v.team];if(Math.hypot(v.x-b.x,v.z-b.z)<6.5&&v.state==='active'){f.state='captured';gameOver(v.team,'flag');}}
   }
 }
@@ -2262,7 +2271,7 @@ function destroyStatic(s,byTeam){
     case 'tree':debris(s.x,y,s.z,3,5);for(let i=0;i<8;i++)puff(s.x,y+rr(0,4),s.z,[.25,.4,.2],2.2,1);break;
     case 'building':{explosion(s.x,y,s.z,2.6);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=18;G.smokers.push(s);
       for(let i=0;i<3;i++){const a=RND()*TAU;spawnSoldier(s.team,s.x+Math.cos(a)*8,s.z+Math.sin(a)*8,'flee');}
-      if(s.hasFlag){const [fx,fz]=rubbleFlagSpot(s);exposeFlag(G.flags[s.team],fx,fz);}else note(byTeam,'Building destroyed — no flag inside','info');break;}
+      if(s.hasFlag){const [fx,fz]=rubbleFlagSpot(s);exposeFlag(G.flags[s.team],fx,fz);}else note(byTeam,`Building destroyed — no ${objName(G.flags[s.team]).toLowerCase()} inside`,'info');break;}
     case 'gate':{explosion(s.x,y+1,s.z,2.2);sfx('bigboom',s.x,s.z);s.panel.visible=false;tintObj(s.obj,'rubble',darken);s.smoke=12;G.smokers.push(s);debris(s.x,y,s.z,8,9);
       note(s.team,'Your base gate was blown open!','bad',true);note(1-s.team,'Enemy gate breached!','good',true);break;}
     case 'hospital':case 'depot':case 'gas':{const dep=s.kind!=='hospital';explosion(s.x,y,s.z,dep?3.4:2.6);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=dep?26:18;G.smokers.push(s);debris(s.x,y,s.z,10,12);
@@ -3033,14 +3042,14 @@ function updateHud(view){
   let s;
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
     q.fuel.style.width=(v.fuel/d.fuel*100).toFixed(1)+'%';
-    s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.type==='jeep'&&A.crew?`<div>Riflemen <span>${crewCount(v)}/3</span></div>`:'')+(v.carrying?'<div style="color:var(--signal)">FLAG ABOARD</div>':'');
+    s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.type==='jeep'&&A.crew?`<div>Riflemen <span>${crewCount(v)}/3</span></div>`:'')+(v.carrying?`<div style="color:var(--signal)">${v.carrying.item?v.carrying.item.s:'FLAG'} ABOARD</div>`:'');
     q.warn.textContent=v.scuttle>0?'SCUTTLING…':v.supplyMsg?v.supplyMsg:v.floats?'TIRES INFLATED':v.fuel<d.fuel*.2?(v.fuel<=0?'OUT OF FUEL':'LOW FUEL'):'';q.warn.style.color=v.supplyMsg||v.floats?'var(--ok)':'';}
   else{q.vn.textContent='In bunker';q.hp.style.width='0';q.fuel.style.width='0';s='';q.warn.textContent='';}
   if(lastHud.get(q.ammo)!==s){q.ammo.innerHTML=s;lastHud.set(q.ammo,s);}
   const st=VORDER.map(k=>`<div class="${t.stock[k]?'':'zero'}">${{tank:'TNK',heli:'HEL',asv:'ASV',jeep:'JEP'}[k]} ${t.stock[k]}</div>`).join('');
   if(lastHud.get(q.stock)!==st){q.stock.innerHTML=st;lastHud.set(q.stock,st);}
   const lab={hidden:'HIDDEN',exposed:'EXPOSED',carried:'TAKEN',captured:'CAPTURED'};const ef=G.flags[1-t.team],mf=G.flags[t.team];
-  const dv=devActive()&&t.team===0;const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air?`<div>AIR STRIKES <b style="color:${G.air.left[t.team]?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>ENEMY FLAG <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
+  const dv=devActive()&&t.team===0;const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air?`<div>AIR STRIKES <b style="color:${G.air.left[t.team]?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
   if(lastHud.get(q.flag)!==fl){q.flag.innerHTML=fl;lastHud.set(q.flag,fl);}
 }
 function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat in front
@@ -3121,7 +3130,7 @@ function newGame(mode,seed,demo=false){
     cam.position.set(view.focus.x,70,view.focus.z+(T===0?44:-44));cam.lookAt(view.focus);if(!demo){buildHud(view);if(AU.ctx)view.engine=engineFor(view);}return view;});
   miniBase();layoutViews();
   sun.castShadow=opts.shadows;
-  if(!demo){if(G.op){note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
+  if(!demo){if(G.op){note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);if(G.flags[1].item)setTimeout(()=>note(0,`Objective: find and recover the ${G.flags[1].item.n}`,'good'),3400);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
 }
 function endGame(){
   if(!G)return;if(G.strike&&G.strike.snd)G.strike.snd.stop();MSL_LIGHT.intensity=0;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
@@ -3137,8 +3146,8 @@ function gameOver(winner,how){
     const human=G.views.map(v=>v.team.team);let title,text;
     $('#oNext').hidden=true;$('#oOps').hidden=!G.op;$('#oNew').hidden=!!G.op||!!G.net;$('#oAgain').textContent=G.op?'Replay operation':G.net?'Back to lobby':'Rematch';
     if(G.op){const won=winner===0;title=won?'Operation complete':'Operation failed';
-      if(won){const secs=Math.round(G.time);text=`${G.op.name} taken in ${fmtTime(secs)}.`;saveOp(opIndex,secs);if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else text+=' The whole campaign is yours.';confetti();}
-      else text=how==='nojeep'?'No jeeps left to carry the flag.':'You ran out of vehicles.';}
+      if(won){const secs=Math.round(G.time);text=`${G.op.name} taken in ${fmtTime(secs)}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else text+=' The whole campaign is yours.';confetti();}
+      else text=how==='nojeep'?`No jeeps left to carry the ${objName(G.flags[1]).toLowerCase()}.`:'You ran out of vehicles.';}
     else if(G.views.length===1){const won=winner===human[0];title=won?'Victory':'Defeat';
       text=how==='flag'?(won?'You brought their flag home.':'The enemy ran your flag home.'):(won?'The enemy ran out of vehicles.':'You ran out of vehicles.');}
     else{title=`Player ${winner+1} wins`;text=how==='flag'?`${TEAMS[winner].name} captured the flag.`:`${TEAMS[1-winner].name} ran out of vehicles.`;}
@@ -3164,6 +3173,15 @@ const OPS=(()=>{
     const bits=[`${cfg.buildings} buildings`,`${turrets.length+outposts.length*2} turrets`];if(missiles)bits.push('missile turrets');if(drones)bits.push(drones+(drones>1?' drones':' drone'));if(cfg.gates)bits.push('gated walls');if(airStrikes)bits.push(airStrikes+' enemy air strikes');
     return {name,seed,cfg,stock,turMul:.85+t*.35,aim:.1-t*.06,brief:'Intel: '+bits.join(', ')+'.'+(airStrikes?` You have ${airStrikes} air strikes (F).`:'')};});})();
 let opIndex=0;
+// Campaign objectives: each operation hides its own intel item instead of the enemy flag (same hide / expose / carry / bring-home rules).
+// Models come from sp-data/items*.glb (A.items[n]); an op whose model isn't built yet still uses the flag.
+const OBJECTIVES=[['Communications Log','COMMS LOG'],['Supply Manifest','MANIFEST'],['Route Intelligence Map','ROUTE MAP'],['Encrypted Intelligence Drive','INTEL DRIVE'],['Security Authorization Key','SECURITY KEY'],
+  ['Submerged Cargo Container','CARGO'],['Command Orders','ORDERS'],['Research Archive Computer','ARCHIVE PC'],['Shipment Tracking Computer','TRACKER'],['Transport Dossier','DOSSIER'],
+  ['Emergency Command Cipher','CIPHER'],['Guidance-System Module','GUIDANCE'],['Armored Project Container','CONTAINER'],['Assembly Coordinates Device','GPS DEVICE'],['Final Assembly Authorization Card','AUTH CARD'],
+  ['Shielded Energy Assembly','ENERGY CELL'],['Weapon Control Core','CONTROL CORE'],['Final Weapons Assembly Crate','WEAPONS CRATE'],['Weapon Activation Key Device','ACTIVATION KEY'],['Nuclear Weapon Objective','WARHEAD']].map(([n,s])=>({n,s}));
+const ITEM_SIZE=1.7; // metres across when lying out (x1.5 while exposed, x0.7 in the jeep)
+function objOf(f){return f&&f.item?f.item:null;}
+function objName(f){const o=objOf(f);return o?o.n:'flag';}
 const OPKEY='ironflag.ops.v1';
 function loadOps(){try{return JSON.parse(localStorage.getItem(OPKEY))||{};}catch(e){return {};}}
 function saveOp(i,secs){const d=loadOps();d.best=d.best||{};if(!d.best[i]||secs<d.best[i])d.best[i]=secs;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}}
@@ -3171,7 +3189,7 @@ function fmtTime(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
 function showOps(){
   const d=loadOps(),best=d.best||{};const unlocked=DEV.on?OPS.length-1:Math.min(OPS.length-1,Math.max(-1,...Object.keys(best).map(Number))+1);
   $('#opsSub').textContent=`${Object.keys(best).length} of ${OPS.length} operations complete. Each base is defended by turrets, soldiers and later drones. There are no enemy vehicles, just their defenses. Difficulty: ${['Easy','Normal','Hard'][opts.diff]} (change it on the title screen; Hard is the original's one-hit jeep).`;
-  $('#opsGrid').innerHTML=OPS.map((o,i)=>{const done=best[i]!=null,lock=i>unlocked;return `<button class="op${done?' done':''}${i===unlocked&&!done?' next':''}" data-i="${i}" ${lock?'disabled':''}><span class="no">OPERATION ${String(i+1).padStart(2,'0')}</span><span class="nm">${o.name}</span><span class="st">${lock?'Locked':done?'Complete · best '+fmtTime(best[i]):'Map '+o.seed+' · ready'}</span></button>`;}).join('');
+  $('#opsGrid').innerHTML=OPS.map((o,i)=>{const done=best[i]!=null,lock=i>unlocked;return `<button class="op${done?' done':''}${i===unlocked&&!done?' next':''}" data-i="${i}" ${lock?'disabled':''}><span class="no">OPERATION ${String(i+1).padStart(2,'0')}</span><span class="nm">${o.name}</span><span class="ob">${OBJECTIVES[i].n}</span><span class="st">${lock?'Locked':done?'Complete · best '+fmtTime(best[i]):'Map '+o.seed+' · ready'}</span></button>`;}).join('');
   $('#opsGrid').querySelectorAll('.op').forEach(b=>b.onclick=()=>{if(b.disabled)return;startOp(+b.dataset.i);});
   // The grid's scroll position otherwise carries over from the last time
   // this screen was open (the #ops container itself is just hidden/shown,

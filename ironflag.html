@@ -2098,7 +2098,7 @@ function truckTarget(v){ // roof gunner: nearest threat all round within MG rang
 // flawless op) and he can carry the objective home, slowly. The vehicle he left stays parked; walk up to any of yours and press G.
 // Desktop: click to capture the mouse (mouse look, WASD, Shift sprint, Esc frees it); without the mouse A/D turn. Pad: left stick
 // moves, right stick looks. Touch: left pad moves, drag on the right half to look, FIRE / SPECIAL (sprint) / OUT-IN buttons.
-VDEF.foot={name:'On foot',hp:50,speed:5.4,turn:2.4,fuel:1,ammo:210,ammo2:0,r:.55,h:1.85,air:false,desc:'',w1:'Rifle',w2:''};
+VDEF.foot={name:'On foot',hp:50,speed:5.4,turn:2.4,fuel:1,ammo:210,ammo2:50,r:.55,h:1.85,air:false,desc:'',w1:'Rifle',w2:'Grenades'}; // 50 hand grenades (Matt, 27 Oct 2026): right-click / pad B / touch SPECIAL
 const HERO_H=1.79,VM={x:-.04,y:.035,z:-.13,rx:-.09,ry:.08,rz:0}; // viewmodel nudge (camera space) from the Blender pose
 const FP={look:{dx:0,dy:0},sens:.0022,scene:null,cam:null,rig:null,muzzle:new V3(),flash:null,flashT:0,bob:0,recoil:0,sway:{x:0,y:0},prevH:null,prevP:0,hint:false};
 function footOk(){return !!(A.hero&&G&&!G.net&&!G.demo);}
@@ -2126,12 +2126,14 @@ function buildHeroObj(T){
 }
 function spawnHero(T,x,z,heading){
   const team=G.teams[T],{g,parts}=buildHeroObj(T),keep=team.hero||{};
-  const v={type:'foot',def:VDEF.foot,team:T,x,z,y:vehGround(x,z),heading,pitch:0,speed:0,vx:0,vz:0,strafe:0,turret:0,hp:keep.hp||VDEF.foot.hp,fuel:1,ammo:keep.ammo??VDEF.foot.ammo,ammo2:0,cd:0,cd2:0,
+  const v={type:'foot',def:VDEF.foot,team:T,x,z,y:vehGround(x,z),heading,pitch:0,speed:0,vx:0,vz:0,strafe:0,turret:0,hp:keep.hp||VDEF.foot.hp,fuel:1,ammo:keep.ammo??VDEF.foot.ammo,ammo2:keep.ammo2??VDEF.foot.ammo2,gcd:0,cd:0,cd2:0,
     state:'active',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:VDEF.foot.r,alt:0,smokeT:0,scuttle:0,steer:0,wheelRot:0,lowFuelWarned:true,dustT:0,moving:0};
   g.position.set(x,v.y,z);g.rotation.y=heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);return v;
 }
 function removeHero(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);v.state='gone';}
-function footBlocked(x,z,T,self){if(!passable(x,z)||soldierBlocked(x,z,T))return true;for(const o of G.vehicles){if(o===self||o.def.air||o.state!=='active'||o.type==='foot')continue;if(Math.hypot(o.x-x,o.z-z)<o.r*.85+.45)return true;}return false;}
+function footBlocked(x,z,T,self){ // like soldierBlocked, but your OWN bunker pad is walkable (that's where you run the objective home)
+  if(!passable(x,z))return true;staticsNear(x,z,_sn);for(const s of _sn){if(s.kind==='gate'&&s.team===T)continue;for(const q of s.pts){const dx=q[0]-x,dz=q[1]-z,r=q[2]+.35;if(dx*dx+dz*dz<r*r)return true;}}
+  const eb=G.bases[1-T];if(Math.abs(x-eb.x)<7.5&&Math.abs(z-eb.z)<7.5)return true;for(const o of G.vehicles){if(o===self||o.def.air||o.state!=='active'||o.type==='foot')continue;if(Math.hypot(o.x-x,o.z-z)<o.r*.85+.45)return true;}return false;}
 function carryAttach(f,v){ // the objective rides on the jeep's roof, the six-wheeler's deck, or the soldier's back
   f.state='carried';f.carrier=v;v.carrying=f;v.obj.add(f.obj);const tk=v.type==='truck',ft=v.type==='foot';
   if(ft){f.obj.position.set(0,f.item?1.32:1.1,f.item?-.3:-.25);f.obj.rotation.set(0,f.item?.3:0,0);f.obj.scale.setScalar(f.item?.42:.4);return;}
@@ -2146,12 +2148,12 @@ function toggleFoot(view){
     if(!spot){note(T,'No room to get out here','warn');return;}
     v.speed=0;v.strafe=0;const h=spawnHero(T,spot.x,spot.z,v.heading);t.parked=v;t.vehicle=h;view.cy=null;view.cpos=null;FP.prevH=null;
     if(view.index===0)musicStop();sfx('click',v.x,v.z);
-    note(T,opts.touch?'On foot: tap IN beside a vehicle to get back in':document.pointerLockElement?'On foot: G beside a vehicle gets you back in':'On foot: click to aim with the mouse · G beside a vehicle to get in','info');
+    note(T,opts.touch?'On foot: SPECIAL throws a grenade · tap IN beside a vehicle to get back in':'On foot: click to aim · right-click (or X) throws a grenade · G beside a vehicle to get in','info');
   }else{
     let best=null,bd=1e9;for(const o of G.vehicles){if(o===v||o.team!==T||o.type==='foot'||o.state!=='active')continue;const d=Math.hypot(o.x-v.x,o.z-v.z)-o.r;if(d<2.4&&d<bd){bd=d;best=o;}}
     if(!best){note(T,'Walk up to one of your vehicles to get in','warn');return;}
     if(v.carrying){const f=v.carrying;v.carrying=null;if(CARRIER(best)&&!best.carrying){v.obj.remove(f.obj);carryAttach(f,best);}else{dropFlag(f,v.x,v.z);note(T,`Only a jeep can carry the ${objName(f).toLowerCase()}`,'warn');}}
-    t.hero={hp:v.hp,ammo:v.ammo};removeHero(v);t.vehicle=best;if(t.parked===best)t.parked=null;best.leftPad=true;best.padT=0;
+    t.hero={hp:v.hp,ammo:v.ammo,ammo2:v.ammo2};removeHero(v);t.vehicle=best;if(t.parked===best)t.parked=null;best.leftPad=true;best.padT=0;
     if(view.index===0)musicPlay(best.carrying?'tell':VEH_MUSIC[best.type]);sfx('click',best.x,best.z);
     if(document.pointerLockElement)document.exitPointerLock();
   }
@@ -2161,6 +2163,12 @@ function heroShoot(v){
   const ex=dx+rr(-s,s),ey=dy+rr(-s,s),ez=dz+rr(-s,s),y0=v.y+1.6;
   fire('pbullet',v.team,v.x+ex*1.6,y0+ey*1.6-.06,v.z+ez*1.6,ex,ey,ez,{mul:G.vehMul[v.team]});
   v.ammo--;v.cd=.105;sfx('rifle',v.x,v.z);FP.recoil=Math.min(1.8,FP.recoil+1);FP.flashT=.055;v.pitch=Math.min(1.25,v.pitch+.005);v.heading+=rr(-.002,.002);
+}
+function heroThrow(v){ // lobbed along the look direction (aim higher to throw further); bursts where it lands
+  const p=clamp(v.pitch+.34,-.3,1.1),sp=23,hs=Math.cos(p)*sp,vy=Math.sin(p)*sp,sx=Math.sin(v.heading),sz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
+  const x=v.x+sx*.6+rx*.25,y=v.y+1.45,z=v.z+sz*.6+rz*.25;
+  fire('grenade',v.team,x,y,z,sx,0,sz,{mul:G.vehMul[v.team],vel:{vx:sx*hs+v.vx*.5,vy,vz:sz*hs+v.vz*.5}});
+  v.ammo2--;v.gcd=.75;sfx('gthrow',v.x,v.z);FP.throwT=.45;
 }
 function updateFoot(v,inp,dt){
   const def=v.def,T=v.team;if(v.hitFlash>0)v.hitFlash-=dt;
@@ -2175,10 +2183,11 @@ function updateFoot(v,inp,dt){
   v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;v.speed=Math.hypot(v.vx,v.vz);
   v.y=lerp(v.y,vehGround(v.x,v.z),1-Math.exp(-dt*16));
   v.cd-=dt;if(inp.fire&&v.cd<=0&&v.ammo>0&&!sprint)heroShoot(v);
+  v.gcd-=dt;if(inp.grenade&&!v.prevGren&&v.gcd<=0&&v.ammo2>0)heroThrow(v);v.prevGren=!!inp.grenade;
   // field supply: any hospital heals, your ammo tents and any ammo depot refill the rifle
   if(v.speed<2){staticsNear(v.x,v.z,_vn);let what='';for(const st of _vn){if(!st.alive||Math.hypot(st.x-v.x,st.z-v.z)>(st.reach||11))continue;
       if(st.kind==='hospital'&&v.hp<def.hp){v.hp=Math.min(def.hp,v.hp+def.hp*.15*dt);what='HEALING';}
-      if(((st.kind==='tent'&&st.team===T)||st.kind==='depot')&&v.ammo<def.ammo){v.ammoAcc=(v.ammoAcc||0)+dt;if(v.ammoAcc>.05){v.ammoAcc=0;v.ammo=Math.min(def.ammo,v.ammo+3);}what=what?what+' · REARMING':'REARMING';}}v.supplyMsg=what;}else v.supplyMsg='';
+      if(((st.kind==='tent'&&st.team===T)||st.kind==='depot')&&(v.ammo<def.ammo||v.ammo2<def.ammo2)){v.ammoAcc=(v.ammoAcc||0)+dt;if(v.ammoAcc>.05){v.ammoAcc=0;v.ammo=Math.min(def.ammo,v.ammo+3);v.gAcc=(v.gAcc||0)+1;if(v.gAcc>=6){v.gAcc=0;v.ammo2=Math.min(def.ammo2,v.ammo2+1);}}what=what?what+' · REARMING':'REARMING';}}v.supplyMsg=what;}else v.supplyMsg='';
   // third-person body (other cameras, the shadow, the death fall)
   const P=v.parts,sd=P.sd,o=v.obj;o.position.set(v.x,v.y,v.z);o.rotation.set(0,v.heading,0);
   const mv=clamp(v.speed/def.speed,0,1.6);v.moving=lerp(v.moving,mv>.15?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(v.moving);sd.idle.setEffectiveWeight(1-v.moving);sd.run.timeScale=sprint?1.35:.95;
@@ -2207,7 +2216,8 @@ function fpRender(view,v,dt,r,h){
   const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);FP.bob+=dt*(3+mv*6)*(mv>.1?1:.15);FP.recoil=Math.max(0,FP.recoil-dt*10);
   if(FP.prevH==null){FP.prevH=v.heading;FP.prevP=v.pitch;}const dyaw=angDiff(FP.prevH,v.heading),dp=v.pitch-FP.prevP;FP.prevH=v.heading;FP.prevP=v.pitch;
   const kk=1-Math.exp(-dt*9);FP.sway.x=lerp(FP.sway.x,clamp(dyaw*1.6,-.07,.07),kk);FP.sway.y=lerp(FP.sway.y,clamp(-dp*1.6,-.06,.06),kk);
-  const sp=v.sprint?1:0;FP.sprint=lerp(FP.sprint||0,sp,1-Math.exp(-dt*8));const idle=Math.sin(G.time*1.6)*.003;
+  FP.throwT=Math.max(0,(FP.throwT||0)-dt);const th=FP.throwT>0?Math.sin(FP.throwT/.45*Math.PI):0;
+  const sp=v.sprint?1:0;FP.sprint=lerp(FP.sprint||0,Math.max(sp,th*.9),1-Math.exp(-dt*14));const idle=Math.sin(G.time*1.6)*.003;
   const rg=FP.rig;rg.position.set(VM.x+Math.sin(FP.bob)*.011*mv-FP.sway.x*.25,VM.y-Math.abs(Math.cos(FP.bob))*.013*mv+FP.sway.y*.2-FP.sprint*.05+idle,VM.z+FP.recoil*.03);
   rg.rotation.set(VM.rx+FP.recoil*.035-FP.sprint*.3+FP.sway.y,VM.ry+FP.sway.x+FP.sprint*.35,VM.rz+FP.sprint*.4);
   FP.flashT-=dt;const fo=FP.flashT>0;FP.flash.visible=fo;FP.flashLight.intensity=fo?3:0;if(fo){FP.flash.material.rotation=Math.random()*TAU;FP.flash.scale.setScalar(rr(.12,.2));}
@@ -3134,7 +3144,7 @@ const ray=new THREE.Raycaster(),plane=new THREE.Plane(new V3(0,1,0),0);
 function readHuman(view,inp){
   if(opts.touch&&view.ctrl===0){
     const v=view.team.vehicle;Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:TOUCH.fire,special:TOUCH.special,abandon:false,aimYaw:null});view.menuEdge=null;
-    if(v&&v.type==='foot'){const d2=x=>Math.abs(x)>.15?x:0;inp.thr=-d2(TOUCH.ay);inp.strafe=d2(TOUCH.ax);v.heading-=FP.look.dx*.0055;v.pitch=clamp(v.pitch-FP.look.dy*.0045,-1.2,1.2);FP.look.dx=FP.look.dy=0;return;}
+    if(v&&v.type==='foot'){const d2=x=>Math.abs(x)>.15?x:0;inp.thr=-d2(TOUCH.ay);inp.strafe=d2(TOUCH.ax);inp.grenade=TOUCH.special;inp.special=Math.hypot(TOUCH.ax,TOUCH.ay)>.95&&TOUCH.ay<-.7;v.heading-=FP.look.dx*.0055;v.pitch=clamp(v.pitch-FP.look.dy*.0045,-1.2,1.2);FP.look.dx=FP.look.dy=0;return;}
     if(v){const mag=Math.min(1,Math.hypot(TOUCH.ax,TOUCH.ay));
       if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=CHASE.on&&view.cy!=null?view.cy-Math.PI+Math.atan2(TOUCH.ax,TOUCH.ay):Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn);/* chase cam: stick is relative to the camera */const da=angDiff(v.heading,want);
         const db=angDiff(v.heading+Math.PI,want),back=Math.abs(db);/* stick pointing at the vehicle's tail: back up (always in chase cam, or when slow/stuck), keep reversing while it stays roughly behind */
@@ -3167,7 +3177,8 @@ function readHuman(view,inp){
     let mz=(any(km.up)?1:0)-(any(km.down)?1:0),mx=(locked?kx:0)+qe,tn=locked?0:kx,look=null;
     if(pad){const ax=pad.axes,d2=x=>Math.abs(x)>.18?x:0;if(d2(ax[1]))mz=-ax[1];if(d2(ax[0])){mx=ax[0];tn=0;}if(d2(ax[2]||0)||d2(ax[3]||0))look={x:d2(ax[2]||0),y:d2(ax[3]||0)};if(pad.buttons[12]?.pressed)mz=1;if(pad.buttons[13]?.pressed)mz=-1;}
     if(locked){v.heading-=FP.look.dx*FP.sens;v.pitch=clamp(v.pitch-FP.look.dy*FP.sens,-1.25,1.25);}FP.look.dx=FP.look.dy=0;
-    Object.assign(inp,{thr:mz,turn:tn,tur:0,strafe:clamp(mx,-1,1),fire,special,abandon:false,aimYaw:null,look});}
+    const sprint=any(km.special)||!!(pad&&(pad.buttons[10]?.pressed||pad.buttons[6]?.pressed)),gren=!!(mouse.r&&opts.mouse)||keys.has('KeyX')||!!(pad&&(pad.buttons[1]?.pressed||pad.buttons[5]?.pressed));
+    Object.assign(inp,{thr:mz,turn:tn,tur:0,strafe:clamp(mx,-1,1),fire,special:sprint,grenade:gren,abandon:false,aimYaw:null,look});}
   else Object.assign(inp,{thr,turn,tur,strafe:v?.type==='heli'?tur:0,fire,special,abandon,aimYaw});
   // menu edges
   const mk={l:any(km.left)||view.padMenu?.l,r:any(km.right)||view.padMenu?.r,ok:any(km.fire)||(view.ctrl===0&&keys.has('Enter')&&solo)||view.padMenu?.ok};

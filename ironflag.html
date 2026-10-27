@@ -755,7 +755,7 @@ class Particles{
   }
   clear(){this.life.fill(0);}
 }
-const FIRE=new Particles(2500,true), SMOKE=new Particles(3000,false);
+const FIRE=new Particles(4000,true), SMOKE=new Particles(5200,false);
 scene.add(FIRE.pts);scene.add(SMOKE.pts);
 const C_FIRE0=[1,.85,.45],C_FIRE1=[.9,.25,.05],C_SMK0=[.3,.28,.25],C_SMK1=[.55,.53,.5],C_DUST=[.72,.64,.48],C_WATER=[.85,.93,1];
 // debris chunks
@@ -1152,7 +1152,7 @@ function gore(x,y,z,how='shot',dx=0,dz=0){
 // ============================================================ terrain
 const W=500,L=840,CELL=4,X0=-W/2,Z0=-L/2,NX=W/CELL+1,NZ=L/CELL+1;
 function H(x,z){const t=G.terr;let fx=(x-X0)/CELL,fz=(z-Z0)/CELL;fx=clamp(fx,0,NX-1.001);fz=clamp(fz,0,NZ-1.001);const ix=fx|0,iz=fz|0,ux=fx-ix,uz=fz-iz,i=iz*NX+ix,h=t.h;
-  return (h[i]*(1-ux)+h[i+1]*ux)*(1-uz)+(h[i+NX]*(1-ux)+h[i+NX+1]*ux)*uz;}
+  const b=(h[i]*(1-ux)+h[i+1]*ux)*(1-uz)+(h[i+NX]*(1-ux)+h[i+NX+1]*ux)*uz;return G.craters?b+craterOff(x,z):b;} // + missile craters (makeCrater)
 function onBridge(x,z){for(const b of G.bridgeSegs){if(!b.span.alive)continue;if(Math.abs(x-b.cx)>b.reach||Math.abs(z-b.cz)>b.reach)continue;
   const dx=x-b.ax,dz=z-b.az,t=clamp((dx*b.ux+dz*b.uz)/b.len,0,1),px=b.ax+b.ux*b.len*t-x,pz=b.az+b.uz*b.len*t-z;if(px*px+pz*pz<5.2*5.2)return true;}return false;}
 const BRIDGE_Y=1.7;
@@ -1358,7 +1358,7 @@ function buildTerrain(){
   const idx=[];for(let j=0;j<NZ-1;j++)for(let i=0;i<NX-1;i++){const a=j*NX+i,b=a+1,cc=a+NX,d=cc+1;if((i+j)%2){idx.push(a,cc,b,b,cc,d);}else{idx.push(a,cc,d,a,d,b);}}
   g.setIndex(idx);g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));g.computeVertexNormals();
   g.setAttribute('splat',new THREE.BufferAttribute(spl,4));g.setAttribute('gmix',new THREE.BufferAttribute(gm,1));
-  const m=new THREE.Mesh(g,terrainMaterial());m.receiveShadow=true;world.add(m);
+  const m=new THREE.Mesh(g,terrainMaterial());m.receiveShadow=true;world.add(m);G.terrMesh=m;
   // water
   const wn=waterNormal();const wm=new THREE.MeshStandardMaterial({color:0x2a7f9e,roughness:.18,metalness:.15,transparent:true,opacity:.8,normalMap:wn,normalScale:new THREE.Vector2(.5,.5)});
   wn.repeat.set(60,60);const water=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),wm);water.rotation.x=-Math.PI/2;water.position.y=-.05;water.receiveShadow=true;world.add(water);G.water=wn;
@@ -1531,7 +1531,7 @@ function parkLauncher(b){ // the missile launcher truck waits beside the player'
 // it to the target and pulls back for the impact: the target dies in one hit, everything within ~12 m is
 // damaged, and the blast is twice the biggest one in the game (ammo depot, size 3.4 -> 6.8). Then the
 // erector lowers and, if strikes remain, a fresh missile sits on the truck. Campaign only (never online).
-const MSL={raise:3,ignite:.9,lower:3,R:12,dmg:160,size:6.8,boostT:1.1,boostH:32,vmax:150,acc:75,impactT:4.8};
+const MSL={raise:3,ignite:.9,lower:3,R:12,dmg:160,size:6.8,boostT:1.1,boostH:32,vmax:150,acc:75,impactT:6.5};
 const MSL_SNAP=new Set(['building','hospital','depot','gas','turret','gate','radio','tower','gen','fuel','tent']);
 const MSL_NAME={building:'Building',hospital:'Hospital',depot:'Ammo depot',gas:'Gas station',gate:'Gate',radio:'Radio mast',tower:'Watch tower',gen:'Generator',fuel:'Fuel tank',tent:'Tent'};
 const MSL_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><path d="M6 12l8-6h30l14 6-14 6H14z" fill="#c9b98a"/><path d="M44 6l14 6-14 6z" fill="#e5544a"/><path d="M14 6L6 1v22l8-5z" fill="#6f7f3c"/><path d="M24 6h4v12h-4zM34 6h3v12h-3z" fill="#6f7f3c"/></svg>';
@@ -1738,23 +1738,148 @@ function mslExhaust(S,dt,pos,dir,boost){
   const ns=Math.ceil(dt*55);for(let i=0;i<ns;i++){const k=Math.random();SMOKE.spawn(tx-dir.x*k*S.v*dt,ty-dir.y*k*S.v*dt,tz-dir.z*k*S.v*dt,-dir.x*4+rr(-1.2,1.2),-dir.y*4+rr(-.6,1.2),-dir.z*4+rr(-1.2,1.2),rr(3.5,6),1.6,7.5,[.86,.85,.82],[.64,.63,.6],.6,-.25,.6);}
   const gy=Math.max(groundAt(pos.x,pos.z),0);if(pos.y-gy<16){const n=Math.ceil(dt*60);for(let i=0;i<n;i++){const a=rr(0,TAU),sp=rr(8,18);SMOKE.spawn(pos.x+rr(-1,1),gy+.6,pos.z+rr(-1,1),Math.cos(a)*sp,rr(.3,2),Math.sin(a)*sp,rr(2.5,4.5),2.5,9,[.8,.78,.74],[.6,.58,.55],.7,-.2,1.5);}}
 }
+// ---- missile impact: flash + fireball + mushroom cloud + shockwave + crater + burning grass (all cosmetic except the
+// crater, which really lowers the ground via G.craters -> H(), so vehicles and soldiers drive down into it)
+const BLAST={rc:6.5,depth:2.3,rim:.75,out:2.6,burnT:[10,30]};
+const MSL_LIGHT=new THREE.PointLight(0xffa860,0,260,2);MSL_LIGHT.position.set(0,-500,0);scene.add(MSL_LIGHT); // always in the scene (intensity 0) so lighting it never recompiles shaders
+const BLAST_DOME_MAT=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,uniforms:{op:{value:0}},
+  vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'uniform float op;varying vec3 vN;varying vec3 vV;void main(){float f=1.-abs(dot(normalize(vN),normalize(vV)));gl_FragColor=vec4(vec3(.96,.97,1.),op*pow(f,3.0));}'});
+function craterOff(x,z){let o=0;for(const c of G.craters){const lx=(x-c.x0)/c.step,lz=(z-c.z0)/c.step;if(lx<0||lz<0||lx>=c.n-1||lz>=c.n-1)continue;
+  const ix=lx|0,iz=lz|0,ux=lx-ix,uz=lz-iz,i=iz*c.n+ix,d=c.d;o+=(d[i]*(1-ux)+d[i+1]*ux)*(1-uz)+(d[i+c.n]*(1-ux)+d[i+c.n+1]*ux)*uz;}return o;}
+function craterProfile(r,rc,D,rim){const q=r/rc;return q<1?-D*(1-q*q)+rim*q**6:rim*Math.exp(-(((r-rc)/(rc*.5))**2));}
+function makeCrater(x,z){
+  if(!G.terrMesh)return null;const rc=BLAST.rc*rr(.92,1.08),D=BLAST.depth,rim=BLAST.rim,Ro=rc*BLAST.out,step=1,n=Math.ceil(Ro*2/step)+1,x0=x-Ro,z0=z-Ro;
+  const nz=makeNoise((G.seed*31+(x*7|0)+(z*13|0))>>>0);
+  // keep big things (buildings, rubble, gates, rocks, live turrets...) on level ground: the crater fades out 0.5-3 m from their footprint
+  const keep=G.statics.filter(s=>Math.hypot(s.x-x,s.z-z)<Ro+30&&(s.alive?!['tree','crate','barrel','wall','hedge','prop'].includes(s.kind):['building','hospital','depot','gas','gate'].includes(s.kind)));
+  const d=new Float32Array(n*n),mask=new Float32Array(n*n),base0=[];
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){const px=x0+i*step,pz=z0+j*step,dx=px-x,dz=pz-z,a=Math.atan2(dz,dx);
+    const wob=1+.13*(nz(Math.cos(a)*1.6+5,Math.sin(a)*1.6+5)-.5)*2+.05*(nz(px*.35,pz*.35)-.5)*2;const r=Math.hypot(dx,dz)/wob;
+    let m=1;for(const s of keep)for(const p of s.pts){const dd=Math.hypot(p[0]-px,p[1]-pz)-p[2];if(dd<3)m=Math.min(m,smooth(.5,3,dd));}
+    const k=j*n+i;let v=r>Ro?0:craterProfile(r,rc,D,rim)*smooth(Ro,Ro*.8,r)*m;
+    const h0=H(px,pz);if(h0>0&&h0+v<.25)v=Math.min(0,.25-h0); // never dig down into the sea
+    d[k]=v;mask[k]=m;}
+  const c={x,z,rc,Ro,x0,z0,step,n,d,mask};(G.craters=G.craters||[]).push(c);
+  // drop the coarse terrain mesh a little extra under the bowl so the detailed crater surface always sits on top of it
+  const tm=G.terrMesh,pos=tm.geometry.attributes.position,t=G.terr;
+  for(let j=Math.max(0,Math.floor((z-Ro-CELL-Z0)/CELL));j<=Math.min(NZ-1,Math.ceil((z+Ro+CELL-Z0)/CELL));j++)for(let i=Math.max(0,Math.floor((x-Ro-CELL-X0)/CELL));i<=Math.min(NX-1,Math.ceil((x+Ro+CELL-X0)/CELL));i++){
+    const k=j*NX+i,px=X0+i*CELL,pz=Z0+j*CELL,r=Math.hypot(px-x,pz-z);if(r>Ro+CELL)continue;const o=craterOff(px,pz);
+    pos.setY(k,t.h[k]+o-1.4*smooth(rc*1.75,rc*1.15,r));}
+  pos.needsUpdate=true;tm.geometry.computeVertexNormals();tm.geometry.computeBoundingSphere();
+  // detailed polar surface: charred bowl, churned dirt rim, scorched ground fading out
+  const RN=44,SN=80,vp=[],vc=[],ve=[],uv=[],idx=[];const cc=new THREE.Color();
+  const soot=[.04,.036,.032],dirt=[.34,.26,.17],burnt=[.13,.105,.075],scorch=[.045,.04,.032];
+  for(let ri=0;ri<=RN;ri++){const rN=ri/RN,r=Ro*1.05*(rN*rN*.55+rN*.45);
+    for(let si=0;si<SN;si++){const a=si/SN*TAU,px=x+Math.cos(a)*r,pz=z+Math.sin(a)*r,q=r/rc;
+      const hy=H(px,pz)+.06;vp.push(px,hy,pz);uv.push(px/5,pz/5);const nn=nz(px*.4,pz*.4),n2=nz(px*2.7+9,pz*2.7)*.7+nz(px*.9-3,pz*.9)*.3;
+      const lx=Math.round((px-x0)/step),lz=Math.round((pz-z0)/step),m=lx>=0&&lz>=0&&lx<n&&lz<n?mask[lz*n+lx]:1;
+      let col,al;
+      if(q<.8){col=soot.map((v,k)=>lerp(v,burnt[k],nn*.5));al=1;}
+      else if(q<1.35){const k2=smooth(.8,1.05,q)*(1-smooth(1.1,1.35,q));col=burnt.map((v,k)=>lerp(lerp(v,dirt[k],k2*(.6+.4*n2)),soot[k],(1-k2)*.3));al=1;}
+      else{const f=smooth(1.8,Ro/rc,q);col=scorch.map((v,k)=>lerp(v,burnt[k],nn*.45*(1-f)));al=(1-f*f)*(.55+.45*smooth(.25,.6,nn+(1-f)*.4));}
+      al*=Math.max(m,q<1.35?.35:0);vc.push(col[0],col[1],col[2],al);
+      const ember=q<.8?Math.max(0,n2-.6)*3.2*(1-q/.8*.5):q<1.7?Math.max(0,n2-.74)*2.6:0;ve.push(1.,.22+.18*nn,.04,Math.min(1,ember)*m);}}
+  for(let ri=0;ri<RN;ri++)for(let si=0;si<SN;si++){const a=ri*SN+si,b=ri*SN+(si+1)%SN,c2=a+SN,d2=b+SN;idx.push(a,b,c2,b,d2,c2);/* wound to face up */}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(vp,3));g.setAttribute('color',new THREE.Float32BufferAttribute(vc,4));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+  const mat=new THREE.MeshStandardMaterial({vertexColors:true,transparent:true,roughness:1,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4,depthWrite:false});
+  if(TEX.dirt&&TEX.rock){const Lm=k=>{const m=TEX_MEAN[k];return (m[0]*.2126+m[1]*.7152+m[2]*.0722).toFixed(5);}; /* grain from the ground textures' brightness only, so the soot / churned-dirt colours stay true */
+    mat.onBeforeCompile=sh=>{sh.uniforms.t_d={value:TEX.dirt};sh.uniforms.t_r={value:TEX.rock};
+      sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vCxz;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCxz=position.xz;');
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D t_d,t_r;varying vec2 vCxz;')
+        .replace('#include <color_fragment>',`#include <color_fragment>
+{const vec3 lw=vec3(.2126,.7152,.0722);float d=dot(texture2D(t_d,vCxz/3.5).rgb,lw)/${Lm('dirt')}*.55+dot(texture2D(t_r,vCxz/7.0).rgb,lw)/${Lm('rock')}*.45;diffuseColor.rgb*=clamp(1.0+(d-1.0)*.9,.3,1.9);}`);};}
+  const mesh=new THREE.Mesh(g,mat);mesh.receiveShadow=true;mesh.renderOrder=1;world.add(mesh);
+  const eg=new THREE.BufferGeometry();eg.setAttribute('position',g.attributes.position);eg.setAttribute('color',new THREE.Float32BufferAttribute(ve,4));eg.setIndex(idx);
+  const em=new THREE.Mesh(eg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-6,fog:false}));
+  em.renderOrder=2;world.add(em);c.mesh=mesh;c.ember=em;c.t=0;
+  // whatever stood in the bowl is gone: burnt-out grass, dead turret stumps, felled trees
+  for(const b of G.cover||[])for(let i=0;i<b.mats.length;i++){const e=b.mats[i].elements,dd=Math.hypot(e[12]-x,e[14]-z);if(dd<rc*2.2+rr(-1.5,1.5))b.hide(i);}
+  for(const s of G.statics){if(s.alive)continue;const dd=Math.hypot(s.x-x,s.z-z);if(dd<rc*1.25&&s.obj&&['turret','tent','radio','tower','gen','fuel','prop'].includes(s.kind)&&s.name!=='launcher')s.obj.visible=false;}
+  return c;
+}
+function updateCraters(dt){if(!G||!G.craters)return;for(const c of G.craters){if(!c.ember)continue;c.t+=dt;const f=c.t<2?1:Math.max(0,1-(c.t-2)/40);
+  c.ember.material.opacity=f*(.75+.25*Math.sin(c.t*7.3+Math.sin(c.t*3.1)*2));if(f<=0){world.remove(c.ember);c.ember.geometry.dispose();c.ember.material.dispose();c.ember=null;}}}
+// burning grass patches
+function addBurn(x,z,life,size){if(!G)return;const h=H(x,z);if(h<1.1||onBridge(x,z))return;(G.burns=G.burns||[]).push({x,z,life,max:life,size,t:0,acc:0,sacc:0,ph:Math.random()*9});}
+function updateBurns(dt){
+  if(!G||!G.burns||!G.burns.length){return;}
+  let glow=0,gx=0,gz=0,gw=0;
+  for(let i=G.burns.length-1;i>=0;i--){const b=G.burns[i];b.t+=dt;const left=b.max-b.t;if(left<=-8){G.burns.splice(i,1);continue;}
+    const fire=left>0?smooth(0,1.2,b.t)*smooth(0,3,left):0,smoke=left>0?.6+.4*fire:Math.max(0,1+left/8)*.6;const gy=Math.max(groundAt(b.x,b.z),0);
+    b.acc+=dt*26*fire*b.size;while(b.acc>=1){b.acc--;const a=rr(0,TAU),r=rr(0,1.3)*b.size;
+      FIRE.spawn(b.x+Math.cos(a)*r,gy+rr(.05,.4),b.z+Math.sin(a)*r,rr(-.4,.4)+.6,rr(1.8,4.2),rr(-.4,.4),rr(.35,.8),rr(.6,1.3)*b.size,rr(.1,.4),[1,.78,.38],[.85,.22,.04],.95,-1.2,.6);}
+    b.sacc+=dt*6*smoke*b.size;while(b.sacc>=1){b.sacc--;const r=rr(0,1.2)*b.size;
+      SMOKE.spawn(b.x+rr(-r,r),gy+.6,b.z+rr(-r,r),rr(.4,1.4),rr(1.5,3),rr(-.3,.6),rr(3,6),1.2*b.size,5*b.size,fire>.2?[.2,.17,.14]:[.38,.36,.33],[.5,.49,.47],.42,-.6,.3);}
+    if(fire>0){const w=fire*b.size;glow+=w;gx+=b.x*w;gz+=b.z*w;gw+=w;}}
+  const S=G.strike;if(!(S&&S.phase==='impact'&&S.t<1.6)){ // the strike's own flash drives the light while it's bright
+    if(gw>0){MSL_LIGHT.position.set(gx/gw,Math.max(groundAt(gx/gw,gz/gw),0)+3,gz/gw);MSL_LIGHT.color.setRGB(1,.55,.22);MSL_LIGHT.intensity=Math.min(1,glow/14)*(420+110*Math.sin(G.time*11)+70*Math.sin(G.time*23));}
+    else MSL_LIGHT.intensity=0;}
+}
+function blastAt(S){ // spawns the whole land explosion; per-frame parts continue in blastTick
+  const x=S.ix,gy=S.iy,z=S.iz;
+  // white-hot core + fireball
+  for(let i=0;i<300;i++){const u=rr(-1,1),a=rr(0,TAU),s=Math.sqrt(1-u*u),dx=s*Math.cos(a),dz=s*Math.sin(a),dy=Math.abs(u)*.8+.2,sp=rr(6,30);
+    FIRE.spawn(x+dx*rr(0,3),gy+1+dy*rr(0,3),z+dz*rr(0,3),dx*sp,dy*sp*1.1+4,dz*sp,rr(.6,1.7),rr(4,8),rr(10,17),[1,.97,.82],[.82,.18,.02],1,-3,2.6);}
+  for(let i=0;i<120;i++){const a=rr(0,TAU),sp=rr(2,10);FIRE.spawn(x+rr(-2,2),gy+rr(1,5),z+rr(-2,2),Math.cos(a)*sp,rr(4,14),Math.sin(a)*sp,rr(1.2,2.4),rr(6,10),rr(12,20),[1,.62,.2],[.45,.09,.02],.9,-4,1.2);}
+  // thick dark smoke shell pushed out by the fireball
+  for(let i=0;i<180;i++){const u=rr(-.2,1),a=rr(0,TAU),s=Math.sqrt(1-u*u),dx=s*Math.cos(a),dz=s*Math.sin(a),sp=rr(5,18);
+    SMOKE.spawn(x+dx*3,gy+2+u*3,z+dz*3,dx*sp,u*sp+rr(3,9),dz*sp,rr(5,9),rr(7,11),rr(18,30),[.13,.105,.09],[.36,.34,.32],.88,-1.8,1.1);}
+  // shockwave: ground-hugging dust skirt racing outward
+  for(let i=0;i<260;i++){const a=rr(0,TAU),sp=rr(32,64);SMOKE.spawn(x+Math.cos(a)*rr(3,6),gy+rr(.2,1.5),z+Math.sin(a)*rr(3,6),Math.cos(a)*sp,rr(.3,3),Math.sin(a)*sp,rr(2.5,4.5),rr(2,4),rr(9,15),[.66,.58,.44],[.58,.54,.47],.62,-.4,2.1);}
+  for(let i=0;i<70;i++){const a=rr(0,TAU),sp=rr(50,80);SMOKE.spawn(x+Math.cos(a)*4,gy+.3,z+Math.sin(a)*4,Math.cos(a)*sp,rr(0,1),Math.sin(a)*sp,rr(.7,1.2),1.5,5,[.85,.82,.76],[.75,.72,.66],.5,0,3);}
+  // condensation shell (the visible shock front)
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(1,36,18,0,TAU,0,Math.PI*.52),BLAST_DOME_MAT.clone());dome.position.set(x,gy,z);dome.renderOrder=5;world.add(dome);S.dome=dome;
+  // tiny star of the detonation itself (very short)
+  const core=new THREE.Mesh(new THREE.SphereGeometry(1,16,10),new THREE.MeshBasicMaterial({color:0xfff6e0,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));core.position.set(x,gy+2.5,z);core.renderOrder=6;world.add(core);S.core=core;
+  // ejecta: dirt clods + burning chunks that trail smoke and start spot fires
+  debris(x,gy+.5,z,34,20);S.chunks=[];
+  for(let i=0;i<16;i++){const a=rr(0,TAU),sp=rr(12,30);S.chunks.push({x:x+Math.cos(a)*2,y:gy+2,z:z+Math.sin(a)*2,vx:Math.cos(a)*sp,vy:rr(14,30),vz:Math.sin(a)*sp,alive:true});}
+  // grass catches fire in patches around the crater
+  for(let i=0;i<26;i++){const a=rr(0,TAU),r=BLAST.rc*Math.sqrt(rr(.55,5.2));const px=x+Math.cos(a)*r,pz=z+Math.sin(a)*r;
+    let ok=true;for(const c of G.craters||[])if(c===S.crater){const lx=Math.round((px-c.x0)/c.step),lz=Math.round((pz-c.z0)/c.step);if(lx>=0&&lz>=0&&lx<c.n&&lz<c.n&&c.mask[lz*c.n+lx]<.5)ok=false;}
+    if(ok)addBurn(px,pz,rr(BLAST.burnT[0],BLAST.burnT[1])*(r<BLAST.rc*1.6?.7:1),rr(.8,1.7));}
+  S.capAcc=0;S.stemAcc=0;
+  const cam=S.view&&S.view.cam;S.shakeAt=cam?Math.hypot(cam.position.x-x,cam.position.y-gy,cam.position.z-z)/340:.1;S.shook=false;
+}
+function blastTick(S,dt){
+  const t=S.t,x=S.ix,gy=S.iy,z=S.iz;
+  // flash: exposure punch + fireball light
+  const fl=Math.exp(-t*14);renderer.toneMappingExposure=1.05+2.6*fl;
+  MSL_LIGHT.position.set(x,gy+6+Math.min(t,3)*6,z);MSL_LIGHT.color.setRGB(1,lerp(.5,.85,fl),lerp(.2,.7,fl));MSL_LIGHT.intensity=t<1.6?(60000*fl+9000*Math.exp(-t*1.6)*(.85+.15*Math.sin(t*40))):MSL_LIGHT.intensity;
+  if(S.core){const k=t/.16;S.core.scale.setScalar(2+4*Math.min(1,k));S.core.material.opacity=Math.max(0,1-k);if(k>=1){world.remove(S.core);S.core.geometry.dispose();S.core.material.dispose();S.core=null;}}
+  if(S.dome){const k=t/.5;S.dome.scale.setScalar(3+40*(1-(1-Math.min(1,k))**2));S.dome.material.uniforms.op.value=.42*smooth(0,.04,t)*(1-smooth(.1,.45,t));if(k>=1){world.remove(S.dome);S.dome.geometry.dispose();S.dome.material.dispose();S.dome=null;}}
+  if(!S.shook&&t>=S.shakeAt){S.shook=true;for(const v of G.views)v.shake=Math.max(v.shake,1.6);}
+  // mushroom cloud: a rising, rolling cap on a stem
+  if(t<6.5){const rise=1-Math.exp(-t/1.7),cy=gy+6+40*rise,cr=3+11*(1-Math.exp(-t/2)),lit=1-smooth(.6,2.2,t);
+    S.capAcc+=dt*(t<4?70:30);while(S.capAcc>=1){S.capAcc--;const a=rr(0,TAU),ca=Math.cos(a),sa=Math.sin(a),roll=rr(-1,1);
+      const px=x+ca*cr*rr(.5,1.1),pz=z+sa*cr*rr(.5,1.1),py=cy+roll*cr*.35;
+      SMOKE.spawn(px,py,pz,ca*rr(1.5,4),(40/1.7)*Math.exp(-t/1.7)*rr(.6,1)+(roll<0?-1.5:1.5),sa*rr(1.5,4),rr(5,9),rr(6,9),rr(14,22),
+        [lerp(.2,.62,lit),lerp(.17,.3,lit),lerp(.15,.12,lit)],[.33,.31,.29],.85,-.6,.7);
+      if(lit>.05&&Math.random()<lit*.8)FIRE.spawn(px,py-cr*.2,pz,ca*2,rr(4,10),sa*2,rr(.4,.9),rr(4,7),rr(8,12),[1,.6,.2],[.6,.12,.02],lit,-2,1);}
+    S.stemAcc+=dt*(t<4?40:14);while(S.stemAcc>=1){S.stemAcc--;const hh=rr(0,1)*(cy-gy-2),w=rr(1.5,3.2)*(1-hh/(cy-gy+1)*.4);
+      SMOKE.spawn(x+rr(-w,w),gy+1+hh,z+rr(-w,w),rr(-.6,.6),rr(3,9)*(1-rise*.5),rr(-.6,.6),rr(3.5,6),rr(3,5),rr(7,12),hh<4?[.5,.44,.34]:[.24,.21,.19],[.4,.38,.36],.8,-1,.6);}}
+  // burning chunks
+  if(S.chunks)for(const c of S.chunks){if(!c.alive)continue;c.vy-=26*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;c.z+=c.vz*dt;
+    FIRE.spawn(c.x,c.y,c.z,0,0,0,rr(.15,.3),1.1,.3,[1,.8,.4],[.9,.3,.05],1);if(Math.random()<.7)SMOKE.spawn(c.x,c.y,c.z,rr(-.3,.3),rr(.2,1),rr(-.3,.3),rr(1.5,2.6),.6,2.6,[.18,.16,.14],[.42,.4,.38],.6,-.3,.4);
+    const g=groundAt(c.x,c.z);if(c.y<=Math.max(g,0)){c.alive=false;if(g>0){puff(c.x,g+.3,c.z,C_DUST,1.6,1.2,.55);if(Math.random()<.65)addBurn(c.x,c.z,rr(5,14),rr(.5,.9));}}}
+  if(t>.35)renderer.toneMappingExposure=1.05;
+}
+function blastEnd(S){renderer.toneMappingExposure=1.05;for(const k of ['dome','core'])if(S[k]){world.remove(S[k]);S[k].geometry.dispose();S[k].material.dispose();S[k]=null;}}
 function mslImpact(S){
   const x=S.tx,z=S.tz;world.remove(S.m);if(S.snd){S.snd.stop();S.snd=null;}
   const water=!S.tgt&&groundAt(x,z)<0,gy=water?0:Math.max(groundAt(x,z),0);
   const tgt=S.tgt&&S.tgt.alive?S.tgt:null;if(tgt)damage(tgt,1e7,0);
   splashDamage(x,gy+1,z,MSL.R,MSL.dmg,0,tgt);
-  explosion(x,water?0:gy+1,z,MSL.size,water);if(!water)explosion(x,gy+2,z,MSL.size*.6);
-  debris(x,gy+1,z,18,16);sfx('bigboom',x,z);sfx(water?'waterboom':'boom',x,z);
-  if(AU.ctx&&!G.demo){noiseHit(1.3,4.2,520,28);tone(.9,2.8,52,20,'sine');noiseHit(.5,2.2,2600,180,'lowpass',1,.12);}
-  S.fx=[];S.ix=x;S.iy=gy;S.iz=z;S.water=water;
-  // flash + shockwave ring (meshes, so no extra lights / shader recompiles)
-  const flash=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),new THREE.MeshBasicMaterial({color:0xffd9a0,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));flash.position.set(x,gy+3,z);flash.renderOrder=4;world.add(flash);
-  const ring=new THREE.Mesh(new THREE.RingGeometry(.86,1,72),new THREE.MeshBasicMaterial({color:0xfff0d0,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}));ring.rotation.x=-Math.PI/2;ring.position.set(x,gy+.6,z);ring.renderOrder=4;world.add(ring);
-  S.fx.push({flash,ring});
-  if(!water){const sc=new THREE.Mesh(new THREE.CircleGeometry(MSL.R*1.15,40),new THREE.MeshBasicMaterial({color:0x0c0a08,transparent:true,opacity:.62,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4}));sc.rotation.x=-Math.PI/2;sc.position.set(x,gy+.12,z);sc.renderOrder=1;world.add(sc);}
-  for(let i=0;i<110;i++){const a=rr(0,TAU),sp=rr(18,34);SMOKE.spawn(x+Math.cos(a)*3,gy+rr(.4,2),z+Math.sin(a)*3,Math.cos(a)*sp,rr(.5,3),Math.sin(a)*sp,rr(2.2,4),3,11,water?C_WATER:C_DUST,water?C_WATER:[.6,.55,.45],.7,-.2,1.6);}
-  S.sec=[];for(let i=0;i<9;i++)S.sec.push({t:rr(.08,1.1),x:x+rr(-MSL.R*.75,MSL.R*.75),z:z+rr(-MSL.R*.75,MSL.R*.75),s:rr(1.4,2.6)});
-  for(const v of G.views)v.shake=Math.max(v.shake,1.5);
+  S.fx=[];S.ix=x;S.iy=gy;S.iz=z;S.water=water;S.sec=[];
+  if(water){explosion(x,0,z,MSL.size,true);explosion(x,0,z,MSL.size*.7,true);
+    for(let i=0;i<220;i++){const a=rr(0,TAU),r=rr(0,4);SMOKE.spawn(x+Math.cos(a)*r,.3,z+Math.sin(a)*r,Math.cos(a)*rr(1,6),rr(18,42),Math.sin(a)*rr(1,6),rr(1.5,3),3,9,C_WATER,[.8,.86,.9],.85,22,.3);}
+    for(let i=0;i<9;i++)S.sec.push({t:rr(.1,1),x:x+rr(-9,9),z:z+rr(-9,9),s:rr(1.4,2.4)});}
+  else{if(!onBridge(x,z))try{S.crater=makeCrater(x,z);}catch(e){console.warn('crater',e);}
+    for(const sd of G.soldiers)if(!sd.alive&&Math.hypot(sd.x-x,sd.z-z)<BLAST.rc*BLAST.out){sd.y=Math.max(groundAt(sd.x,sd.z),0);if(sd.obj)sd.obj.position.y=sd.y;} // bodies settle into the crater
+    blastAt(S);}
+  sfx('bigboom',x,z);sfx(water?'waterboom':'boom',x,z);
+  if(AU.ctx&&!G.demo){noiseHit(1.4,5,480,24);tone(1,3.2,48,18,'sine');noiseHit(.55,2.4,2600,160,'lowpass',1,.12);noiseHit(.5,3.5,900,60,'lowpass',.7,.9);}
   const nm=S.name;note(0,nm?`Direct hit — ${nm.toLowerCase()} destroyed`:'Impact','good',true);
 }
 function updateStrike(dt){
@@ -1779,12 +1904,9 @@ function updateStrike(dt){
       if(S.snd)S.snd.set(.8+.2*Math.sin(S.t*9));
       if(!boost&&S.s>=P.len){mslImpact(S);S.phase='impact';S.t=0;}break;}
     case 'impact':{
-      for(const f of S.fx){const k=S.t;f.flash.scale.setScalar(3+11*Math.min(1,k/.15));f.flash.material.opacity=.65*Math.max(0,1-k/.38);f.flash.visible=k<.42;
-        const rk=Math.min(1,k/1.1);f.ring.scale.setScalar(3+62*(1-(1-rk)*(1-rk)));f.ring.material.opacity=.9*(1-rk);f.ring.visible=rk<1;}
-      for(const q of S.sec)if(q.t>=0&&S.t>=q.t){q.t=-1;const gy=Math.max(groundAt(q.x,q.z),0);explosion(q.x,S.water?0:gy+rr(0,3),q.z,q.s,S.water);}
-      if(!S.water&&S.t<3){const n=Math.ceil(dt*45);for(let i=0;i<n;i++){const hh=Math.min(S.t*16,40);SMOKE.spawn(S.ix+rr(-3,3),S.iy+hh*rr(.2,1),S.iz+rr(-3,3),rr(-1.5,1.5),rr(6,12),rr(-1.5,1.5),rr(3.5,6),5,14,[.28,.25,.22],[.5,.48,.45],.75,-1.2,.4);}
-        if(S.t<1.4){const n2=Math.ceil(dt*50);for(let i=0;i<n2;i++)FIRE.spawn(S.ix+rr(-5,5),S.iy+rr(0,S.t*18),S.iz+rr(-5,5),rr(-2,2),rr(6,14),rr(-2,2),rr(.3,.7),5,9,C_FIRE0,C_FIRE1,1,-2,1);}}
-      if(S.t>=MSL.impactT){for(const f of S.fx){world.remove(f.flash);world.remove(f.ring);f.flash.geometry.dispose();f.ring.geometry.dispose();}S.fx=[];S.phase='lower';S.t=0;S.cine=false;mslCineEnd();if(AU.ctx){tone(.1,MSL.lower,96,62,'sawtooth');noiseHit(.1,MSL.lower,700,260,'bandpass',3);}}break;}
+      if(!S.water)blastTick(S,dt);
+      for(const q of S.sec)if(q.t>=0&&S.t>=q.t){q.t=-1;explosion(q.x,0,q.z,q.s,true);}
+      if(S.t>=(S.water?4.8:MSL.impactT)){blastEnd(S);S.phase='lower';S.t=0;S.cine=false;mslCineEnd();if(AU.ctx){tone(.1,MSL.lower,96,62,'sawtooth');noiseHit(.1,MSL.lower,700,260,'bandpass',3);}}break;}
     case 'lower':{const k=smooth(0,1,S.t/MSL.lower);Ln.er.rotation.x=-Math.PI/2*(1-k);
       if(S.t>=MSL.lower){Ln.er.rotation.x=0;mslSetLoaded();G.strike=null;const n=mslCount();note(0,n>0?`Launcher reloaded — ${n} strike${n>1?'s':''} left`:'Launcher empty — finish an operation without losing a vehicle for another','info');if(AU.ctx){noiseHit(.4,.22,900,120);tone(.3,.2,120,50,'sine');}}break;}
   }
@@ -1894,7 +2016,7 @@ function scatterGroundCover(){ // cosmetic grass / straw / wildflowers / small f
     let r=R()*tot,k=kinds[0];for(const kk of kinds){r-=kk[2];if(r<=0){k=kk;break;}}
     const fl=k[0].includes('flower'),n=fl?2+((R()*4)|0):1; // flowers come in little patches
     for(let j=0;j<n;j++){const px=x+(j?(R()-.5)*(fl?1.4:3):0),pz=z+(j?(R()-.5)*(fl?1.4:3):0);if(bat[k[0]].add(px,H(px,pz)-.05,pz,R()*TAU,.75+R()*.6)>=0)placed++;}}
-  for(const k in bat)bat[k].done();
+  for(const k in bat)bat[k].done();G.cover=Object.values(bat); // missile craters burn these away
 }
 
 // ============================================================ vehicles
@@ -3002,7 +3124,7 @@ function newGame(mode,seed,demo=false){
   if(!demo){if(G.op){note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
 }
 function endGame(){
-  if(!G)return;if(G.strike&&G.strike.snd)G.strike.snd.stop();if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
+  if(!G)return;if(G.strike&&G.strike.snd)G.strike.snd.stop();MSL_LIGHT.intensity=0;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
   if(world){scene.remove(world);world.traverse(o=>{if(o.isMesh&&o.geometry&&!o.geometry.userData?.keep){if(o.isInstancedMesh)o.dispose();}});
     world.traverse(o=>{if(o.isMesh&&(o.parent===world)&&o.geometry.type!=='BufferGeometry')o.geometry.dispose();});}
   musicStop();G=null;
@@ -3142,7 +3264,7 @@ function loop(now){
     if(!paused&&state!=='over')step(dt);else if(state==='over')step(dt*.3);
     if(G.net&&G.net.host)netHostTick(dt);
   }
-  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);updateWrecks(paused?0:dt);updateFlagBeacons(dt);
+  FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);updateWrecks(paused?0:dt);updateBurns(paused?0:dt);updateCraters(paused?0:dt);updateFlagBeacons(dt);
   if(G.mslMap)mslMapTick(dt);
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
@@ -3450,7 +3572,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

@@ -262,7 +262,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
   <div class="help">
     <h3>Field manual</h3>
     <div class="cols">
-      <div><b>Controls</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>Mouse aims the tank turret, click to fire. <kbd>F</kbd> calls an air strike (Campaign, Operation 15 on). Finish an operation without losing a vehicle to bank a missile strike: fire it from the bunker (<kbd>5</kbd>), pick a target on the island map. <kbd>V</kbd> switches between the overhead and chase (behind-the-vehicle) camera — the CAM button on a phone. Gamepads work too; on a phone, switch Controls to Touch</div>
+      <div><b>Controls</b><br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows drive<br><kbd>Q</kbd><kbd>E</kbd> turret / strafe<br><kbd>Space</kbd> fire · <kbd>Shift</kbd> special<br><kbd>R</kbd> hold to scuttle<br>Mouse aims the tank turret, click to fire. <kbd>F</kbd> calls an air strike (Campaign, every operation). Finish an operation without losing a vehicle to bank a missile strike: fire it from the bunker (<kbd>5</kbd>), pick a target on the island map. <kbd>V</kbd> switches between the overhead and chase (behind-the-vehicle) camera — the CAM button on a phone. Gamepads work too; on a phone, switch Controls to Touch</div>
       <div><b>Online</b><br>Host a match and wait in the open lobby, or tap someone else's game to join. Both sides get a full base with turrets, gates, bridges and infantry, same as Skirmish, and the enemy bunker is across the water. Same controls as above. Your name shows in the lobby so friends can find your game</div>
       <div><b>How to win</b><br>One enemy building hides their flag. Destroy buildings to expose it, then drive a <b>jeep</b> over it and back onto your bunker pad. Park on your bunker pad to swap vehicles, or stop beside a fuel depot or ammo tent to top up. Park next to a <b>hospital</b> (red cross on the roof) to repair, an <b>ammo depot</b> for a fast full rearm, or a <b>gas station</b> for a fast refuel — yours or the enemy's. With the jeep, <kbd>Shift</kbd> inflates its tires to float across deep water. Stop or creep the jeep next to your own soldiers and up to 3 hop in and shoot out of the windows, but every hit the jeep takes kills one of them. Stray out to sea and a submarine will find you. Base gates open only for their own side, so blast the enemy's open first. Explosives drop bridges, and soldiers can be run over. Point the tank turret at a drone and the shell aims up to hit it. <kbd>Esc</kbd> pauses, <kbd>M</kbd> music.</div>
     </div>
@@ -2263,7 +2263,7 @@ function syncObj(v,dt){
   r.material.opacity=v.hitFlash>0?.95:.5;
 }
 
-// ============================================================ air strikes (campaign, Operation 15+)
+// ============================================================ air strikes (campaign, every operation)
 // Each side gets G.air.total strikes per mission. A strike = one YF-23 that streaks in from its own
 // base's side, marks a 5-point line on the ground (rings appear the moment it's called, ~4s warning)
 // and drops a bomb on each point. Shooting the jet down before it reaches a point cancels that bomb
@@ -3004,7 +3004,7 @@ const OPS=(()=>{
     for(let k=0;k<Math.max(guns,cannons,missiles);k++){if(k<guns)turrets.push('gun');if(k<cannons)turrets.push('cannon');if(k<missiles)turrets.push('missile');}
     const outposts=i<5?[]:i<12?['gun']:i<16?['gun','missile']:['missile','cannon'];
     const drones=i<7?0:Math.min(5,1+Math.floor((i-7)/3));
-    const airStrikes=i>=14?2:0; // from Operation 15 'Skyhook': each side gets 2 YF-23 air strikes (see updateAir)
+    const airStrikes=2; // every operation from 1 'Beachhead' on: each side gets 2 YF-23 air strikes (see updateAir; was Operation 15+ until 27 Oct 2026)
     const cfg={buildings:3+Math.round(t*5),turrets,outposts,soldiers:3+Math.round(t*9),soldierCap:4+Math.round(t*10),drones,gates:i>=2,airStrikes};
     const stock=i<6?{tank:3,heli:3,asv:2,jeep:4}:i<14?{tank:2,heli:3,asv:2,jeep:3}:{tank:2,heli:2,asv:2,jeep:3};
     const bits=[`${cfg.buildings} buildings`,`${turrets.length+outposts.length*2} turrets`];if(missiles)bits.push('missile turrets');if(drones)bits.push(drones+(drones>1?' drones':' drone'));if(cfg.gates)bits.push('gated walls');if(airStrikes)bits.push(airStrikes+' enemy air strikes');

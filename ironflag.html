@@ -335,6 +335,7 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // REAL VEHICLES (Matt, 27 Oct 2026): PBR M1 Abrams -> tank, M2 Bradley -> ASV (from the FBX packs in his Kenney folder); see fitReal
 PRE.tank=fetchBin('tank.glb').catch(e=>{console.warn('tank',e);return null;}); // (Matt preferred the original ASV, so the Bradley in sp-data/asv.glb is unused)
 PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;});
+PRE.mturret=fetchBin('mturret.glb').catch(e=>{console.warn('mturret',e);return null;}); // rocket-pod tripod (Matt's Turret.rar), base + yaw head
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
 const TEXD={}; // linear data textures (detail / weathering masks generated for the building shader)
@@ -347,7 +348,7 @@ function prefetchAudio(){if(PRE.audio)return;PRE.audio={};for(const k of [...SFX
 function adaptClip(c){ // Vanguard-era clips on the troop skeleton: joint frames match, so rotations are absolute; limb lengths come from the new rest pose (drop the per-bone translations), only the hips move (the old rig was in cm)
   const k=c.clone();k.tracks=k.tracks.filter(t=>(!t.name.endsWith('.position')||t.name==='mixamorigHips.position')&&A.troop.getObjectByName(t.name.split('.')[0]));
   for(const t of k.tracks)if(t.name==='mixamorigHips.position')for(let i=0;i<t.values.length;i++)t.values[i]*=.01;return k;}
-const TEAM_MAT=[],CAMO_MAT=[];
+const TEAM_MAT=[],CAMO_MAT=[],CAMO_TINT=[];
 async function loadAssets(){
   const bin=await PRE.assets;
   const gltf=await new Promise((res,rej)=>new GLTFLoader().parse(bin,'',res,rej));
@@ -364,11 +365,14 @@ async function loadAssets(){
       sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vCamoP;varying vec3 vCamoN;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCamoP=position;vCamoN=normal;');
       sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vCamoP;varying vec3 vCamoN;').replace('#include <map_fragment>','{vec3 w=abs(normalize(vCamoN));w=w*w;w/=(w.x+w.y+w.z);vec3 p=vCamoP*0.6;vec4 c=texture2D(map,p.yz)*w.x+texture2D(map,p.xz)*w.y+texture2D(map,p.xy)*w.z;diffuseColor*=vec4(c.rgb*0.8,1.0);}');};camo.needsUpdate=true;
       for(const T of [0,1]){const m=camo.clone();m.onBeforeCompile=camo.onBeforeCompile;m.color.setRGB(...(T===0?[.82,.9,1.12]:[1.12,.86,.8]));CAMO_MAT[T]=m;}} // a hint of team colour in the camo so squads still read from the overhead camera
-    const bootM=tg.scene.getObjectByName('Boots')?.material;if(bootM)bootM.color.multiplyScalar(.5);
+    for(const T of [0,1])CAMO_TINT[T]={};tg.scene.traverse(o=>{if(o.isMesh&&/^(Shirt_Tactical|Pants_Holster|Vest1|Helmet_Cloth|Utility_Belt)/.test(o.name)){for(const T of [0,1]){if(CAMO_TINT[T][o.material.uuid])continue;const m=o.material.clone();m.color.setRGB(...(T===0?[.8,.9,1.14]:[1.14,.86,.78]));CAMO_TINT[T][o.material.uuid]=m;}}}); // CC3 troop: team hue on the fatigues (no 'Uniform' mesh there)
+    const bootM=tg.scene.getObjectByName('Boots')?.material;if(bootM&&!tg.scene.getObjectByName('Helmet_Cloth'))bootM.color.multiplyScalar(.5);
     tg.scene.traverse(o=>{if(o.isMesh){o.material.roughness=Math.max(o.material.roughness,.55);if(/^Head\d/.test(o.name))o.userData.head=+o.name[4];if(o.name==='HelmetBand'||/^ArmBand/.test(o.name)||o.name==='GoggleStrap')o.userData.team=true;}});}}catch(e){console.warn('troop model',e);}
   try{const jb=await PRE.jeepOpen;if(jb){const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
+  try{const mb=await PRE.mturret;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),head=mg.scene.getObjectByName('Head');
+    if(base&&head){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;}});A.mturret={base,head,headY:head.position.y};}}}catch(e){console.warn('missile turret model',e);}
   try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
   // YF-23 (from Matt's Kenney folder, cgtrader_optimized_YF23-FBX.fbx -> glb): campaign air strikes, see updateAir
   if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
@@ -1446,12 +1450,15 @@ function padTexture(T){const c=document.createElement('canvas');c.width=c.height
 
 function addTurret(T,x,z,kind){
   const y=H(x,z);const g=new THREE.Group();g.position.set(x,y,z);
-  const base=tintObj(proto('tdBase',4.4).clone(),'concrete',concrete);g.add(base);
+  const real=kind==='missile'&&A.mturret;
+  const base=real?tintObj(A.mturret.base.clone(),'mtb'+T,teamMark(T)):tintObj(proto('tdBase',4.4).clone(),'concrete',concrete);g.add(base);
   let head;
-  if(kind==='missile'){head=new THREE.Group();const pod=tintObj(new THREE.Mesh(new THREE.BoxGeometry(3,1.7,3.2),new THREE.MeshStandardMaterial({color:0x6a7048,roughness:.8})),'mt'+T,teamTint(T));pod.castShadow=true;pod.position.y=1.6;pod.rotation.x=-.32;head.add(pod);
+  if(real){head=tintObj(A.mturret.head.clone(),'mth'+T,teamMark(T));head.position.y=A.mturret.headY; // rocket pod: team stripe on the pod roof (overhead camera) + squares on its flanks
+    const hy=A.mturret.headY;teamPanels(head,T,{w:1.2,d:.5,x:0,y:4.99-hy+.02,z:-.6},{h:.5,d:.6,x:1.53,y:4.1-hy,z:.3});}
+  else if(kind==='missile'){head=new THREE.Group();const pod=tintObj(new THREE.Mesh(new THREE.BoxGeometry(3,1.7,3.2),new THREE.MeshStandardMaterial({color:0x6a7048,roughness:.8})),'mt'+T,teamTint(T));pod.castShadow=true;pod.position.y=1.6;pod.rotation.x=-.32;head.add(pod);
     const tm=new THREE.MeshStandardMaterial({color:0x1d1f1a,roughness:.6});for(let a=0;a<2;a++)for(let b2=0;b2<3;b2++){const tb=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.3,8),tm);tb.rotation.x=Math.PI/2-.32;tb.position.set(-.9+b2*.9,1.25+a*.65,1.62);head.add(tb);}
     const ring=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.5,.6,10),new THREE.MeshStandardMaterial({color:TEAMS[T].color,roughness:.6}));ring.position.y=.3;head.add(ring);head.position.y=2.15;}
-  else head=tintObj(proto(kind==='gun'?'tdTurret':'tdCannon',kind==='gun'?5.2:5).clone(),'team'+T,teamRecolor(T));head.position.y=2.15;g.add(head);
+  else head=tintObj(proto(kind==='gun'?'tdTurret':'tdCannon',kind==='gun'?5.2:5).clone(),'team'+T,teamRecolor(T));if(!real)head.position.y=2.15;g.add(head);
   world.add(g);
   const s=addStatic({kind:'turret',tkind:kind,team:T,x,z,y0:y,h:5,hp:kind==='gun'?120:kind==='missile'?150:160,r:2.6,obj:g,head,yaw:T===0?Math.PI:0,cd:RND()*2,burst:0});
   head.rotation.y=s.yaw;return s;
@@ -2132,7 +2139,7 @@ function spawnSoldier(T,x,z,mode){
   if(!A.soldier||soldierBlocked(x,z,T)){const p=patrolPoint(G.bases[T]);x=p[0];z=p[1];}
   const o=SkeletonUtils.clone(A.soldier.scene);o.scale.setScalar(SOLDIER_SCALE);
   const hv=A.troop?(Math.abs((x*73+z*131)|0)%3):-1; // which of the 3 faces this man gets (by spawn spot, so online clients agree)
-  o.traverse(m=>{if(m.isMesh){if(!A.troop)m.material=SOLDIER_MAT[T];else if(m.userData.team)m.material=TEAM_MAT[T];else if(CAMO_MAT[T]&&m.material.name==='Camo')m.material=CAMO_MAT[T];if(m.userData.head!==undefined)m.visible=m.userData.head===hv;m.castShadow=true;m.frustumCulled=false;}});
+  o.traverse(m=>{if(m.isMesh){if(!A.troop)m.material=SOLDIER_MAT[T];else if(m.userData.team)m.material=TEAM_MAT[T];else if(CAMO_MAT[T]&&m.material.name==='Camo')m.material=CAMO_MAT[T];else if(CAMO_TINT[T]&&CAMO_TINT[T][m.material.uuid])m.material=CAMO_TINT[T][m.material.uuid];if(m.userData.head!==undefined)m.visible=m.userData.head===hv;m.castShadow=true;m.frustumCulled=false;}});
   const gun=rifleModel().clone();gun.scale.setScalar(GUN_MOUNT.scale);const chest=o.getObjectByName('mixamorigSpine2');if(chest&&GUN_MOUNT.pos){gun.position.copy(GUN_MOUNT.pos);gun.quaternion.copy(GUN_MOUNT.quat);chest.add(gun);}else o.add(gun);
   const bn=n=>o.getObjectByName('mixamorig'+n),arms={R:['RightArm','RightForeArm','RightHand'].map(bn),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   const head=o.getObjectByName('mixamorigHead');if(head&&!A.troop){const hp=new THREE.Mesh(HELMET_GEO,HELMET_MAT[T]);hp.position.set(0,21,0);head.add(hp);}
@@ -3048,7 +3055,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

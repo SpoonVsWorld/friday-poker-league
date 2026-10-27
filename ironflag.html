@@ -316,10 +316,10 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='1';
+const DATA='sp-data/',DATA_V='2';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
-const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet'];
+const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw']; // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
 const MUS_KEYS=['m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
 // Retro Tree Pack (Matt's Kenney folder, Low Res GLBs with WebP textures): photo-textured trees replace the cartoon Kenney
@@ -335,7 +335,7 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // REAL VEHICLES (Matt, 27 Oct 2026): PBR M1 Abrams -> tank, M2 Bradley -> ASV (from the FBX packs in his Kenney folder); see fitReal
 PRE.tank=fetchBin('tank.glb').catch(e=>{console.warn('tank',e);return null;}); // (Matt preferred the original ASV, so the Bradley in sp-data/asv.glb is unused)
 PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;});
-PRE.mturret=fetchBin('mturret.glb').catch(e=>{console.warn('mturret',e);return null;}); // rocket-pod tripod (Matt's Turret.rar), base + yaw head
+PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
 const TEXD={}; // linear data textures (detail / weathering masks generated for the building shader)
@@ -371,8 +371,8 @@ async function loadAssets(){
   try{const jb=await PRE.jeepOpen;if(jb){const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
-  try{const mb=await PRE.mturret;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),head=mg.scene.getObjectByName('Head');
-    if(base&&head){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;}});A.mturret={base,head,headY:head.position.y};}}}catch(e){console.warn('missile turret model',e);}
+  try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
+    if(base&&ring&&pods.missile&&pods.gun&&pods.cannon){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;if(!o.material.map&&/^(GunMetal|Barrel|OliveSteel)/.test(o.material.name))o.material=vehRealMat(o.material,o);}});A.turrets={base,ring,pods,headY:ring.position.y};}}}catch(e){console.warn('turret models',e);}
   try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
   // YF-23 (from Matt's Kenney folder, cgtrader_optimized_YF23-FBX.fbx -> glb): campaign air strikes, see updateAir
   if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
@@ -573,10 +573,10 @@ function sfx(kind,x,z){
     case 'rocket':noiseHit(.5*g,.5,3000,400,'bandpass',1.4);break;
     case 'missile':noiseHit(.45*g,.9,900,2600,'bandpass',2);tone(.12*g,.6,300,900,'sawtooth');break;
     case 'grenade':tone(.3*g,.12,500,200,'square');break;
-    case 'gthrow':tone(.22*g,.07,2200,1100,'square');noiseHit(.22*g,.4,500,2200,'bandpass',1.4,.04);break; // pin "tink" + whoosh
+    case 'gthrow':sample('s_throw',.8*g,1);tone(.22*g,.07,2200,1100,'square');noiseHit(.22*g,.4,500,2200,'bandpass',1.4,.04);break; // throw grunt (recording) + pin "tink" + whoosh
     case 'splat':noiseHit(.45*g,.16,1400,250,'bandpass',.7);noiseHit(.3*g,.12,500,120,'lowpass',1,.03);break;
     case 'squish':noiseHit(.6*g,.3,800,90,'lowpass',1);tone(.3*g,.18,170,45,'sine');noiseHit(.35*g,.2,2200,300,'bandpass',.6,.05);break; // wet crunch
-    case 'scream':{const f0=rr(560,760);tone(.11*g,.42,f0,f0*.42,'sawtooth');tone(.05*g,.38,f0*2.01,f0*.8,'square',.02);break;}
+    case 'scream':if(!sample('s_die'+((Math.random()*3)|0),.9*g,1)){const f0=rr(560,760);tone(.11*g,.42,f0,f0*.42,'sawtooth');tone(.05*g,.38,f0*2.01,f0*.8,'square',.02);}break; // one of the 3 recorded death cries, synth if not loaded
     case 'boom':if(!sample('s_boom',1*g)){noiseHit(1.1*g,1.1,1200,40);tone(.7*g,.6,90,28,'sine');}break;
     case 'bigboom':if(!sample(Math.random()<.5?'s_bigboom1':'s_bigboom2',1.1*g)){noiseHit(1.4*g,1.8,900,30);tone(1*g,1.1,70,20,'sine');noiseHit(.6*g,1.4,3000,200,'lowpass',1,.08);}break;
     case 'hit':if(!sample('s_boom',.35*g,1.6))noiseHit(.3*g,.1,2400,800,'highpass');break;
@@ -1450,11 +1450,13 @@ function padTexture(T){const c=document.createElement('canvas');c.width=c.height
 
 function addTurret(T,x,z,kind){
   const y=H(x,z);const g=new THREE.Group();g.position.set(x,y,z);
-  const real=kind==='missile'&&A.mturret;
-  const base=real?tintObj(A.mturret.base.clone(),'mtb'+T,teamMark(T)):tintObj(proto('tdBase',4.4).clone(),'concrete',concrete);g.add(base);
+  const real=!!A.turrets; // tripod turret set: shared base + yaw ring, payload per type (rocket pod with hazard stripes / twin autocannon / howitzer)
+  const base=real?tintObj(A.turrets.base.clone(),'mtb'+T,teamMark(T)):tintObj(proto('tdBase',4.4).clone(),'concrete',concrete);g.add(base);
   let head;
-  if(real){head=tintObj(A.mturret.head.clone(),'mth'+T,teamMark(T));head.position.y=A.mturret.headY; // rocket pod: team stripe on the pod roof (overhead camera) + squares on its flanks
-    const hy=A.mturret.headY;teamPanels(head,T,{w:1.2,d:.5,x:0,y:4.99-hy+.02,z:-.6},{h:.5,d:.6,x:1.53,y:4.1-hy,z:.3});}
+  if(real){head=new THREE.Group();const hy=A.turrets.headY;head.position.y=hy;for(const part of [A.turrets.ring,A.turrets.pods[kind]]){const c=tintObj(part.clone(),'mth'+T,teamMark(T));c.position.set(0,0,0);head.add(c);}
+    if(kind==='missile')teamPanels(head,T,{w:1.2,d:.5,x:0,y:4.99-hy+.02,z:-.6},{h:.5,d:.6,x:1.53,y:4.1-hy,z:.3}); // team stripe on the pod roof + squares on its flanks
+    else if(kind==='gun')teamPanels(head,T,{w:1.0,d:.9,x:0,y:4.56-hy,z:-.4},{h:.4,d:.8,x:.88,y:4.15-hy,z:-.1});
+    else teamPanels(head,T,{w:.9,d:1.0,x:0,y:4.98-hy,z:-.6},{h:.4,d:1.0,x:.67,y:4.65-hy,z:-.3});}
   else if(kind==='missile'){head=new THREE.Group();const pod=tintObj(new THREE.Mesh(new THREE.BoxGeometry(3,1.7,3.2),new THREE.MeshStandardMaterial({color:0x6a7048,roughness:.8})),'mt'+T,teamTint(T));pod.castShadow=true;pod.position.y=1.6;pod.rotation.x=-.32;head.add(pod);
     const tm=new THREE.MeshStandardMaterial({color:0x1d1f1a,roughness:.6});for(let a=0;a<2;a++)for(let b2=0;b2<3;b2++){const tb=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.3,8),tm);tb.rotation.x=Math.PI/2-.32;tb.position.set(-.9+b2*.9,1.25+a*.65,1.62);head.add(tb);}
     const ring=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.5,.6,10),new THREE.MeshStandardMaterial({color:TEAMS[T].color,roughness:.6}));ring.position.y=.3;head.add(ring);head.position.y=2.15;}
@@ -1800,15 +1802,15 @@ function updateTurrets(dt){
     if(!best){s.head.rotation.y+=dt*.2;s.yaw=s.head.rotation.y;continue;}
     const sp=s.tkind==='gun'?130:62;const t=bd/sp;const tx=best.x+best.vx*t,tz=best.z+best.vz*t;const want=Math.atan2(tx-s.x,tz-s.z);
     const err=G.aiErr[s.team]*.6;const d=angDiff(s.yaw,want);s.yaw+=clamp(d,-2.2*dt,2.2*dt);s.head.rotation.y=s.yaw;
-    if(Math.abs(d)<.12&&s.cd<=0){const hy=s.y0+3.6;const a=s.yaw+rr(-err,err);
+    if(Math.abs(d)<.12&&s.cd<=0){const tri=!!A.turrets;const hy=s.y0+(tri?4.3:3.6);const a=s.yaw+rr(-err,err); /* tripod turrets: barrels sit higher and reach further forward */
       if(s.tkind==='missile'){fire('missile',s.team,s.x+Math.sin(a)*2,s.y0+4.2,s.z+Math.cos(a)*2,Math.sin(a),.35,Math.cos(a),{target:best,mul:.7*G.turMul[s.team]});sfx('missile',s.x,s.z);
         for(let i=0;i<6;i++)puff(s.x,s.y0+3.5,s.z,[.8,.78,.74],2.4,1.4,.6);s.cd=3.6*G.slow[s.team];}
       else if(s.tkind==='gun'){const ty=best.drone?best.y:best.def.air?best.y+.5:best.y+1;const dist=Math.hypot(tx-s.x,tz-s.z);
-        fire('bullet',s.team,s.x+Math.sin(a)*2,hy,s.z+Math.cos(a)*2,Math.sin(a)*dist,ty-hy+rr(-.5,.5),Math.cos(a)*dist,{mul:G.turMul[s.team]});sfx('tmg',s.x,s.z);
-        FIRE.spawn(s.x+Math.sin(a)*2.6,hy,s.z+Math.cos(a)*2.6,0,0,0,.06,1.6,.6,C_FIRE0,C_FIRE1);
+        const gm=tri?3.0:2;fire('bullet',s.team,s.x+Math.sin(a)*gm,hy,s.z+Math.cos(a)*gm,Math.sin(a)*dist,ty-hy+rr(-.5,.5),Math.cos(a)*dist,{mul:G.turMul[s.team]});sfx('tmg',s.x,s.z);
+        FIRE.spawn(s.x+Math.sin(a)*(gm+.6),hy,s.z+Math.cos(a)*(gm+.6),0,0,0,.06,1.6,.6,C_FIRE0,C_FIRE1);
         s.burst++;s.cd=(s.burst%6===0?1.1:.13)*G.slow[s.team];}
-      else{fire('tshell',s.team,s.x+Math.sin(a)*3,hy,s.z+Math.cos(a)*3,Math.sin(a),0,Math.cos(a),{mul:G.turMul[s.team]});sfx('tcannon',s.x,s.z);
-        FIRE.spawn(s.x+Math.sin(a)*3.4,hy,s.z+Math.cos(a)*3.4,0,0,0,.1,2.6,1,C_FIRE0,C_FIRE1);s.cd=2.6*G.slow[s.team];}}
+      else{const cm=tri?4.2:3;fire('tshell',s.team,s.x+Math.sin(a)*cm,hy,s.z+Math.cos(a)*cm,Math.sin(a),0,Math.cos(a),{mul:G.turMul[s.team]});sfx('tcannon',s.x,s.z);
+        FIRE.spawn(s.x+Math.sin(a)*(cm+.4),hy,s.z+Math.cos(a)*(cm+.4),0,0,0,.1,2.6,1,C_FIRE0,C_FIRE1);s.cd=2.6*G.slow[s.team];}}
   }
   for(let i=G.smokers.length-1;i>=0;i--){const s=G.smokers[i];s.smoke-=dt;if(Math.random()<dt*8)puff(s.x+rr(-2,2),s.y0+2,s.z+rr(-2,2),C_SMK0,3,2.5,.5);if(s.smoke<=0)G.smokers.splice(i,1);}
 }
@@ -2025,7 +2027,7 @@ function fireWeapon(v,slot){
       const m=fire('missile',T,ox,v.y+3.2,oz,fx,air?.8:.25,fz,{target:tgt,mul:G.vehMul[T]});if(tgt&&tgt.jet)m.fuse=7;v.ammo--;v.cd=1.25;sfx('missile',v.x,v.z);
       for(let i=0;i<8;i++)puff(v.x-fx*2,v.y+2.4,v.z-fz*2,[.8,.78,.74],2,1.2,.6);}
     else{layMine(v);v.ammo2--;v.cd2=.8;}}
-  else if(v.type==='jeep'){fire('grenade',T,v.x+fx*2,v.y+1.8,v.z+fz*2,fx,0,fz,{mul:G.vehMul[T]});v.ammo--;v.cd=.55;sfx('grenade',v.x,v.z);}
+  else if(v.type==='jeep'){fire('grenade',T,v.x+fx*2,v.y+1.8,v.z+fz*2,fx,0,fz,{mul:G.vehMul[T]});v.ammo--;v.cd=.55;sfx('gthrow',v.x,v.z);}
 }
 function findLock(v){ // nearest enemy in a 35° cone ahead, vehicles first
   let best=null,bs=1e9;const h=v.heading;
@@ -2155,7 +2157,7 @@ function killSoldier(sd,byTeam,how='shot'){
   puff(sd.x,sd.y+.8,sd.z,C_DUST,1.4,.8,.6);
   if(how==='fall')return; // went into the water with a bridge - no gore
   gore(sd.x,sd.y,sd.z,how);
-  if(how==='crush')sfx('squish',sd.x,sd.z);else{sfx('splat',sd.x,sd.z);if(Math.random()<.65)sfx('scream',sd.x,sd.z);}
+  if(how==='crush')sfx('squish',sd.x,sd.z);else sfx('splat',sd.x,sd.z);if(how==='crush'?Math.random()<.5:Math.random()<.85)sfx('scream',sd.x,sd.z);
 }
 // ============================================================ JEEP CREW
 // (Matt, 26 Oct 2026) A jeep picks up to 3 of its own soldiers: they jog over when it stops or creeps near them and hop in.

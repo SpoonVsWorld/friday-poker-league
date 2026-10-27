@@ -319,7 +319,7 @@ const tmpBox=new THREE.Box3();
 const DATA='sp-data/',DATA_V='1';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
-const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom'];
+const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet'];
 const MUS_KEYS=['m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
 // Retro Tree Pack (Matt's Kenney folder, Low Res GLBs with WebP textures): photo-textured trees replace the cartoon Kenney
@@ -582,7 +582,7 @@ function sfx(kind,x,z){
     case 'alarm':[0,1,2].forEach(i=>tone(.2,.18,880,660,'square',i*.25));break;
     case 'lift':tone(.25,1.2,90,180,'sawtooth');noiseHit(.15,1.2,400,1200,'bandpass',2);break;
     case 'click':tone(.15,.05,1200,900,'square');break;
-    case 'jet':noiseHit(.75*g,2.4,500,2600,'bandpass',.9);noiseHit(.5*g,2.2,2600,400,'bandpass',1.1,.6);tone(.12*g,2,160,60,'sawtooth');break; // YF-23 flyby roar
+    case 'jet':if(!sample('s_jet',1.15*g,1)){noiseHit(.75*g,2.4,500,2600,'bandpass',.9);noiseHit(.5*g,2.2,2600,400,'bandpass',1.1,.6);tone(.12*g,2,160,60,'sawtooth');}break; // F-106 fly-by recording (Matt, 27 Oct 2026); synth roar if it hasn't loaded
     case 'whistle':tone(.1*g,.75,1900,420,'sine');break; // falling bomb
     case 'spinout':tone(.2*g,2.8,1100,170,'sawtooth');noiseHit(.35*g,2.6,2600,300,'bandpass',1.2);[0,1,2,3,4].forEach(i=>tone(.1*g,.12,1500,1500,'square',i*.28));break; // stricken helicopter: falling whine + warning beeps
     case 'collapse':noiseHit(1.1*g,3.4,420,32,'lowpass',.8,.15);tone(.55*g,2.6,58,24,'sine',.18);noiseHit(.5*g,2.4,1800,160,'lowpass',.7,.3); // building coming down: long rumble

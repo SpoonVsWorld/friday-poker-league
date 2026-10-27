@@ -95,6 +95,19 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline
 .help b{color:var(--sand);font-weight:600}
 .help div{color:var(--khaki);line-height:1.45}
 kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;color:var(--sand)}
+#devBtn{align-self:flex-start;margin-top:-10px;background:none;border:0;padding:4px 2px;font:600 9px var(--ui);letter-spacing:.18em;text-transform:uppercase;color:var(--khaki);opacity:.22;cursor:pointer}
+#devBtn:hover,#devBtn:focus-visible{opacity:.6}
+#devBtn.on{color:#7fb0ff;opacity:.45}
+#devBox{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(5,8,5,.6)}
+#devBox[hidden]{display:none}
+#devForm{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:16px;width:min(300px,calc(100% - 32px));box-sizing:border-box;display:grid;gap:10px;color:var(--sand)}
+#devForm .dt{font:400 18px var(--display);letter-spacing:.06em;color:var(--signal)}
+#devMsg{font-size:12px;color:var(--khaki);line-height:1.4}
+#devMsg:empty{display:none}
+#devPw{font:16px var(--ui);padding:9px 10px;background:#0d120e;color:var(--sand);border:1px solid var(--line);border-radius:3px;width:100%;box-sizing:border-box}
+#devForm .db{display:flex;gap:8px;justify-content:flex-end}
+#devForm button{font:600 13px var(--ui);letter-spacing:.06em;text-transform:uppercase;padding:8px 14px;border-radius:3px;border:1px solid var(--line);background:none;color:var(--sand);cursor:pointer}
+#devGo{background:var(--signal)!important;color:#1a1405!important;border-color:var(--signal)!important}
 .credit{margin-top:auto;font-size:11px;color:var(--khaki);opacity:.7;line-height:1.4}
 @media (max-width:820px){.help{display:none}#title{background:rgba(9,13,9,.85)}}
 
@@ -258,6 +271,8 @@ body.touchui .hud .warn{bottom:auto;top:46%}
         <div style="display:flex;gap:6px"><button class="tog" id="tShadow" aria-pressed="true">Shadows</button><button class="tog" id="tMusic" aria-pressed="true">Music</button><button class="tog" id="tMouse" aria-pressed="true">Mouse aim</button></div></div>
     </div>
     <div class="credit">Title music: Verdi, Dies Irae (ICBSA, CC BY-SA 4.0). Jeep: Rimsky-Korsakov, Flight of the Bumblebee (US Air Force Band of the Rockies). Flag: Handel, Hallelujah Chorus (Scherchen). Models from your Kenney folder (Military Free, Nature, Tower Defense, Industrial, Castle kits). Music via Wikimedia Commons, public domain: Wagner, Ride of the Valkyries; Grieg, In the Hall of the Mountain King (Musopen Symphony); Rossini, William Tell Overture (military band); Holst, Mars. Sound effects by qubodup (CC0) and Wikimedia Commons (public domain). Tank engine loop by Nayckron and qubodup, CC-BY 3.0.</div>
+    <button type="button" id="devBtn" aria-label="Developer">dev</button>
+    <div id="devBox" hidden><form id="devForm" autocomplete="off"><div class="dt">Developer mode</div><div id="devMsg"></div><input id="devPw" type="password" placeholder="Password" aria-label="Developer password" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="db"><button type="button" id="devCancel">Cancel</button><button type="submit" id="devGo">Unlock</button></div></form></div>
   </div>
   <div class="help">
     <h3>Field manual</h3>
@@ -1522,8 +1537,23 @@ const MSL_NAME={building:'Building',hospital:'Hospital',depot:'Ammo depot',gas:'
 const MSL_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><path d="M6 12l8-6h30l14 6-14 6H14z" fill="#c9b98a"/><path d="M44 6l14 6-14 6z" fill="#e5544a"/><path d="M14 6L6 1v22l8-5z" fill="#6f7f3c"/><path d="M24 6h4v12h-4zM34 6h3v12h-3z" fill="#6f7f3c"/></svg>';
 function strikesBanked(){return Math.max(0,loadOps().strikes|0);}
 function setStrikes(n){const d=loadOps();d.strikes=Math.max(0,n|0);try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}if(G)G.strikes=d.strikes;}
-function mslCount(){return G&&G.strikes!=null?G.strikes:strikesBanked();}
-function mslReady(){return !!(G&&G.op&&G.launcher&&G.launcher.er&&G.launcher.msl&&!G.net&&!G.demo&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&mslCount()>0);}
+// ---- developer mode: password-gated switch on the title screen (tiny "dev" link under the credits). Per device
+// (localStorage ironflag.dev). Single-player only (campaign + skirmish, never online): every operation unlocked,
+// the player's vehicles never take damage and never run out of ammo or fuel, unlimited air strikes and missile-truck
+// strikes (the truck is parked in skirmish too). Turning it on also switches on owner mode (visits not counted).
+// The password is stored only as a SHA-256 hash.
+const DEV={on:false,hash:'ca663719c84fda897cfe8d4e4fdef714b1f9100e12c0b43ae0ba5bd5e61cdb93'};try{DEV.on=localStorage.getItem('ironflag.dev')==='1';}catch(e){}
+function devActive(){return !!(DEV.on&&G&&!G.net&&!G.demo);}
+async function devCheck(pw){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')===DEV.hash;}catch(e){return false;}}
+function devSet(on){DEV.on=on;try{if(on){localStorage.setItem('ironflag.dev','1');localStorage.setItem('ironflag.nocount','1');}else localStorage.removeItem('ironflag.dev');}catch(e){}devLabel();}
+function devLabel(){const b=document.getElementById('devBtn');if(b){b.textContent=DEV.on?'dev ●':'dev';b.classList.toggle('on',DEV.on);}}
+function devTick(){ // every sim step: keep the player's vehicle topped up, strikes unlimited
+  if(!devActive())return;const t=G.teams[0],v=t.vehicle;
+  if(v&&v.state==='active'){const d=v.def;v.hp=d.hp;v.fuel=d.fuel;v.ammo=d.ammo;if(d.ammo2!=null)v.ammo2=d.ammo2;}
+  if(!G.air)G.air={total:99,left:[99,0],enemyT:1e9};G.air.left[0]=99;
+}
+function mslCount(){if(devActive())return 99;return G&&G.strikes!=null?G.strikes:strikesBanked();}
+function mslReady(){return !!(G&&(G.op||devActive())&&G.launcher&&G.launcher.er&&G.launcher.msl&&!G.net&&!G.demo&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&mslCount()>0);}
 function mslBusy(){return !!(G&&(G.mslMap||(G.strike&&G.strike.phase!=='lower')));}
 function mslSetLoaded(){const L=G&&G.launcher;if(L&&L.msl)L.msl.visible=mslCount()>0;}
 function mslTargetName(s){if(!s)return null;if(s.kind==='turret')return ({gun:'Gun',cannon:'Cannon',missile:'Missile'}[s.tkind]||'')+' turret';if(s.kind==='building')return 'Building';return MSL_NAME[s.kind]||'Structure';}
@@ -1696,7 +1726,7 @@ function mslLaunch(S){
   const b0=p1,b1=new V3(p1.x,top,p1.z),b2=new V3(S.tx-hx*dist*.3,top,S.tz-hz*dist*.3),b3=new V3(S.tx,S.ty,S.tz);
   const pts=[],cum=[0];const N=240;for(let i=0;i<=N;i++){const t=i/N,u=1-t;pts.push(new V3().addScaledVector(b0,u*u*u).addScaledVector(b1,3*u*u*t).addScaledVector(b2,3*u*t*t).addScaledVector(b3,t*t*t));if(i)cum.push(cum[i-1]+pts[i].distanceTo(pts[i-1]));}
   S.path={pts,cum,len:cum[N],i:0};S.p0=p0;S.hx=hx;S.hz=hz;S.s=0;S.v=0;S.roll=0;S.dir=new V3(0,1,0);
-  S.snd=rocketSound();setStrikes(mslCount()-1);
+  S.snd=rocketSound();if(!devActive())setStrikes(mslCount()-1);
   for(let i=0;i<70;i++){const a=rr(0,TAU),sp=rr(6,16);SMOKE.spawn(p0.x+rr(-2,2),Math.max(groundAt(p0.x,p0.z),0)+rr(.3,2),p0.z+rr(-2,2),Math.cos(a)*sp,rr(.5,3),Math.sin(a)*sp,rr(3,5.5),3,10,[.82,.8,.76],[.62,.6,.57],.75,-.3,1.4);}
   for(let i=0;i<40;i++)FIRE.spawn(p0.x+rr(-1.5,1.5),p0.y-6+rr(0,2),p0.z+rr(-1.5,1.5),rr(-9,9),rr(-2,4),rr(-9,9),rr(.25,.6),3,6,C_FIRE0,C_FIRE1,1,-2,2);
   if(S.view)S.view.shake=Math.max(S.view.shake,.9);sfx('bigboom',p0.x,p0.z);
@@ -1938,7 +1968,8 @@ function bailOut(v){
   if(team.view&&team.view.index===0)musicStop();
 }
 function destroyVehicle(v,by){
-  if(v.state==='dead')return;v.state='dead';const team=G.teams[v.team];if(team.human)G.lost++;
+  if(v.state==='dead')return;if(v.team===0&&devActive()&&!v.devDie)return; // dev mode: the player's vehicles can't be destroyed (scuttle still works, see devDie)
+  v.state='dead';const team=G.teams[v.team];if(team.human)G.lost++;
   const air=v.def.air&&v.y-Math.max(groundAt(v.x,v.z),0)>1.8; // a helicopter hit in the air spins out and explodes when it hits the ground (see wreckVehicle)
   explosion(v.x,v.y+1,v.z,air?1:v.type==='jeep'?1.3:2);sfx(air?'boom':'bigboom',v.x,v.z);
   if(v.carrying){dropFlag(v.carrying,v.x,v.z);}
@@ -2093,6 +2124,7 @@ function collapseSpan(sp,byTeam){
   for(const T of [0,1])note(T,'A bridge has been destroyed','warn');
 }
 function damage(e,amount,byTeam){
+  if(e.state!==undefined&&e.team===0&&devActive())return; // dev mode: player vehicles take no damage
   if(e.jet){e.hp-=amount;if(e.hp<=0)killJet(e,byTeam);return;}
   if(e.drone){e.hp-=amount;e.hitT=.12;if(e.hp<=0)killDrone(e,byTeam);return;}
   if(e.soldier){e.hp-=amount;if(e.hp<=0)killSoldier(e,byTeam);return;}
@@ -2186,7 +2218,7 @@ function updateVehicle(v,inp,dt){
   if(noFuel&&v.def.air){damage(v,999,-1);return;}
   if(noFuel&&!v.def.air){v.strandT=(v.strandT||0)+dt;if(v.strandT>2){bailOut(v);return;}}else v.strandT=0;
   // scuttle
-  if(inp.abandon){v.scuttle+=dt;if(v.scuttle>1.2){destroyVehicle(v);return;}}else v.scuttle=0;
+  if(inp.abandon){v.scuttle+=dt;if(v.scuttle>1.2){v.devDie=true;destroyVehicle(v);return;}}else v.scuttle=0;
   const def=v.def;let thr=noFuel?0:inp.thr,turn=noFuel?0:inp.turn;
   if(v.type==='heli'){
     const tgtSp=thr*def.speed*(thr<0?.55:1),tgtSt=(inp.strafe||0)*def.speed*.55;
@@ -2826,7 +2858,7 @@ function buildHud(view){
   view.q.cards.innerHTML=VORDER.map((k,i)=>`<button class="card" data-k="${k}" id="card${view.index}${k}"><img alt="" src="${thumbs[k+view.team.team]}"><div class="nm">${VDEF[k].name}<i></i></div><div class="ds">${VDEF[k].desc}</div></button>`).join('');
   view.q.cards.querySelectorAll('.card').forEach((c,i)=>{c.addEventListener('click',()=>{audioInit();view.sel=i;launchFromMenu(view);});c.addEventListener('pointerenter',()=>{view.sel=i;});});
   const km=view.ctrl===0?'<kbd>A</kbd>/<kbd>D</kbd> choose · <kbd>Space</kbd> launch':'<kbd>←</kbd>/<kbd>→</kbd> choose · <kbd>K</kbd> launch';
-  view.q.hint.innerHTML=opts.touch&&view.ctrl===0?'Tap a vehicle to launch it':G.views.length===1?'Click a vehicle, press <kbd>1</kbd>–<kbd>4</kbd>, or '+km+(G.op&&G.launcher?' · <kbd>5</kbd> missile strike':''):km+(G.op&&G.launcher?' · <kbd>5</kbd> missile strike':'');
+  view.q.hint.innerHTML=opts.touch&&view.ctrl===0?'Tap a vehicle to launch it':G.views.length===1?'Click a vehicle, press <kbd>1</kbd>–<kbd>4</kbd>, or '+km+((G.op||devActive())&&G.launcher?' · <kbd>5</kbd> missile strike':''):km+((G.op||devActive())&&G.launcher?' · <kbd>5</kbd> missile strike':'');
   view.mini=view.q.mini.getContext('2d');
 }
 const SKULL_SVG=`<svg viewBox="0 0 120 130" xmlns="http://www.w3.org/2000/svg"><path d="M60 6C30 6 10 26 10 54c0 16 7 27 17 34v18c0 5 4 9 9 9h48c5 0 9-4 9-9V88c10-7 17-18 17-34C110 26 90 6 60 6z" fill="#f1ead2" stroke="#1b1b16" stroke-width="5"/><ellipse cx="40" cy="58" rx="13" ry="15" fill="#1b1b16"/><ellipse cx="80" cy="58" rx="13" ry="15" fill="#1b1b16"/><path d="M60 72l-8 14h16z" fill="#1b1b16"/><path d="M36 98h48v14H36z" fill="#d9d0b4" stroke="#1b1b16" stroke-width="4"/><path d="M48 98v14M60 98v14M72 98v14" stroke="#1b1b16" stroke-width="4"/><circle cx="44" cy="54" r="4" fill="#e5544a"/><circle cx="84" cy="54" r="4" fill="#e5544a"/></svg>`;
@@ -2873,9 +2905,9 @@ function updateHud(view){
   const t=view.team,v=t.vehicle,q=view.q;
   const sel=q.sel;const menuOn=!v&&t.respawnT<=0&&!G.over&&!view.watch&&!(view.hold>0)&&!mslBusy();if(sel.hidden===menuOn)sel.hidden=!menuOn;
   if(menuOn){VORDER.forEach((k,i)=>{const c=q.cards.children[i];c.querySelector('i').textContent='×'+t.stock[k];c.toggleAttribute('disabled',t.stock[k]<=0);c.classList.toggle('on',i===view.sel);});
-    const mb=q.msl,show=!!(G.op&&G.launcher);if(mb.hidden===show)mb.hidden=!show;
+    const mb=q.msl,show=!!((G.op||devActive())&&G.launcher);if(mb.hidden===show)mb.hidden=!show;
     if(show){const n=mslCount(),ok=mslReady(),key=n+'|'+ok+'|'+(view.sel===4);if(lastHud.get(mb)!==key){lastHud.set(mb,key);
-      mb.innerHTML=`${MSL_ICON}<span class="mt">Missile strike<small>${n?'pick a target on the map':'earn one: finish an op without losing a vehicle'}</small></span><i>×${n}</i>`;mb.toggleAttribute('disabled',!ok);mb.classList.toggle('on',ok&&view.sel===4);}}}
+      mb.innerHTML=`${MSL_ICON}<span class="mt">Missile strike<small>${n?'pick a target on the map':'earn one: finish an op without losing a vehicle'}</small></span><i>×${devActive()?'∞':n}</i>`;mb.toggleAttribute('disabled',!ok);mb.classList.toggle('on',ok&&view.sel===4);}}}
   let s;
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
     q.fuel.style.width=(v.fuel/d.fuel*100).toFixed(1)+'%';
@@ -2886,7 +2918,7 @@ function updateHud(view){
   const st=VORDER.map(k=>`<div class="${t.stock[k]?'':'zero'}">${{tank:'TNK',heli:'HEL',asv:'ASV',jeep:'JEP'}[k]} ${t.stock[k]}</div>`).join('');
   if(lastHud.get(q.stock)!==st){q.stock.innerHTML=st;lastHud.set(q.stock,st);}
   const lab={hidden:'HIDDEN',exposed:'EXPOSED',carried:'TAKEN',captured:'CAPTURED'};const ef=G.flags[1-t.team],mf=G.flags[t.team];
-  const fl=(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air?`<div>AIR STRIKES <b style="color:${G.air.left[t.team]?'#7fb0ff':'var(--khaki)'}">×${G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>ENEMY FLAG <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
+  const dv=devActive()&&t.team===0;const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air?`<div>AIR STRIKES <b style="color:${G.air.left[t.team]?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>ENEMY FLAG <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
   if(lastHud.get(q.flag)!==fl){q.flag.innerHTML=fl;lastHud.set(q.flag,fl);}
 }
 function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat in front
@@ -2901,7 +2933,7 @@ function launchFromMenu(view){const t=view.team;if(view.watch||view.hold>0||mslB
   spawnVehicle(t.team,k);sfx('click');}}
 function menuInput(view){
   const t=view.team;if(t.vehicle||t.respawnT>0||mslBusy())return;
-  const N=G.op&&G.launcher?5:4,can=i=>i<4?t.stock[VORDER[i]]>0:mslReady(); // slot 5 = missile strike (campaign)
+  const N=(G.op||devActive())&&G.launcher?5:4,can=i=>i<4?t.stock[VORDER[i]]>0:mslReady(); // slot 5 = missile strike (campaign)
   if(view.sel==null||!can(view.sel)){view.sel=VORDER.findIndex(k=>t.stock[k]>0);if(view.sel<0)view.sel=N===5&&can(4)?4:0;}
   const e=view.menuEdge;if(!e)return;
   const step=d=>{for(let i=1;i<=N;i++){const n=(view.sel+d*i+N*2)%N;if(can(n)){view.sel=n;sfx('click');return;}}};
@@ -2941,7 +2973,7 @@ function newGame(mode,seed,demo=false){
   for(const b of bases)buildBase(b);
   for(const k of ['wall','hedge','crate','barrel'])G.batches[k].done();
   realifyStructures();
-  if(G.op&&!demo)parkLauncher(bases[0]);
+  if((G.op||(DEV.on&&mode==='1p'))&&!demo)parkLauncher(bases[0]);
   scatterNature();
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}
@@ -2977,7 +3009,7 @@ function endGame(){
 }
 function gameOver(winner,how){
   if(G.over)return;G.over=true;G.overInfo={winner,how};
-  const flawless=!!(G.op&&!G.demo&&winner===0&&!G.lost);if(flawless)setStrikes(strikesBanked()+1); // banked right away, so quitting during the end screen can't lose it
+  const flawless=!!(G.op&&!G.demo&&winner===0&&!G.lost&&!devActive());if(flawless)setStrikes(strikesBanked()+1); // banked right away, so quitting during the end screen can't lose it
   if(G.demo){setTimeout(()=>{if(state==='title')startDemo();},4000);return;}
   setTimeout(()=>{
     const human=G.views.map(v=>v.team.team);let title,text;
@@ -3015,7 +3047,7 @@ function loadOps(){try{return JSON.parse(localStorage.getItem(OPKEY))||{};}catch
 function saveOp(i,secs){const d=loadOps();d.best=d.best||{};if(!d.best[i]||secs<d.best[i])d.best[i]=secs;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}}
 function fmtTime(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
 function showOps(){
-  const d=loadOps(),best=d.best||{};const unlocked=Math.min(OPS.length-1,Math.max(-1,...Object.keys(best).map(Number))+1);
+  const d=loadOps(),best=d.best||{};const unlocked=DEV.on?OPS.length-1:Math.min(OPS.length-1,Math.max(-1,...Object.keys(best).map(Number))+1);
   $('#opsSub').textContent=`${Object.keys(best).length} of ${OPS.length} operations complete. Each base is defended by turrets, soldiers and later drones. There are no enemy vehicles, just their defenses. Difficulty: ${['Easy','Normal','Hard'][opts.diff]} (change it on the title screen; Hard is the original's one-hit jeep).`;
   $('#opsGrid').innerHTML=OPS.map((o,i)=>{const done=best[i]!=null,lock=i>unlocked;return `<button class="op${done?' done':''}${i===unlocked&&!done?' next':''}" data-i="${i}" ${lock?'disabled':''}><span class="no">OPERATION ${String(i+1).padStart(2,'0')}</span><span class="nm">${o.name}</span><span class="st">${lock?'Locked':done?'Complete · best '+fmtTime(best[i]):'Map '+o.seed+' · ready'}</span></button>`;}).join('');
   $('#opsGrid').querySelectorAll('.op').forEach(b=>b.onclick=()=>{if(b.disabled)return;startOp(+b.dataset.i);});
@@ -3055,7 +3087,7 @@ function step(dt){
       aiThink(t.team,dt);aiDrive(t.team,dt,t.input);}
   }
   for(const v of [...G.vehicles]){const t=G.teams[v.team];updateVehicle(v,t.vehicle===v?t.input:{thr:0,turn:0},dt);}
-  updateTurrets(dt);updateGates(dt);updateSoldiers(dt);updateDrones(dt);updateAir(dt);updateStrike(dt);updateSub(dt);updateProjectiles(dt);updateMines(dt);updateFlags(dt);
+  updateTurrets(dt);updateGates(dt);updateSoldiers(dt);updateDrones(dt);devTick();updateAir(dt);updateStrike(dt);updateSub(dt);updateProjectiles(dt);updateMines(dt);updateFlags(dt);
   if((G.time*2|0)!==((G.time-dt)*2|0))checkLose();
 }
 // ---- chase (3rd-person) camera: V key / CAM button / gamepad stick click toggles; remembered per device
@@ -3344,6 +3376,17 @@ $('#b2p').onclick=()=>showOnline();
  if(logo)logo.addEventListener('click',()=>{const now=performance.now();taps=taps.filter(x=>now-x<2500);taps.push(now);if(taps.length<5)return;taps=[];
    let on=false;try{on=localStorage.getItem('ironflag.nocount')==='1';if(on)localStorage.removeItem('ironflag.nocount');else localStorage.setItem('ironflag.nocount','1');}catch(e){}
    sfx('click');show(on?'Owner mode off — visits from this device count again':'Owner mode — visits from this device are not counted');});}
+// Developer mode switch (see DEV): tiny "dev" link under the credits on the title screen.
+{const box=$('#devBox'),pw=$('#devPw'),msg=$('#devMsg'),go=$('#devGo');devLabel();
+ const open=()=>{audioInit();box.hidden=false;if(DEV.on){msg.textContent='Developer mode is ON on this device: all operations open, unlimited armor, ammo, fuel, air strikes and missile strikes in Campaign and Skirmish (not Online).';pw.hidden=true;go.textContent='Turn off';}
+   else{msg.textContent='';pw.hidden=false;pw.value='';go.textContent='Unlock';setTimeout(()=>pw.focus(),30);}};
+ const close=()=>{box.hidden=true;pw.value='';};
+ $('#devBtn').onclick=open;$('#devCancel').onclick=close;box.addEventListener('pointerdown',e=>{if(e.target===box)close();});
+ box.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')close();});
+ $('#devForm').addEventListener('submit',async e=>{e.preventDefault();
+   if(DEV.on){devSet(false);sfx('click');close();return;}
+   if(await devCheck(pw.value)){devSet(true);window.__noCount=true;sfx('pick');msg.textContent='Developer mode ON. Visits from this device are no longer counted.';pw.hidden=true;go.textContent='Turn off';setTimeout(close,1600);}
+   else{msg.textContent='Wrong password.';pw.value='';pw.focus();sfx('click');}});}
 $('#onlineBack').onclick=()=>{netLeaveLobby();$('#online').hidden=true;$('#title').hidden=false;state='title';};
 $('#bHost').onclick=()=>netHostMatch();
 $('#netCancel').onclick=()=>netCancelHost();

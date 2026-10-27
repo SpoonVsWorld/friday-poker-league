@@ -208,6 +208,26 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .op.next{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
 .op:hover:not([disabled]){background:rgba(242,182,50,.14)}
 .op[disabled]{opacity:.35;cursor:not-allowed}
+/* campaign story: intro + per-operation briefing (same scroll-safe layout as #ops) */
+#story{background:rgba(8,11,8,.94);padding:calc(24px + var(--sat)) calc(24px + var(--sar)) calc(24px + var(--sab)) calc(24px + var(--sal));box-sizing:border-box;overflow:auto;z-index:21}
+.storybox{width:min(640px,100%);display:grid;gap:14px;margin:auto;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:26px 30px;box-sizing:border-box}
+.storybox .stk{margin:0;font:600 12px var(--ui);letter-spacing:.18em;color:var(--signal);text-transform:uppercase}
+.storybox h2{margin:0;font:400 clamp(30px,5.5vw,46px) var(--display);letter-spacing:.04em;line-height:1.05}
+.storybox .stob{margin:0;font:700 13px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--sand)}
+.storybox .stob b{color:var(--signal);font-weight:700}
+#stBody{display:grid;gap:10px}
+#stBody p{margin:0;color:var(--khaki);font-size:15.5px;line-height:1.55}
+#stBody p.big{font:400 22px var(--display);letter-spacing:.06em;color:var(--sand)}
+.storybox .stintel{margin:0;font-size:12.5px;color:var(--khaki);opacity:.85;border-top:1px solid var(--line);padding-top:10px}
+.stbtns{display:flex;gap:10px;flex-wrap:wrap}
+.stbtns button{flex:1;min-width:130px;background:rgba(239,226,184,.06);border:1px solid var(--line);color:var(--sand);padding:12px;font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:3px}
+.stbtns button:hover,.stbtns button:focus-visible{border-color:var(--signal);background:rgba(242,182,50,.14);outline:none}
+.stbtns #stGo{border-color:var(--signal);background:rgba(242,182,50,.2)}
+#oStory{display:grid;gap:9px;max-width:560px;text-align:left;margin:0 auto}
+#oStory p{margin:0;color:var(--khaki);line-height:1.5;font-size:14.5px}
+#oStory p.cmd{color:var(--sand);font-weight:700;letter-spacing:.1em;font-size:12.5px;margin-top:4px}
+#oStory p.q{color:var(--sand);font-style:italic}
+#oStory p.big{font:400 20px var(--display);letter-spacing:.06em;color:var(--signal);text-align:center;margin-top:6px}
 #online{background:rgba(8,11,8,.9);padding:calc(24px + var(--sat)) calc(24px + var(--sar)) calc(24px + var(--sab)) calc(24px + var(--sal));box-sizing:border-box;overflow:auto}
 .lobbybox{width:min(680px,100%);display:grid;gap:16px;margin:auto}
 .lobbybox h3{margin:10px 0 0;font:700 15px var(--ui);letter-spacing:.06em;text-transform:uppercase;color:var(--khaki)}
@@ -217,7 +237,8 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--khaki);border-top-color:var(--signal);animation:spin 1s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 #confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-#over .box{position:relative}
+#over .box{position:relative;margin:auto;max-width:min(640px,100%);box-sizing:border-box}
+#over{overflow:auto;align-items:flex-start;justify-content:flex-start;padding:16px;box-sizing:border-box}
 .skull{position:absolute;left:50%;top:42%;width:min(26vw,190px);transform:translate(-50%,-50%);animation:skull 2.2s ease-out forwards;pointer-events:none;filter:drop-shadow(0 4px 0 #000)}
 @keyframes skull{0%{transform:translate(-50%,-50%) scale(.2) rotate(-20deg);opacity:0}12%{transform:translate(-50%,-50%) scale(1.1) rotate(6deg);opacity:1}20%,28%,36%,44%{transform:translate(-50%,-52%) scale(1) rotate(-5deg)}24%,32%,40%,48%{transform:translate(-50%,-48%) scale(1) rotate(5deg)}80%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.9)}}
 .optag{font:600 11px var(--ui);letter-spacing:.14em;color:var(--signal);margin-top:6px}
@@ -285,7 +306,8 @@ body.touchui .hud .warn{bottom:auto;top:46%}
   </div>
 </div>
 
-<div id="ops" class="screen" hidden><div class="opsbox"><div class="opshead"><h2>Operations</h2><p id="opsSub"></p><button id="opsBack">Back</button></div><div class="opsgrid" id="opsGrid"></div></div></div>
+<div id="ops" class="screen" hidden><div class="opsbox"><div class="opshead"><h2>Operations</h2><p id="opsSub"></p><button id="opsStory">Story</button><button id="opsBack">Back</button></div><div class="opsgrid" id="opsGrid"></div></div></div>
+<div id="story" class="screen" hidden><div class="storybox"><p class="stk" id="stKick"></p><h2 id="stTitle"></h2><p class="stob" id="stObj"></p><div id="stBody"></div><p class="stintel" id="stIntel"></p><div class="stbtns"><button id="stGo">Deploy</button><button id="stBack">Back</button></div></div></div>
 <div id="online" class="screen" hidden><div class="lobbybox">
   <div class="opshead"><h2>Online</h2><p>Open lobby — host a match or join someone else's. Full battles with AI defenses, same as Skirmish.</p><button id="onlineBack">Back</button></div>
   <div class="row"><span class="lbl">Your name</span><input id="netName" type="text" maxlength="16" placeholder="Commander" aria-label="Your name"></div>
@@ -299,7 +321,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
   <div id="netConnecting" hidden><p><span class="spin"></span>Connecting…</p></div>
 </div></div>
 <div id="pause" class="screen" hidden><div class="box"><h2>Paused</h2><div class="btns"><button id="pResume">Resume</button><button id="pMusic">Music on/off</button><button id="pRestart">Restart map</button><button id="pQuit">Quit to title</button></div></div></div>
-<div id="over" class="screen" hidden><canvas id="confetti"></canvas><div class="box"><h2 id="oTitle">Victory</h2><p id="oText"></p><div class="btns"><button id="oNext" hidden>Next operation</button><button id="oAgain">Rematch</button><button id="oNew">New map</button><button id="oOps" hidden>Operations</button><button id="oQuit">Title screen</button></div></div></div>
+<div id="over" class="screen" hidden><canvas id="confetti"></canvas><div class="box"><h2 id="oTitle">Victory</h2><p id="oText"></p><div id="oStory" hidden></div><div class="btns"><button id="oNext" hidden>Next operation</button><button id="oAgain">Rematch</button><button id="oNew">New map</button><button id="oOps" hidden>Operations</button><button id="oQuit">Title screen</button></div></div></div>
 <div id="touch" hidden><div class="tzone" id="tzone"><div class="sbase" id="sbase" hidden><div class="sknob" id="sknob"></div></div></div>
   <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button></div>
 <div id="loading">LOADING ARMOR…</div>
@@ -3146,12 +3168,12 @@ function gameOver(winner,how){
     const human=G.views.map(v=>v.team.team);let title,text;
     $('#oNext').hidden=true;$('#oOps').hidden=!G.op;$('#oNew').hidden=!!G.op||!!G.net;$('#oAgain').textContent=G.op?'Replay operation':G.net?'Back to lobby':'Rematch';
     if(G.op){const won=winner===0;title=won?'Operation complete':'Operation failed';
-      if(won){const secs=Math.round(G.time);text=`${G.op.name} taken in ${fmtTime(secs)}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else text+=' The whole campaign is yours.';confetti();}
+      if(won){const secs=Math.round(G.time);text=`${G.op.name} taken in ${fmtTime(secs)}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else title=STORY.endTitle;confetti();}
       else text=how==='nojeep'?`No jeeps left to carry the ${objName(G.flags[1]).toLowerCase()}.`:'You ran out of vehicles.';}
     else if(G.views.length===1){const won=winner===human[0];title=won?'Victory':'Defeat';
       text=how==='flag'?(won?'You brought their flag home.':'The enemy ran your flag home.'):(won?'The enemy ran out of vehicles.':'You ran out of vehicles.');}
     else{title=`Player ${winner+1} wins`;text=how==='flag'?`${TEAMS[winner].name} captured the flag.`:`${TEAMS[1-winner].name} ran out of vehicles.`;}
-    $('#oTitle').textContent=title;$('#oTitle').style.color=G.op?(winner===0?'var(--ok)':'var(--bad)'):TEAMS[winner].css;$('#oText').textContent=text;$('#over').hidden=false;state='over';musicStop();
+    $('#oTitle').textContent=title;$('#oTitle').style.color=G.op?(winner===0?'var(--ok)':'var(--bad)'):TEAMS[winner].css;$('#oText').textContent=text;{const fin=!!(G.op&&winner===0&&opIndex===OPS.length-1),os=$('#oStory');os.hidden=!fin;if(fin)storyParas(os,STORY.end);}$('#over').hidden=false;state='over';musicStop();
     if(winner===human[0]||G.views.length>1){musicPlay('hallelujah',true);if(!G.op)confetti();}
   },1600);
 }
@@ -3179,6 +3201,52 @@ const OBJECTIVES=[['Communications Log','COMMS LOG'],['Supply Manifest','MANIFES
   ['Submerged Cargo Container','CARGO'],['Command Orders','ORDERS'],['Research Archive Computer','ARCHIVE PC'],['Shipment Tracking Computer','TRACKER'],['Transport Dossier','DOSSIER'],
   ['Emergency Command Cipher','CIPHER'],['Guidance-System Module','GUIDANCE'],['Armored Project Container','CONTAINER'],['Assembly Coordinates Device','GPS DEVICE'],['Final Assembly Authorization Card','AUTH CARD'],
   ['Shielded Energy Assembly','ENERGY CELL'],['Weapon Control Core','CONTROL CORE'],['Final Weapons Assembly Crate','WEAPONS CRATE'],['Weapon Activation Key Device','ACTIVATION KEY'],['Nuclear Weapon Objective','WARHEAD']].map(([n,s])=>({n,s}));
+// Campaign story (Matt's "Operation Iron Curtain" script, 27 Oct 2026): intro the first time Operations opens (rereadable via Story),
+// a briefing before every operation, and the victory message after Operation 20.
+const STORY={
+  intro:['When enemy forces seize a chain of strategic islands, conventional military units struggle to break through their fortified bases.','Command has one option left: SPOON PLATOON.',
+    'An elite mechanized strike force specializing in high-risk assaults, enemy intelligence recovery, and deep-territory operations, Spoon Platoon has been ordered to dismantle the enemy\'s military network one base at a time.',
+    'What begins as a routine campaign quickly reveals a much greater threat. The enemy is secretly developing a nuclear weapon under a classified program known as IRON CURTAIN.',
+    'With the clock ticking, Spoon Platoon must recover critical intelligence, secure classified equipment, and uncover the location of the enemy\'s final weapons facility.',
+    'Twenty operations. One platoon. One chance to stop the enemy.','*WELCOME TO SPOON PLATOON.'],
+  ops:["Enemy communications have revealed unusual activity across the islands. Destroy the enemy buildings, recover their communications log, and return it to base. Find out what they're hiding.",
+    "The communications log points to a hidden supply network. Raid the Sandbar depot, recover the enemy supply manifest, and return it to base. Something important is being moved in secret.",
+    "Enemy shipments are being rerouted through Twin Bridges. Recover their route intelligence to discover where the classified cargo is going. The trail leads deeper into enemy territory.",
+    "Palm Ridge coordinates the enemy's secret operations. Recover the encrypted intelligence drive and return it to base. Its files may reveal what the enemy is building.",
+    "Iron Gate protects access to the enemy's restricted installations. Recover the security authorization key. Intelligence suggests a secret weapons program called IRON CURTAIN is underway.",
+    "The enemy has been moving classified cargo along hidden coastal routes. Recover the submerged cargo records to uncover the scale of their operation. Every shipment brings them closer to their goal.",
+    "Crossfire is the command center directing the enemy's supply network. Recover their command orders to identify the most important targets. We need to dismantle this operation before it's too late.",
+    "The research archive at Hornet Nest confirms our worst fears: IRON CURTAIN is a nuclear weapons program. Recover the archive and return to base. We must discover where the weapon is being assembled.",
+    "Breakwater tracks the enemy's classified shipments. Recover the tracking computer to identify the locations of their remaining equipment. One destination keeps appearing: a facility called Hammerfall.",
+    "The transport dossier contains the enemy's complete classified shipping records. Recover it to locate the remaining project assets. The enemy is preparing to assemble its weapon, and time is running out.",
+    "Stormfront contains emergency orders from the enemy's high command. Recover the command cipher to learn their latest plans. They've discovered that someone is closing in on IRON CURTAIN.",
+    "Dead Reckoning guards a critical guidance-system module. Recover the equipment before it can be transferred to the final facility. The enemy's weapon is nearing completion.",
+    "Gauntlet protects an armored container holding classified weapons-project equipment. Fight through the defenses and recover the container. Its contents could confirm exactly what the enemy is preparing.",
+    "Red Shore holds the coordinates to the enemy's final assembly facility. Recover the records and return to base. We finally know where Hammerfall is located.",
+    "Skyhook contains the final authorization for the IRON CURTAIN program. Recover it to confirm the enemy's plans. Hammerfall is preparing to complete the weapon. We must stop them.",
+    "Firestorm guards one of the last critical assemblies required by the enemy's weapons program. Recover the shielded assembly and return to base. The final operation is getting closer.",
+    "Last Light holds the weapon control core. Recover it before the enemy transfers it to Hammerfall. Intercepted orders confirm that the enemy has accelerated its timetable. We are running out of time.",
+    "We've reached the enemy's secret weapons facility. Recover the final assembly from its outer defenses and return to base. The weapon remains inside the inner complex, protected by the enemy's strongest forces.",
+    "This is the enemy's final defensive line. Recover the weapon activation key and return to base. The intelligence is complete, the remaining equipment is secured, and only one mission stands between us and the end of the war.",
+    "The enemy's nuclear weapon is ready, and its forces are making their final stand. Reach the ultimate objective and complete the operation. Twenty missions have led to this moment. End the war."],
+  endTitle:'Mission accomplished',
+  end:['All twenty operations complete.','Enemy defenses destroyed. Classified objectives recovered. Operation Iron Curtain has reached its conclusion.','Against overwhelming odds, Spoon Platoon completed the mission.',
+    '#COMMAND:','"Outstanding work, Platoon. You were sent in to stop an enemy operation. You uncovered a threat that could have changed the world, and you saw the mission through to the end.',
+    'You didn\'t back down. You didn\'t leave anyone behind.','You are Spoon Platoon.','Dismissed."','*ONE PLATOON. TWENTY MISSIONS. ONE UNFORGETTABLE CAMPAIGN.']};
+function storyParas(el,list){el.innerHTML='';for(const t of list){const p=document.createElement('p');let s=t;
+  if(s[0]==='*'){p.className='big';s=s.slice(1);}else if(s[0]==='#'){p.className='cmd';s=s.slice(1);}else if(el.id==='oStory'&&(s[0]==='"'||/^You (didn|are)|^Dismissed/.test(s)))p.className='q';p.textContent=s;el.appendChild(p);}}
+let ST=null; // open story screen: {go,back}
+function openStory(o){ST=o;$('#stKick').textContent=o.kick;$('#stTitle').textContent=o.title;const ob=$('#stObj');ob.hidden=!o.obj;if(o.obj)ob.innerHTML='Objective: <b></b>',ob.querySelector('b').textContent=o.obj;
+  storyParas($('#stBody'),o.paras);$('#stIntel').hidden=!o.intel;$('#stIntel').textContent=o.intel||'';$('#stGo').textContent=o.goLabel;$('#stBack').hidden=!o.back;
+  $('#ops').hidden=true;$('#title').hidden=true;$('#over').hidden=true;const sc=$('#story');sc.hidden=false;sc.scrollTop=0;state='ops';audioInit();musicPlay('diesirae');
+  setTimeout(()=>{if(!sc.hidden)$('#stGo').focus({preventScroll:true});},50);
+  const pad0={};(function poll(){if(sc.hidden||ST!==o)return;const pads=navigator.getGamepads?[...navigator.getGamepads()].filter(Boolean):[];const pad=pads[0];
+    if(pad){for(const i of [0,1,9]){const d=!!pad.buttons[i]?.pressed;if(d&&pad0[i]===false){if(i===1&&o.back)storyBack();else if(i!==1)storyGo();return;}pad0[i]=d;}}requestAnimationFrame(poll);})();}
+function storyGo(){const o=ST;if(!o)return;ST=null;$('#story').hidden=true;o.go();}
+function storyBack(){const o=ST;if(!o||!o.back)return;ST=null;$('#story').hidden=true;o.back();}
+function showIntro(after){openStory({kick:'Spoon Platoon',title:'Operation Iron Curtain',paras:STORY.intro,goLabel:'Continue',go:()=>{const d=loadOps();d.intro=1;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}after();}});}
+function showBrief(i,back){const o=OPS[i];openStory({kick:`Operation ${String(i+1).padStart(2,'0')}`,title:o.name,obj:OBJECTIVES[i].n,paras:[STORY.ops[i]],intel:o.brief,goLabel:'Deploy',go:()=>startOp(i),back:back||showOps});}
+addEventListener('keydown',e=>{if(!ST||$('#story').hidden||e.repeat)return;if(e.key==='Escape'){e.preventDefault();storyBack();}else if(e.key==='Enter'&&document.activeElement?.id!=='stBack'){e.preventDefault();storyGo();}},true);
 const ITEM_SIZE=1.7; // metres across when lying out (x1.5 while exposed, x0.7 in the jeep)
 function objOf(f){return f&&f.item?f.item:null;}
 function objName(f){const o=objOf(f);return o?o.n:'flag';}
@@ -3190,7 +3258,7 @@ function showOps(){
   const d=loadOps(),best=d.best||{};const unlocked=DEV.on?OPS.length-1:Math.min(OPS.length-1,Math.max(-1,...Object.keys(best).map(Number))+1);
   $('#opsSub').textContent=`${Object.keys(best).length} of ${OPS.length} operations complete. Each base is defended by turrets, soldiers and later drones. There are no enemy vehicles, just their defenses. Difficulty: ${['Easy','Normal','Hard'][opts.diff]} (change it on the title screen; Hard is the original's one-hit jeep).`;
   $('#opsGrid').innerHTML=OPS.map((o,i)=>{const done=best[i]!=null,lock=i>unlocked;return `<button class="op${done?' done':''}${i===unlocked&&!done?' next':''}" data-i="${i}" ${lock?'disabled':''}><span class="no">OPERATION ${String(i+1).padStart(2,'0')}</span><span class="nm">${o.name}</span><span class="ob">${OBJECTIVES[i].n}</span><span class="st">${lock?'Locked':done?'Complete · best '+fmtTime(best[i]):'Map '+o.seed+' · ready'}</span></button>`;}).join('');
-  $('#opsGrid').querySelectorAll('.op').forEach(b=>b.onclick=()=>{if(b.disabled)return;startOp(+b.dataset.i);});
+  $('#opsGrid').querySelectorAll('.op').forEach(b=>b.onclick=()=>{if(b.disabled)return;showBrief(+b.dataset.i);});
   // The grid's scroll position otherwise carries over from the last time
   // this screen was open (the #ops container itself is just hidden/shown,
   // never recreated) - on a PC monitor everything fits without scrolling
@@ -3199,9 +3267,10 @@ function showOps(){
   // would land right back there with Operation 01 scrolled out of view
   // above the fold, making it look like the list "starts" partway through.
   $('#ops').scrollTop=0;
-  $('#title').hidden=true;$('#over').hidden=true;$('#ops').hidden=false;state='ops';audioInit();musicPlay('diesirae');
+  $('#title').hidden=true;$('#over').hidden=true;$('#story').hidden=true;$('#ops').hidden=false;state='ops';audioInit();musicPlay('diesirae');
+  if(!d.intro)showIntro(showOps);
 }
-function startOp(i){opIndex=i;$('#ops').hidden=true;startMatch('campaign',OPS[i].seed);}
+function startOp(i){opIndex=i;ST=null;$('#ops').hidden=true;$('#story').hidden=true;startMatch('campaign',OPS[i].seed);}
 function confetti(){const cv=$('#confetti');const W=cv.width=innerWidth,H=cv.height=innerHeight;const x=cv.getContext('2d');
   const cols=['#f2b632','#efe2b8','#4d8ae6','#e5544a','#7bc96b','#ffffff'];const P=Array.from({length:260},()=>({x:Math.random()*W,y:-Math.random()*H,vx:(Math.random()-.5)*60,vy:60+Math.random()*120,r:Math.random()*6,w:4+Math.random()*7,h:2+Math.random()*4,c:cols[(Math.random()*cols.length)|0],s:(Math.random()-.5)*8}));
   let last=performance.now(),t0=last;const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3506,8 +3575,9 @@ function netApplySnapshot(snap){
 function seedVal(){return clamp(parseInt($('#seed').value)||1,1,99999);}
 $('#b1p').onclick=()=>startMatch('1p',seedVal());
 $('#bOps').onclick=()=>showOps();
+$('#opsStory').onclick=()=>showIntro(showOps);$('#stGo').onclick=()=>storyGo();$('#stBack').onclick=()=>storyBack();
 $('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state='title';};
-$('#oNext').onclick=()=>startOp(opIndex+1);
+$('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();
 // Owner switch: 5 quick taps on the Spoon Lab logo toggles "don't count my visits on this device" (see head script).

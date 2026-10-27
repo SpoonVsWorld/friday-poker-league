@@ -335,6 +335,7 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // REAL VEHICLES (Matt, 27 Oct 2026): PBR M1 Abrams -> tank, M2 Bradley -> ASV (from the FBX packs in his Kenney folder); see fitReal
 PRE.tank=fetchBin('tank.glb').catch(e=>{console.warn('tank',e);return null;}); // (Matt preferred the original ASV, so the Bradley in sp-data/asv.glb is unused)
 PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;});
+PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
@@ -373,6 +374,8 @@ async function loadAssets(){
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
   try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
     if(base&&ring&&pods.missile&&pods.gun&&pods.cannon){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;if(!o.material.map&&/^(GunMetal|Barrel|OliveSteel)/.test(o.material.name))o.material=vehRealMat(o.material,o);}});A.turrets={base,ring,pods,headY:ring.position.y};}}}catch(e){console.warn('turret models',e);}
+  try{const lb=await PRE.launcher;if(lb){const lg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(lb,'',res,rej));const L=lg.scene.getObjectByName('Launcher');
+    if(L){L.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(!/Glass|Lamp/.test(o.material.name))o.material=vehRealMat(o.material,o);else o.material.envMapIntensity=.6;}});A.launcher=L;}}}catch(e){console.warn('launcher model',e);}
   try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
   // YF-23 (from Matt's Kenney folder, cgtrader_optimized_YF23-FBX.fbx -> glb): campaign air strikes, see updateAir
   if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
@@ -1466,6 +1469,16 @@ function addTurret(T,x,z,kind){
   head.rotation.y=s.yaw;return s;
 }
 
+function parkLauncher(b){ // the missile launcher truck waits beside the player's bunker pad (scenery for now: the strike itself is still to come)
+  if(!A.launcher)return;const fx=b.team===0?1:-1;const T=b.team;let best=null;
+  const clear=(x,z,hd)=>{for(let k=-4;k<=4;k++){const px=x+Math.sin(hd)*(k*2.3-5.25),pz=z+Math.cos(hd)*(k*2.3-5.25); /* the model's origin is the fifth wheel; the rig runs 14 m behind it and 3.6 m ahead */if(H(px,pz)<1.6)return false;
+      const cd=G.corrD[Math.round((pz-Z0)/CELL)*NX+Math.round((px-X0)/CELL)];if(cd<7)return false;if(Math.hypot(px-b.x,pz-b.z)<12)return false;
+      for(const st of G.statics){if(!st.alive)continue;for(const p of st.pts)if(Math.hypot(p[0]-px,p[1]-pz)<p[2]+3.2)return false;}}return true;};
+  for(const rad of [24,28,32,36])for(let i=0;i<24&&!best;i++){const a=i*TAU/24;const x=b.x+Math.cos(a)*rad*fx,z=b.z+Math.sin(a)*rad*fx;const hd=Math.atan2(-Math.cos(a)*fx,Math.sin(a)*fx); /* tangent: parked side-on to the pad */
+    if(clear(x,z,hd))best={x,z,hd};}
+  if(!best)return;const {x,z,hd}=best;const o=tintObj(A.launcher.clone(),'tel'+T,teamMark(T));const y=Math.max(H(x,z),0);o.position.set(x,y,z);o.rotation.y=hd;world.add(o);
+  const s=addStatic({kind:'prop',team:T,x,z,y0:y,h:5,hp:1e9,r:3,obj:o,name:'launcher',pts:rectFootprint(x-Math.sin(hd)*5.25,z-Math.cos(hd)*5.25,3.2,18,hd,.95)});G.launcher={obj:o,s};
+}
 function scatterNature(){
   const B=G.batches;const tries=4200;const n4=makeNoise(G.seed+33);
   const kinds=[['palm',6.5],['palmBend',6.5],['palmShort',6],['tree',5.5],['oak',6.2],['pine',6],['treeD',6]];
@@ -2595,6 +2608,7 @@ function newGame(mode,seed,demo=false){
   for(const b of bases)buildBase(b);
   for(const k of ['wall','hedge','crate','barrel'])G.batches[k].done();
   realifyStructures();
+  if(G.op&&!demo)parkLauncher(bases[0]);
   scatterNature();
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}

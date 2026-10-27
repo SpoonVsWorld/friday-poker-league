@@ -377,7 +377,7 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // REAL VEHICLES (Matt, 27 Oct 2026): PBR M1 Abrams -> tank, M2 Bradley -> ASV (from the FBX packs in his Kenney folder); see fitReal
 PRE.tank=fetchBin('tank.glb').catch(e=>{console.warn('tank',e);return null;}); // (Matt preferred the original ASV, so the Bradley in sp-data/asv.glb is unused)
 PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;});
-PRE.items1=fetchBin('items1.glb').catch(e=>{console.warn('items1',e);return null;}); // campaign objective items, Ops 1-5 (Blender, SpoonPlatoon_Items.blend)
+PRE.items=['items1.glb','items2.glb'].map(f=>fetchBin(f).catch(e=>{console.warn(f,e);return null;})); // campaign objective items: items1 = Ops 1-5, items2 = Ops 6-10 (Blender, SpoonPlatoon_Items.blend)
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
@@ -417,9 +417,9 @@ async function loadAssets(){
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
   try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
     if(base&&ring&&pods.missile&&pods.gun&&pods.cannon){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;if(!o.material.map&&/^(GunMetal|Barrel|OliveSteel)/.test(o.material.name))o.material=vehRealMat(o.material,o);}});A.turrets={base,ring,pods,headY:ring.position.y};}}}catch(e){console.warn('turret models',e);}
-  try{const ib=await PRE.items1;if(ib){const ig=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(ib,'',res,rej));A.items=A.items||{};
+  for(const ipr of PRE.items)try{const ib=await ipr;if(ib){const ig=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(ib,'',res,rej));A.items=A.items||{};
     for(const r of [...ig.scene.children]){const m=/^item(\d\d)$/.exec(r.name);if(!m)continue;r.position.set(0,0,0);r.updateMatrixWorld(true);
-      const bx=new THREE.Box3().setFromObject(r),sz=bx.getSize(new V3()),c=bx.getCenter(new V3()),k=ITEM_SIZE/Math.max(sz.x,sz.z);
+      const bx=new THREE.Box3().setFromObject(r),sz=bx.getSize(new V3()),c=bx.getCenter(new V3()),k=(r.userData.gameSize||ITEM_SIZE)/Math.max(sz.x,sz.z); /* per-item size from the Blender custom property gameSize (the cargo crate is bigger) */
       r.position.set(-c.x,-bx.min.y,-c.z);const inner=new THREE.Group();inner.add(r);inner.scale.setScalar(k);const wrap=new THREE.Group();wrap.add(inner);wrap.userData.inner=inner;
       r.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material)o.material.envMapIntensity=.7;}});A.items[+m[1]]=wrap;}}}catch(e){console.warn('items model',e);}
   try{const lb=await PRE.launcher;if(lb){const lg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(lb,'',res,rej));const L=lg.scene.getObjectByName('Launcher');

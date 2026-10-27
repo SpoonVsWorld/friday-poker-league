@@ -177,9 +177,12 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .xhair{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;pointer-events:none;display:none;opacity:.85}
 .hud.foot .xhair{display:block}.hud.foot .bar.fuel{display:none}
 .hurt{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 45%,rgba(170,10,10,.55) 100%);transition:opacity .08s}
-#tLook{position:absolute;right:0;top:0;width:58%;height:64%;pointer-events:none;touch-action:none}
+#tLook{position:absolute;left:55%;right:0;top:0;bottom:0;pointer-events:none;touch-action:none;z-index:0}
+#touch .tbtn,#touch .tpause{z-index:2}#touch .tzone{z-index:1}
 body.onfoot #tLook{pointer-events:auto}
 .tpause.tfoot{top:calc(294px + var(--sat));font-size:11px;letter-spacing:.5px}.tpause.tfoot[hidden]{display:none}
+/* short landscape phones: II / CAM / OUT sit in a row along the top, left of the minimap, instead of dropping onto FIRE */
+@media (max-height:520px){#touch .tpause{top:calc(10px + var(--sat))}#touch .tpause.tcam{right:calc(186px + var(--sar))}#touch .tpause:not(.tcam):not(.tfoot){right:calc(136px + var(--sar))}#touch .tpause.tfoot{right:calc(236px + var(--sar))}}
 @media (max-width:700px){.cards,.cards.five{grid-template-columns:repeat(2,minmax(0,150px))}}
 .divider{position:absolute;top:0;bottom:0;left:50%;width:4px;margin-left:-2px;background:#000;display:none}
 
@@ -2099,7 +2102,7 @@ function truckTarget(v){ // roof gunner: nearest threat all round within MG rang
 // Desktop: click to capture the mouse (mouse look, WASD, Shift sprint, Esc frees it); without the mouse A/D turn. Pad: left stick
 // moves, right stick looks. Touch: left pad moves, drag on the right half to look, FIRE / SPECIAL (sprint) / OUT-IN buttons.
 VDEF.foot={name:'On foot',hp:50,speed:5.4,turn:2.4,fuel:1,ammo:210,ammo2:50,r:.55,h:1.85,air:false,desc:'',w1:'Rifle',w2:'Grenades'}; // 50 hand grenades (Matt, 27 Oct 2026): right-click / pad B / touch SPECIAL
-const HERO_H=1.79,VM={x:-.04,y:.035,z:-.13,rx:-.09,ry:.08,rz:0}; // viewmodel nudge (camera space) from the Blender pose
+const HERO_H=1.79,VM={x:-.04,y:.035,z:-.13,rx:-.09,ry:.08,rz:0,fov:55},VMP={x:-.08,y:-.06,z:-.42,rx:-.02,ry:.06,rz:0,fov:64,world:78}; // phone upright: rifle centred low, further out // VMP: phone held upright // viewmodel nudge (camera space) from the Blender pose
 const FP={look:{dx:0,dy:0},sens:.0022,scene:null,cam:null,rig:null,muzzle:new V3(),flash:null,flashT:0,bob:0,recoil:0,sway:{x:0,y:0},prevH:null,prevP:0,hint:false};
 function footOk(){return !!(A.hero&&G&&!G.net&&!G.demo);}
 function fpSetup(){
@@ -2170,8 +2173,17 @@ function heroThrow(v){ // lobbed along the look direction (aim higher to throw f
   fire('grenade',v.team,x,y,z,sx,0,sz,{mul:G.vehMul[v.team],vel:{vx:sx*hs+v.vx*.5,vy,vz:sz*hs+v.vz*.5}});
   v.ammo2--;v.gcd=.75;sfx('gthrow',v.x,v.z);FP.throwT=.45;
 }
+function aimAssist(v,dt,firing){ // touch only: nearest enemy within ~10 deg of the crosshair and 45 m
+  let best=null,bs=1e9;const ey=v.y+1.6,cp=Math.cos(v.pitch);
+  const consider=(x,y,z)=>{const dx=x-v.x,dz=z-v.z,d=Math.hypot(dx,dz);if(d<2||d>45)return;const ya=angDiff(v.heading,Math.atan2(dx,dz)),pa=Math.atan2(y-ey,d)-v.pitch,a=Math.hypot(ya,pa);if(a<.19&&a*d*.3+d*.02<bs){bs=a*d*.3+d*.02;best={ya,pa};}};
+  for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&sd.team!==v.team)consider(sd.x,sd.y+1.2,sd.z);
+  for(const o of G.vehicles)if(o.team!==v.team&&o.state==='active')consider(o.x,o.y+1.2,o.z);
+  for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr.x,dr.y,dr.z);
+  for(const st of G.statics)if(st.alive&&st.team===1-v.team&&st.kind==='turret')consider(st.x,(st.y0||0)+Math.min(st.h||2,3)*.6,st.z);
+  if(!best)return;const k=(firing?5:1.6)*dt;v.heading+=clamp(best.ya,-k,k);v.pitch=clamp(v.pitch+clamp(best.pa,-k,k),-1.25,1.25);
+}
 function updateFoot(v,inp,dt){
-  const def=v.def,T=v.team;if(v.hitFlash>0)v.hitFlash-=dt;
+  const def=v.def,T=v.team;if(v.hitFlash>0)v.hitFlash-=dt;if(opts.touch&&G.teams[T].human)aimAssist(v,dt,!!inp.fire);
   v.heading-=(inp.turn||0)*def.turn*dt;if(inp.look){v.heading-=inp.look.x*2.6*dt;v.pitch=clamp(v.pitch-inp.look.y*1.8*dt,-1.25,1.25);}
   const mzi=inp.thr||0,mxi=inp.strafe||0;const sprint=!!inp.special&&mzi>.3&&!v.carrying;v.sprint=sprint;
   let mz=mzi,mx=mxi;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l;}
@@ -2204,7 +2216,7 @@ function heroDie(v,by){
   if(team.view&&team.view.index===0)musicStop();
 }
 function fpCamera(view,v,dt){
-  const cam=view.cam;if(view.fpFov==null)view.fpFov=cam.fov;const asp=cam.aspect,want=asp<1.1?clamp(2*Math.atan(Math.tan(35*Math.PI/180)*1.25/asp)*180/Math.PI,70,96):70;
+  const cam=view.cam;if(view.fpFov==null)view.fpFov=cam.fov;const asp=cam.aspect,want=asp<1?VMP.world:asp<1.3?78:70;
   if(cam.fov!==want){cam.fov=want;cam.updateProjectionMatrix();}
   const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);const by=Math.abs(Math.sin(FP.bob))*.035*mv;
   cam.position.set(v.x,v.y+1.6+by,v.z);cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,0);
@@ -2212,14 +2224,14 @@ function fpCamera(view,v,dt){
   view.focus.set(v.x+Math.sin(v.heading)*14,v.y,v.z+Math.cos(v.heading)*14);
 }
 function fpRender(view,v,dt,r,h){
-  if(!FP.scene)return;const cam=FP.cam,asp=r.w/h;cam.aspect=asp;cam.fov=asp<1.1?clamp(2*Math.atan(Math.tan(27.5*Math.PI/180)*1.35/asp)*180/Math.PI,55,95):55;cam.updateProjectionMatrix();
+  if(!FP.scene)return;const cam=FP.cam,asp=r.w/h,B=asp<1?VMP:VM;cam.aspect=asp;cam.fov=B.fov;cam.updateProjectionMatrix();
   const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);FP.bob+=dt*(3+mv*6)*(mv>.1?1:.15);FP.recoil=Math.max(0,FP.recoil-dt*10);
   if(FP.prevH==null){FP.prevH=v.heading;FP.prevP=v.pitch;}const dyaw=angDiff(FP.prevH,v.heading),dp=v.pitch-FP.prevP;FP.prevH=v.heading;FP.prevP=v.pitch;
   const kk=1-Math.exp(-dt*9);FP.sway.x=lerp(FP.sway.x,clamp(dyaw*1.6,-.07,.07),kk);FP.sway.y=lerp(FP.sway.y,clamp(-dp*1.6,-.06,.06),kk);
   FP.throwT=Math.max(0,(FP.throwT||0)-dt);const th=FP.throwT>0?Math.sin(FP.throwT/.45*Math.PI):0;
   const sp=v.sprint?1:0;FP.sprint=lerp(FP.sprint||0,Math.max(sp,th*.9),1-Math.exp(-dt*14));const idle=Math.sin(G.time*1.6)*.003;
-  const rg=FP.rig;rg.position.set(VM.x+Math.sin(FP.bob)*.011*mv-FP.sway.x*.25,VM.y-Math.abs(Math.cos(FP.bob))*.013*mv+FP.sway.y*.2-FP.sprint*.05+idle,VM.z+FP.recoil*.03);
-  rg.rotation.set(VM.rx+FP.recoil*.035-FP.sprint*.3+FP.sway.y,VM.ry+FP.sway.x+FP.sprint*.35,VM.rz+FP.sprint*.4);
+  const rg=FP.rig;rg.position.set(B.x+Math.sin(FP.bob)*.011*mv-FP.sway.x*.25,B.y-Math.abs(Math.cos(FP.bob))*.013*mv+FP.sway.y*.2-FP.sprint*.05+idle,B.z+FP.recoil*.03);
+  rg.rotation.set(B.rx+FP.recoil*.035-FP.sprint*.3+FP.sway.y,B.ry+FP.sway.x+FP.sprint*.35,B.rz+FP.sprint*.4);
   FP.flashT-=dt;const fo=FP.flashT>0;FP.flash.visible=fo;FP.flashLight.intensity=fo?3:0;if(fo){FP.flash.material.rotation=Math.random()*TAU;FP.flash.scale.setScalar(rr(.12,.2));}
   _ft.copy(SUN_DIR).applyQuaternion(_cq.copy(view.cam.quaternion).invert());FP.sun.position.copy(_ft).multiplyScalar(10);
   renderer.autoClear=false;renderer.clearDepth();renderer.render(FP.scene,cam);renderer.autoClear=true;
@@ -3261,6 +3273,7 @@ function updateHud(view){
   let s;
   {const foot=!!(v&&v.type==='foot');if(view.el&&view.el.classList.contains('foot')!==foot){view.el.classList.toggle('foot',foot);const hb=view.el.querySelector('.bar.hp');if(hb)hb.firstChild.nodeValue=foot?'HEALTH':'ARMOR';}
     if(view.index===0)document.body.classList.toggle('onfoot',foot&&opts.touch);
+    if(foot&&opts.touch&&!FP.rotTip&&innerHeight>innerWidth){FP.rotTip=true;note(view.team.team,'Tip: turn your phone sideways for a wider view on foot','info');}
     const hu=view.el&&view.el.querySelector('.hurt');if(hu)hu.style.opacity=foot&&v.hitFlash>0?'1':'0';
     const tf=view.index===0?document.getElementById('tFoot'):null;if(tf){const show=!!(opts.touch&&footOk()&&v&&v.state==='active'&&!v.def.air);if(tf.hidden===show)tf.hidden=!show;if(show){const txt=foot?'IN':'OUT';if(tf.textContent!==txt)tf.textContent=txt;}}}
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
@@ -3844,7 +3857,10 @@ $('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dat
  zone.addEventListener('pointerup',end);zone.addEventListener('pointercancel',end);
  const hold=(el,key)=>{el.addEventListener('pointerdown',e=>{audioInit();TOUCH[key]=true;el.classList.add('on');el.setPointerCapture(e.pointerId);e.preventDefault();});
    const up=()=>{TOUCH[key]=false;el.classList.remove('on');};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('lostpointercapture',up);};
- hold($('#tFire'),'fire');hold($('#tSpec'),'special');
+ hold($('#tFire'),'fire');
+ {const fb=$('#tFire');let lx=null,ly=null;fb.addEventListener('pointerdown',e=>{lx=e.clientX;ly=e.clientY;});
+  fb.addEventListener('pointermove',e=>{if(lx===null||!document.body.classList.contains('onfoot'))return;FP.look.dx+=(e.clientX-lx);FP.look.dy+=(e.clientY-ly);lx=e.clientX;ly=e.clientY;});
+  const off=()=>{lx=ly=null;};fb.addEventListener('pointerup',off);fb.addEventListener('pointercancel',off);}hold($('#tSpec'),'special');
  $('#tAir').addEventListener('pointerdown',e=>{audioInit();e.preventDefault();callStrike();});
  $('#tPause').addEventListener('click',()=>{if(G&&!G.demo&&!G.over)togglePause();});
  $('#tCam').addEventListener('click',()=>{if(G&&!G.demo)toggleChase();});
@@ -3868,7 +3884,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,FP,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

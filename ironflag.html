@@ -173,6 +173,13 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 #mslCine span{font:400 clamp(15px,2.4vw,24px) var(--display);letter-spacing:.14em;color:var(--signal)}
 .sel .hint{font-size:12px;color:var(--khaki);letter-spacing:.06em}
 .cards.five{grid-template-columns:repeat(5,minmax(0,150px))}
+/* ON FOOT: crosshair, hurt flash, hide the fuel bar */
+.xhair{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;pointer-events:none;display:none;opacity:.85}
+.hud.foot .xhair{display:block}.hud.foot .bar.fuel{display:none}
+.hurt{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 45%,rgba(170,10,10,.55) 100%);transition:opacity .08s}
+#tLook{position:absolute;right:0;top:0;width:58%;height:64%;pointer-events:none;touch-action:none}
+body.onfoot #tLook{pointer-events:auto}
+.tpause.tfoot{top:calc(294px + var(--sat));font-size:11px;letter-spacing:.5px}.tpause.tfoot[hidden]{display:none}
 @media (max-width:700px){.cards,.cards.five{grid-template-columns:repeat(2,minmax(0,150px))}}
 .divider{position:absolute;top:0;bottom:0;left:50%;width:4px;margin-left:-2px;background:#000;display:none}
 
@@ -324,7 +331,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <div id="pause" class="screen" hidden><div class="box"><h2>Paused</h2><div class="btns"><button id="pResume">Resume</button><button id="pMusic">Music on/off</button><button id="pRestart">Restart map</button><button id="pQuit">Quit to title</button></div></div></div>
 <div id="over" class="screen" hidden><canvas id="confetti"></canvas><div class="box"><h2 id="oTitle">Victory</h2><p id="oText"></p><div id="oStory" hidden></div><div class="btns"><button id="oNext" hidden>Next operation</button><button id="oAgain">Rematch</button><button id="oNew">New map</button><button id="oOps" hidden>Operations</button><button id="oQuit">Title screen</button></div></div></div>
 <div id="touch" hidden><div class="tzone" id="tzone"><div class="sbase" id="sbase" hidden><div class="sknob" id="sknob"></div></div></div>
-  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button></div>
+  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tpause tfoot" id="tFoot" aria-label="Get out or in" hidden>OUT</button><div id="tLook"></div><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button></div>
 <div id="loading">LOADING ARMOR…</div>
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -403,6 +410,7 @@ PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;})
 PRE.items=['items1.glb','items2.glb','items3.glb','items4.glb'].map(f=>fetchBin(f).catch(e=>{console.warn(f,e);return null;})); // campaign objective items: items1 = Ops 1-5, items2 = Ops 6-10, items3 = Ops 11-15, items4 = Ops 16-20 (Blender, SpoonPlatoon_Items.blend)
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
+PRE.hero=fetchBin('hero.glb').catch(e=>{console.warn('hero',e);return null;}); // ON FOOT: Matt's own soldier (Male Military Soldier, Mixamo) + first-person arms/carbine posed from it (FPView)
 PRE.truck=fetchBin('truck.glb').catch(e=>{console.warn('truck',e);return null;}); // six-wheeler (Matt's 6x6, Kenney\blend.blend, reduced to ~31k tris: TruckBody, TruckGun on the roof ring, Wheel_F/M/B L/R)
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
@@ -438,6 +446,13 @@ async function loadAssets(){
     tg.scene.traverse(o=>{if(o.isMesh){o.material.roughness=Math.max(o.material.roughness,.55);if(/^Head\d/.test(o.name))o.userData.head=+o.name[4];if(o.name==='HelmetBand'||/^ArmBand/.test(o.name)||o.name==='GoggleStrap')o.userData.team=true;}});}}catch(e){console.warn('troop model',e);}
   try{const jb=await PRE.jeepOpen;if(jb){const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
   try{const tb=await PRE.truck;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));const tr=tg.scene.getObjectByName('truck')||tg.scene;tr.traverse(o=>{if(o.isMesh&&o.material){const m=o.material;m.envMapIntensity=.8;m.metalness=Math.min(m.metalness,.3);m.roughness=Math.max(m.roughness,.42);if(m.emissiveIntensity>1)m.emissiveIntensity=1;}});A.truck=tr; /* the showroom clearcoat paint reads black under the game's sky light: tone it down */}}catch(e){console.warn('truck model',e);}
+  try{const hb=await PRE.hero;if(hb){const hg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(hb,'',res,rej));
+    const hs=hg.scene.getObjectByName('Hero'),fp=hg.scene.getObjectByName('FPView');
+    hg.scene.traverse(o=>{if(o.isMesh&&o.material&&o.material.name==='rf_glass'){o.material.color.setRGB(.04,.07,.07);o.material.metalness=.2;o.material.roughness=.05;o.material.emissive=new THREE.Color(.09,0,0);}
+      if(o.isMesh){const m=o.material;if(m.transparent||m.alphaTest===0&&m.map){m.transparent=false;m.alphaTest=.45;m.depthWrite=true;}m.side=THREE.FrontSide;if(m.metalness>.5){m.metalness=.55;m.roughness=Math.max(m.roughness,.4);}}});
+    const wrap=new THREE.Group();wrap.add(hs);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(hs,true);wrap.scale.setScalar(HERO_H/Math.max(.5,bb.max.y-bb.min.y));
+    const strip=c=>{const k=c.clone();k.tracks=k.tracks.filter(t=>!t.name.endsWith('.position')&&!t.name.startsWith('mixamorigHips.')&&hs.getObjectByName(t.name.split('.')[0])); /* the troop clips' hip rotation is in a different armature frame: keep this rig's own upright hips */return k;};
+    A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
   try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
@@ -685,7 +700,7 @@ function engineFor(view){
 }
 function updateEngine(view){
   const e=view.engine;if(!e)return;const v=view.team.vehicle;const t=AU.ctx.currentTime;
-  const off=!v||v.state==='dead'||G.over||paused;
+  const off=!v||v.state==='dead'||v.type==='foot'||G.over||paused;
   if(e.rec){const sc=G.views.length>1?.6:1;const sp=v?Math.abs(v.speed)/v.def.speed:0;
     const want={heavy:0,fast:0,heli:0};let rate={heavy:1,fast:1,heli:1};
     if(!off){if(v.type==='heli'){want.heli=.55*sc;rate.heli=.95+sp*.15;}
@@ -2065,7 +2080,7 @@ const VORDER=['tank','heli','asv','jeep','truck'];
 // Same job as the jeep (carries the objective, inflates its tyres to cross water) plus a roof gun that tracks the nearest threat
 // (mouse / Q-E / right stick take over), 9x the jeep's armour, faster wading and it flattens trees like the tank.
 const MSL_SLOT=VORDER.length; // bunker menu slot of the missile strike (after the vehicle cards)
-const CARRIER=v=>v.type==='jeep'||v.type==='truck'; // vehicles that can pick up and run the objective home
+const CARRIER=v=>v.type==='jeep'||v.type==='truck'||v.type==='foot'; // vehicles that can pick up and run the objective home
 const TRUCK_LEN=6.2,TRUCK_ITEM={y:2.2,z:-2.55,s:.6},_tq=new V3();
 function truckUnlocked(){if(!A.truck)return false;if(DEV.on)return true;const b=loadOps().best||{};return b[9]!=null;}
 function truckTarget(v){ // roof gunner: nearest threat all round within MG range
@@ -2075,6 +2090,130 @@ function truckTarget(v){ // roof gunner: nearest threat all round within MG rang
   for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr.x,dr.z,dr.y,.6);
   for(const st of G.statics)if(st.alive&&st.team===1-v.team&&(st.kind==='turret'||st.kind==='gate'||st.kind==='building'))consider(st.x,st.z,null,st.kind==='turret'?.75:st.kind==='gate'?1.1:1.5);
   return best;}
+// ============================================================ ON FOOT
+// (Matt, 27 Oct 2026) Press G (gamepad X, touch OUT) in a stopped ground vehicle to climb out and fight on foot as Matt's own soldier
+// (Kenney\SpoonPlatoon_Buildings\review\Male Military Soldier -> sp-data/hero.glb). First-person only: his bare forearms and an
+// M4-style carbine, posed in Blender from the same model (FPView node, camera space), drawn in a separate overlay pass so they never
+// clip into walls. To the rest of the game he is a 'foot' vehicle: enemies shoot at him, death counts as a lost vehicle (breaks a
+// flawless op) and he can carry the objective home, slowly. The vehicle he left stays parked; walk up to any of yours and press G.
+// Desktop: click to capture the mouse (mouse look, WASD, Shift sprint, Esc frees it); without the mouse A/D turn. Pad: left stick
+// moves, right stick looks. Touch: left pad moves, drag on the right half to look, FIRE / SPECIAL (sprint) / OUT-IN buttons.
+VDEF.foot={name:'On foot',hp:50,speed:5.4,turn:2.4,fuel:1,ammo:210,ammo2:0,r:.55,h:1.85,air:false,desc:'',w1:'Rifle',w2:''};
+const HERO_H=1.79,VM={x:-.04,y:.035,z:-.13,rx:-.09,ry:.08,rz:0}; // viewmodel nudge (camera space) from the Blender pose
+const FP={look:{dx:0,dy:0},sens:.0022,scene:null,cam:null,rig:null,muzzle:new V3(),flash:null,flashT:0,bob:0,recoil:0,sway:{x:0,y:0},prevH:null,prevP:0,hint:false};
+function footOk(){return !!(A.hero&&G&&!G.net&&!G.demo);}
+function fpSetup(){
+  if(FP.scene||!A.hero)return;const sc=new THREE.Scene();const cam=new THREE.PerspectiveCamera(55,1,.02,30);
+  sc.add(new THREE.HemisphereLight(0xe4ecf2,0x4d4535,1.3));const sun=new THREE.DirectionalLight(0xfff0d8,2.6);sc.add(sun);sc.add(sun.target);
+  try{sc.environment=skyEnv();}catch(e){}
+  const rig=new THREE.Group();sc.add(rig);const vm=A.hero.fp;rig.add(vm);vm.traverse(o=>{if(o.isMesh){o.frustumCulled=false;o.castShadow=o.receiveShadow=false;}});
+  vm.updateMatrixWorld(true);const rf=vm.getObjectByName('FPRifle');
+  if(rf){const t=new V3(),pts=[];let mz=1e9;rf.traverse(m=>{if(!m.isMesh)return;const pos=m.geometry.attributes.position;for(let i=0;i<pos.count;i++){t.fromBufferAttribute(pos,i);m.localToWorld(t);pts.push(t.clone());if(t.z<mz)mz=t.z;}});
+    const tip=pts.filter(q=>q.z<mz+.015);FP.muzzle.set(0,0,0);for(const q of tip)FP.muzzle.add(q);FP.muzzle.divideScalar(tip.length||1);}
+  const cv=document.createElement('canvas');cv.width=cv.height=64;const x=cv.getContext('2d');const gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,250,220,1)');gr.addColorStop(.25,'rgba(255,200,90,.9)');gr.addColorStop(1,'rgba(255,120,20,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);
+  const fl=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));fl.position.copy(FP.muzzle);fl.scale.setScalar(.16);fl.visible=false;rig.add(fl);
+  const fll=new THREE.PointLight(0xffc070,0,1.6,2);fll.position.copy(FP.muzzle);rig.add(fll);
+  Object.assign(FP,{scene:sc,cam,rig,sun,flash:fl,flashLight:fll});
+}
+function buildHeroObj(T){
+  const g=new THREE.Group();const o=SkeletonUtils.clone(A.hero.body);g.add(o);o.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});
+  const gun=rifleModel().clone();g.add(gun);gun.position.set(-.12,1.2,.42);gun.rotation.x=.22; // low ready in front of the chest; soldierArms pulls both hands onto it
+  const bn=n=>o.getObjectByName('mixamorig'+n),arms={R:['RightArm','RightForeArm','RightHand'].map(bn),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
+  const mx=new THREE.AnimationMixer(o);const idle=mx.clipAction(A.hero.idle),run=mx.clipAction(A.hero.run);idle.play();run.play();run.setEffectiveWeight(0);
+  const sd={obj:g,mx,idle,run,gun,arms:arms.R.every(Boolean)&&arms.L.every(Boolean)?arms:null};
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.75,1.05,28),new THREE.MeshBasicMaterial({color:TEAMS[T].color,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=1;
+  return {g,parts:{sd,ring}};
+}
+function spawnHero(T,x,z,heading){
+  const team=G.teams[T],{g,parts}=buildHeroObj(T),keep=team.hero||{};
+  const v={type:'foot',def:VDEF.foot,team:T,x,z,y:vehGround(x,z),heading,pitch:0,speed:0,vx:0,vz:0,strafe:0,turret:0,hp:keep.hp||VDEF.foot.hp,fuel:1,ammo:keep.ammo??VDEF.foot.ammo,ammo2:0,cd:0,cd2:0,
+    state:'active',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:VDEF.foot.r,alt:0,smokeT:0,scuttle:0,steer:0,wheelRot:0,lowFuelWarned:true,dustT:0,moving:0};
+  g.position.set(x,v.y,z);g.rotation.y=heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);return v;
+}
+function removeHero(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);v.state='gone';}
+function footBlocked(x,z,T,self){if(!passable(x,z)||soldierBlocked(x,z,T))return true;for(const o of G.vehicles){if(o===self||o.def.air||o.state!=='active'||o.type==='foot')continue;if(Math.hypot(o.x-x,o.z-z)<o.r*.85+.45)return true;}return false;}
+function carryAttach(f,v){ // the objective rides on the jeep's roof, the six-wheeler's deck, or the soldier's back
+  f.state='carried';f.carrier=v;v.carrying=f;v.obj.add(f.obj);const tk=v.type==='truck',ft=v.type==='foot';
+  if(ft){f.obj.position.set(0,f.item?1.32:1.1,f.item?-.3:-.25);f.obj.rotation.set(0,f.item?.3:0,0);f.obj.scale.setScalar(f.item?.42:.4);return;}
+  f.obj.position.set(0,f.item?(tk?TRUCK_ITEM.y:2.06):(tk?2.1:1.5),f.item?(tk?TRUCK_ITEM.z:-.55):(tk?-2.6:-1.4));f.obj.rotation.set(0,f.item?.3:0,0);f.obj.scale.setScalar(f.item?(tk?TRUCK_ITEM.s:.68):.7);}
+function toggleFoot(view){
+  const t=view.team,v=t.vehicle,T=t.team;if(!footOk()||!v||v.state!=='active'||G.over||paused||mslBusy())return;
+  if(v.type!=='foot'){
+    if(v.def.air){note(T,'You can only get out of ground vehicles','warn');return;}
+    if(Math.abs(v.speed)>3.5){note(T,'Stop first to get out','warn');return;}
+    const rx=-Math.cos(v.heading),rz=Math.sin(v.heading),fx=fwdX(v.heading),fz=fwdZ(v.heading),sd=v.r*.62+1.3,fb=v.r+1.4;let spot=null;
+    for(const [a,b] of [[-sd,0],[sd,0],[0,-fb],[0,fb],[-sd,-1.5],[sd,-1.5]]){const x=v.x+rx*a+fx*b,z=v.z+rz*a+fz*b;if(!footBlocked(x,z,T,v)){spot={x,z};break;}}
+    if(!spot){note(T,'No room to get out here','warn');return;}
+    v.speed=0;v.strafe=0;const h=spawnHero(T,spot.x,spot.z,v.heading);t.parked=v;t.vehicle=h;view.cy=null;view.cpos=null;FP.prevH=null;
+    if(view.index===0)musicStop();sfx('click',v.x,v.z);
+    note(T,opts.touch?'On foot: tap IN beside a vehicle to get back in':document.pointerLockElement?'On foot: G beside a vehicle gets you back in':'On foot: click to aim with the mouse · G beside a vehicle to get in','info');
+  }else{
+    let best=null,bd=1e9;for(const o of G.vehicles){if(o===v||o.team!==T||o.type==='foot'||o.state!=='active')continue;const d=Math.hypot(o.x-v.x,o.z-v.z)-o.r;if(d<2.4&&d<bd){bd=d;best=o;}}
+    if(!best){note(T,'Walk up to one of your vehicles to get in','warn');return;}
+    if(v.carrying){const f=v.carrying;v.carrying=null;if(CARRIER(best)&&!best.carrying){v.obj.remove(f.obj);carryAttach(f,best);}else{dropFlag(f,v.x,v.z);note(T,`Only a jeep can carry the ${objName(f).toLowerCase()}`,'warn');}}
+    t.hero={hp:v.hp,ammo:v.ammo};removeHero(v);t.vehicle=best;if(t.parked===best)t.parked=null;best.leftPad=true;best.padT=0;
+    if(view.index===0)musicPlay(best.carrying?'tell':VEH_MUSIC[best.type]);sfx('click',best.x,best.z);
+    if(document.pointerLockElement)document.exitPointerLock();
+  }
+}
+function heroShoot(v){
+  const cp=Math.cos(v.pitch),dx=Math.sin(v.heading)*cp,dy=Math.sin(v.pitch),dz=Math.cos(v.heading)*cp,s=.01+(Math.hypot(v.vx,v.vz)>1?.018:0);
+  const ex=dx+rr(-s,s),ey=dy+rr(-s,s),ez=dz+rr(-s,s),y0=v.y+1.6;
+  fire('pbullet',v.team,v.x+ex*1.6,y0+ey*1.6-.06,v.z+ez*1.6,ex,ey,ez,{mul:G.vehMul[v.team]});
+  v.ammo--;v.cd=.105;sfx('rifle',v.x,v.z);FP.recoil=Math.min(1.8,FP.recoil+1);FP.flashT=.055;v.pitch=Math.min(1.25,v.pitch+.005);v.heading+=rr(-.002,.002);
+}
+function updateFoot(v,inp,dt){
+  const def=v.def,T=v.team;if(v.hitFlash>0)v.hitFlash-=dt;
+  v.heading-=(inp.turn||0)*def.turn*dt;if(inp.look){v.heading-=inp.look.x*2.6*dt;v.pitch=clamp(v.pitch-inp.look.y*1.8*dt,-1.25,1.25);}
+  const mzi=inp.thr||0,mxi=inp.strafe||0;const sprint=!!inp.special&&mzi>.3&&!v.carrying;v.sprint=sprint;
+  let mz=mzi,mx=mxi;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l;}
+  const sp=def.speed*(sprint?1.6:1)*(v.carrying?.6:1)*(mz<0?.7:1);
+  const fx=Math.sin(v.heading),fz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
+  const k=1-Math.exp(-dt*10);v.vx=lerp(v.vx,(fx*mz+rx*mx)*sp,k);v.vz=lerp(v.vz,(fz*mz+rz*mx)*sp,k);
+  let nx=v.x+v.vx*dt,nz=v.z+v.vz*dt;
+  if(footBlocked(nx,nz,T,v)){if(!footBlocked(nx,v.z,T,v))nz=v.z;else if(!footBlocked(v.x,nz,T,v))nx=v.x;else{nx=v.x;nz=v.z;}}
+  v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;v.speed=Math.hypot(v.vx,v.vz);
+  v.y=lerp(v.y,vehGround(v.x,v.z),1-Math.exp(-dt*16));
+  v.cd-=dt;if(inp.fire&&v.cd<=0&&v.ammo>0&&!sprint)heroShoot(v);
+  // field supply: any hospital heals, your ammo tents and any ammo depot refill the rifle
+  if(v.speed<2){staticsNear(v.x,v.z,_vn);let what='';for(const st of _vn){if(!st.alive||Math.hypot(st.x-v.x,st.z-v.z)>(st.reach||11))continue;
+      if(st.kind==='hospital'&&v.hp<def.hp){v.hp=Math.min(def.hp,v.hp+def.hp*.15*dt);what='HEALING';}
+      if(((st.kind==='tent'&&st.team===T)||st.kind==='depot')&&v.ammo<def.ammo){v.ammoAcc=(v.ammoAcc||0)+dt;if(v.ammoAcc>.05){v.ammoAcc=0;v.ammo=Math.min(def.ammo,v.ammo+3);}what=what?what+' · REARMING':'REARMING';}}v.supplyMsg=what;}else v.supplyMsg='';
+  // third-person body (other cameras, the shadow, the death fall)
+  const P=v.parts,sd=P.sd,o=v.obj;o.position.set(v.x,v.y,v.z);o.rotation.set(0,v.heading,0);
+  const mv=clamp(v.speed/def.speed,0,1.6);v.moving=lerp(v.moving,mv>.15?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(v.moving);sd.idle.setEffectiveWeight(1-v.moving);sd.run.timeScale=sprint?1.35:.95;
+  sd.mx.update(dt);soldierArms(sd);
+  P.ring.position.set(v.x,v.y+.12,v.z);P.ring.material.opacity=v.hitFlash>0?.95:.5;
+}
+function heroDie(v,by){
+  const team=G.teams[v.team];if(v.carrying)dropFlag(v.carrying,v.x,v.z);
+  world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);
+  G.soldiers.push({soldier:true,team:v.team,x:v.x,z:v.z,y:v.y,alive:false,deadT:0,fallDir:RND()<.5?1:-1,crushed:false,obj:v.obj,hp:0,mode:'dead'}); // the body falls like any soldier's
+  gore(v.x,v.y,v.z,'hit');sfx('splat',v.x,v.z);sfx('scream',v.x,v.z);
+  team.vehicle=null;team.respawnT=2.5;team.hero=null;if(document.pointerLockElement)document.exitPointerLock();
+  if(team.view&&!G.demo)skullFor(team.view);note(v.team,'You were killed','bad',true);if(by!==undefined&&by!==v.team)note(by,'Enemy soldier down','good');
+  if(team.view&&team.view.index===0)musicStop();
+}
+function fpCamera(view,v,dt){
+  const cam=view.cam;if(view.fpFov==null)view.fpFov=cam.fov;const asp=cam.aspect,want=asp<1.1?clamp(2*Math.atan(Math.tan(35*Math.PI/180)*1.25/asp)*180/Math.PI,70,96):70;
+  if(cam.fov!==want){cam.fov=want;cam.updateProjectionMatrix();}
+  const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);const by=Math.abs(Math.sin(FP.bob))*.035*mv;
+  cam.position.set(v.x,v.y+1.6+by,v.z);cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,0);
+  if(view.shake>0){cam.rotation.x+=rr(-.01,.01)*view.shake;cam.rotation.y+=rr(-.01,.01)*view.shake;view.shake=Math.max(0,view.shake-dt*3);}
+  view.focus.set(v.x+Math.sin(v.heading)*14,v.y,v.z+Math.cos(v.heading)*14);
+}
+function fpRender(view,v,dt,r,h){
+  if(!FP.scene)return;const cam=FP.cam,asp=r.w/h;cam.aspect=asp;cam.fov=asp<1.1?clamp(2*Math.atan(Math.tan(27.5*Math.PI/180)*1.35/asp)*180/Math.PI,55,95):55;cam.updateProjectionMatrix();
+  const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);FP.bob+=dt*(3+mv*6)*(mv>.1?1:.15);FP.recoil=Math.max(0,FP.recoil-dt*10);
+  if(FP.prevH==null){FP.prevH=v.heading;FP.prevP=v.pitch;}const dyaw=angDiff(FP.prevH,v.heading),dp=v.pitch-FP.prevP;FP.prevH=v.heading;FP.prevP=v.pitch;
+  const kk=1-Math.exp(-dt*9);FP.sway.x=lerp(FP.sway.x,clamp(dyaw*1.6,-.07,.07),kk);FP.sway.y=lerp(FP.sway.y,clamp(-dp*1.6,-.06,.06),kk);
+  const sp=v.sprint?1:0;FP.sprint=lerp(FP.sprint||0,sp,1-Math.exp(-dt*8));const idle=Math.sin(G.time*1.6)*.003;
+  const rg=FP.rig;rg.position.set(VM.x+Math.sin(FP.bob)*.011*mv-FP.sway.x*.25,VM.y-Math.abs(Math.cos(FP.bob))*.013*mv+FP.sway.y*.2-FP.sprint*.05+idle,VM.z+FP.recoil*.03);
+  rg.rotation.set(VM.rx+FP.recoil*.035-FP.sprint*.3+FP.sway.y,VM.ry+FP.sway.x+FP.sprint*.35,VM.rz+FP.sprint*.4);
+  FP.flashT-=dt;const fo=FP.flashT>0;FP.flash.visible=fo;FP.flashLight.intensity=fo?3:0;if(fo){FP.flash.material.rotation=Math.random()*TAU;FP.flash.scale.setScalar(rr(.12,.2));}
+  _ft.copy(SUN_DIR).applyQuaternion(_cq.copy(view.cam.quaternion).invert());FP.sun.position.copy(_ft).multiplyScalar(10);
+  renderer.autoClear=false;renderer.clearDepth();renderer.render(FP.scene,cam);renderer.autoClear=true;
+}
 // A real PBR vehicle model (faces +X, Y up): turn it to face +Z, centre it on the ground and scale it so its length is `len`.
 // The turret node is re-parented under a world-upright pivot named TurretPivot so rotation.y swings it about the ring.
 function fitReal(src,len,turretName){
@@ -2127,6 +2266,7 @@ function spawnVehicle(T,type){
   g.position.set(v.x,v.y,v.z);g.rotation.y=v.heading;world.add(g);world.add(parts.ring);
   v.netId=++G.netSeq;team.vehicle=v;team.stock[type]--;team.ai={think:0,goal:null,aimJit:0};G.vehicles.push(v);sfx('lift',v.x,v.z);
   if(team.view&&team.view.index===0&&!G.demo)musicPlay(VEH_MUSIC[type]);
+  if(team.view&&footOk()&&!FP.hint&&!def.air){FP.hint=true;setTimeout(()=>{if(G&&!G.over)note(T,opts.touch?'Tip: stop and tap OUT to fight on foot':'Tip: stop and press G to get out and fight on foot','info');},3500);}
   return v;
 }
 function removeVehicle(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);}
@@ -2136,20 +2276,23 @@ function bailOut(v){
   world.remove(v.parts.ring);tintObj(v.obj,'wreck',c=>c.color.multiplyScalar(.45));G.vehicles.splice(G.vehicles.indexOf(v),1);
   for(let i=0;i<6;i++)puff(v.x,v.y+1.5,v.z,C_SMK0,2,2,.5);
   const sd=spawnSoldier(v.team,v.x+3,v.z+3,'flee');if(sd){sd.wp=[G.bases[v.team].x,G.bases[v.team].z];sd.fleeT=90;sd.goHome=true;}
+  if(team.vehicle!==v){if(team.parked===v)team.parked=null;return;} /* parked and empty: nobody to bail out */
   team.vehicle=null;team.respawnT=2.5;note(v.team,'Out of fuel — the driver bailed out','bad',true);if(team.view)skullFor(team.view);
   if(team.view&&team.view.index===0)musicStop();
 }
 function destroyVehicle(v,by){
   if(v.state==='dead')return;if(v.team===0&&devActive()&&!v.devDie)return; // dev mode: the player's vehicles can't be destroyed (scuttle still works, see devDie)
   v.state='dead';const team=G.teams[v.team];if(team.human)G.lost++;
+  if(v.type==='foot'){heroDie(v,by);return;}
+  const driven=team.vehicle===v;if(team.parked===v)team.parked=null; // a parked vehicle (you are on foot) can be lost too, but it doesn't end your turn
   const air=v.def.air&&v.y-Math.max(groundAt(v.x,v.z),0)>1.8; // a helicopter hit in the air spins out and explodes when it hits the ground (see wreckVehicle)
   explosion(v.x,v.y+1,v.z,air?1:v.type==='jeep'?1.3:2);sfx(air?'boom':'bigboom',v.x,v.z);
   if(v.carrying){dropFlag(v.carrying,v.x,v.z);}
   crewAllDie(v,by); // riders are thrown out dead (before the wreck is cloned from the model)
   if(G.net&&G.net.host)G.net.events.push({k:'wreck',id:v.netId,vx:Math.round((v.vx||0)*10)/10,vz:Math.round((v.vz||0)*10)/10});
   let W=null;try{W=wreckVehicle(v);}catch(e){console.warn('wreck',e);}
-  if(team.view&&!G.demo){if(W)deathCam(team.view,W);else skullFor(team.view);}
-  removeVehicle(v);team.vehicle=null;team.respawnT=2.5;
+  if(driven&&team.view&&!G.demo){if(W)deathCam(team.view,W);else skullFor(team.view);}
+  removeVehicle(v);if(driven){team.vehicle=null;team.respawnT=2.5;}
   note(v.team,`${v.def.name} destroyed`,'bad');
   if(by!==undefined&&by!==v.team)note(by,`Enemy ${v.def.name.toLowerCase()} destroyed`,'good');
   if(team.view&&team.view.index===0)musicStop();
@@ -2190,8 +2333,8 @@ function updateFlags(dt){
   for(const f of G.flags){
     if(f.state==='exposed'){f.bob+=dt;f.obj.rotation.y+=dt*.8;if(f.item)f.obj.position.y=Math.max(groundAt(f.x,f.z),0)+.45+Math.sin(f.bob*2.2)*.15; /* intel items hover and turn so they catch the eye */
       if(Math.random()<dt*6)FIRE.spawn(f.x+rr(-.3,.3),groundAt(f.x,f.z)+(f.item?1.6:5.6),f.z+rr(-.3,.3),0,2,0,.6,.6,.1,TEAMS[f.team].color===0x3f7fe0?[.4,.6,1]:[1,.4,.3],[1,1,1],.8);
-      for(const v of G.vehicles){if(CARRIER(v)&&v.team!==f.team&&v.state==='active'&&!v.carrying&&Math.hypot(v.x-f.x,v.z-f.z)<(v.type==='truck'?5:4.2)){
-        f.state='carried';f.carrier=v;v.carrying=f;v.obj.add(f.obj);const tk=v.type==='truck';f.obj.position.set(0,f.item?(tk?TRUCK_ITEM.y:2.06):(tk?2.1:1.5),f.item?(tk?TRUCK_ITEM.z:-.55):(tk?-2.6:-1.4));f.obj.rotation.set(0,f.item?.3:0,0);f.obj.scale.setScalar(f.item?(tk?TRUCK_ITEM.s:.68):.7); /* intel items ride strapped to the jeep's roof */
+      for(const v of G.vehicles){if(CARRIER(v)&&v.team!==f.team&&v.state==='active'&&!v.carrying&&Math.hypot(v.x-f.x,v.z-f.z)<(v.type==='truck'?5:v.type==='foot'?2.2:4.2)){
+        carryAttach(f,v); /* intel items ride strapped to the jeep's roof (or the soldier's back) */
         note(v.team,f.item?`${f.item.n} secured! Get it home!`:'Flag secured! Get it home!','good',true);note(f.team,'The enemy has your flag!','bad',true);sfx('pick');if(G.teams[v.team].view?.index===0)musicPlay('tell');}}}
     if(f.state==='carried'){const v=f.carrier;const b=G.bases[v.team];if(Math.hypot(v.x-b.x,v.z-b.z)<6.5&&v.state==='active'){f.state='captured';gameOver(v.team,'flag');}}
   }
@@ -2208,6 +2351,7 @@ const PK={
   hbullet:{speed:120,life:.6,dmg:5,splash:0,geo:'bullet'},
   tbullet:{speed:140,life:.36,dmg:7,splash:0,geo:'bullet'}, // six-wheeler roof gun
   rifle:{speed:110,life:.45,dmg:2.5,splash:0,geo:'bullet'},
+  pbullet:{speed:165,life:.42,dmg:5,splash:0,geo:'bullet'}, // your own carbine, on foot
   rocket:{speed:75,life:.8,dmg:42,splash:4.5,geo:'missile'},
   missile:{speed:38,accel:40,max:72,life:2.4,dmg:55,splash:4,geo:'missile',homing:3},
   grenade:{life:2,dmg:30,splash:4.5,geo:'grenade',grav:28},
@@ -2232,7 +2376,7 @@ function hitTest(p){
     const y0=v.def.air?v.y-1.2:v.y,y1=v.def.air?v.y+2.4:v.y+v.def.h;if(p.y>=y0-.3&&p.y<=y1+.3)return v;}
   for(const j of G.jets){if(!j.alive||j.team===p.team)continue;const dx=j.x-p.x,dz=j.z-p.z;if(dx*dx+dz*dz<18&&Math.abs(p.y-j.y)<2.6)return j;}
   for(const dr of G.drones){if(!dr.alive||dr.team===p.team)continue;const dx=dr.x-p.x,dz=dr.z-p.z;if(dx*dx+dz*dz<2.6&&Math.abs(p.y-dr.y)<1.3)return dr;}
-  const seg=p.kind==='rifle'&&p.px!==undefined; // rifle rounds move ~1.8 m a sub-step: test the whole path so they can't skip past a man
+  const seg=(p.kind==='rifle'||p.kind==='pbullet')&&p.px!==undefined; // rifle rounds move ~1.8 m a sub-step: test the whole path so they can't skip past a man
   for(const sd of G.soldiers){if(!sd.alive||sd.team===p.team||sd.ride)continue;let dx=sd.x-p.x,dz=sd.z-p.z;
     if(seg){const sx=p.x-p.px,sz=p.z-p.pz,l2=sx*sx+sz*sz||1,t=clamp(((sd.x-p.px)*sx+(sd.z-p.pz)*sz)/l2,0,1);dx=sd.x-(p.px+sx*t);dz=sd.z-(p.pz+sz*t);}
     if(dx*dx+dz*dz>.42)continue;if(p.y>=sd.y-.2&&p.y<=sd.y+1.9)return sd;}
@@ -2378,6 +2522,7 @@ function blockedAt(v,x,z,hd=v.heading){
   return false;
 }
 function updateVehicle(v,inp,dt){
+  if(v.type==='foot'){if(v.state==='active')updateFoot(v,inp,dt);return;}
   const team=G.teams[v.team],b=G.bases[v.team];
   if(v.hitFlash>0)v.hitFlash-=dt;
   if(v.state==='rising'){v.stateT+=dt;const top=v.def.air?b.padY+.2:b.padY;v.y=lerp(b.padY-5,top,smooth(0,1.6,v.stateT));if(v.stateT>=1.6){v.state='active';v.alt=0;}syncObj(v,dt);return;}
@@ -2457,7 +2602,7 @@ function updateVehicle(v,inp,dt){
   // pad entry
   const dPad=Math.hypot(v.x-b.x,v.z-b.z);if(dPad>12)v.leftPad=true;
   const slow=Math.hypot(v.vx,v.vz)<2.5;const settled=!v.def.air||v.y<b.padY+1.2;
-  if(v.leftPad&&dPad<5.5&&slow&&settled){v.padT+=dt;if(v.padT>.6){v.state='lowering';v.stateT=0;sfx('lift',v.x,v.z);}}else v.padT=0;
+  if(v.leftPad&&dPad<5.5&&slow&&settled&&team.vehicle===v){ /* a vehicle you climbed out of never stows itself */v.padT+=dt;if(v.padT>.6){v.state='lowering';v.stateT=0;sfx('lift',v.x,v.z);}}else v.padT=0;
   // damage smoke
   if(v.hp<def.hp*.4&&Math.random()<dt*10)puff(v.x,v.y+2,v.z,C_SMK0,1.6,1.4,.7);
   if(v.hp<def.hp*.2&&Math.random()<dt*8)FIRE.spawn(v.x+rr(-.6,.6),v.y+2,v.z+rr(-.6,.6),0,2,0,.4,1.4,.4,C_FIRE0,C_FIRE1);
@@ -2968,13 +3113,16 @@ addEventListener('keydown',e=>{audioInit();if(GAME_KEYS.has(e.code)&&state!=='ti
   if(e.code==='Escape'&&G&&!G.demo&&!G.over)togglePause();
   if(e.code==='KeyM'&&state!=='title')setMusic(!AU.music);
   if(e.code==='KeyF'&&G&&G.air&&state==='play')callStrike();
-  if(e.code==='KeyV'&&G&&!G.demo&&state==='play')toggleChase();});
+  if(e.code==='KeyV'&&G&&!G.demo&&state==='play')toggleChase();
+  if(e.code==='KeyG'&&G&&!G.demo&&state==='play'&&G.views.length===1&&G.views[0].team.human)toggleFoot(G.views[0]);});
 addEventListener('keyup',e=>keys.delete(e.code));
 addEventListener('blur',()=>keys.clear());
 const mouse={x:0,y:0,moved:-99,l:false,r:false};
 renderer.domElement.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;mouse.moved=performance.now();});
-renderer.domElement.addEventListener('pointerdown',e=>{audioInit();if(e.button===0)mouse.l=true;if(e.button===2)mouse.r=true;mouse.moved=performance.now();});
+renderer.domElement.addEventListener('pointerdown',e=>{audioInit();if(e.pointerType==='mouse'&&G&&!G.demo&&state==='play'&&!paused&&G.views[0]?.team.vehicle?.type==='foot'&&document.pointerLockElement!==renderer.domElement){try{renderer.domElement.requestPointerLock();}catch(_){}} /* ON FOOT: capture the mouse for mouse look */
+  if(e.button===0)mouse.l=true;if(e.button===2)mouse.r=true;mouse.moved=performance.now();});
 addEventListener('pointerup',e=>{if(e.button===0)mouse.l=false;if(e.button===2)mouse.r=false;});
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){FP.look.dx+=e.movementX||0;FP.look.dy+=e.movementY||0;}});
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 const KEYMAP=[
   // Single key set now that local split-screen is gone (Online replaced it; each
@@ -2986,6 +3134,7 @@ const ray=new THREE.Raycaster(),plane=new THREE.Plane(new V3(0,1,0),0);
 function readHuman(view,inp){
   if(opts.touch&&view.ctrl===0){
     const v=view.team.vehicle;Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:TOUCH.fire,special:TOUCH.special,abandon:false,aimYaw:null});view.menuEdge=null;
+    if(v&&v.type==='foot'){const d2=x=>Math.abs(x)>.15?x:0;inp.thr=-d2(TOUCH.ay);inp.strafe=d2(TOUCH.ax);v.heading-=FP.look.dx*.0055;v.pitch=clamp(v.pitch-FP.look.dy*.0045,-1.2,1.2);FP.look.dx=FP.look.dy=0;return;}
     if(v){const mag=Math.min(1,Math.hypot(TOUCH.ax,TOUCH.ay));
       if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=CHASE.on&&view.cy!=null?view.cy-Math.PI+Math.atan2(TOUCH.ax,TOUCH.ay):Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn);/* chase cam: stick is relative to the camera */const da=angDiff(v.heading,want);
         const db=angDiff(v.heading+Math.PI,want),back=Math.abs(db);/* stick pointing at the vehicle's tail: back up (always in chase cam, or when slow/stuck), keep reversing while it stays roughly behind */
@@ -3005,6 +3154,7 @@ function readHuman(view,inp){
     fire=fire||bt(7)||bt(0);special=special||bt(6)||bt(1)||bt(5);abandon=abandon||bt(8);if(bt(4))tur=-1;
     view.padMenu={l:bt(14)||ax[0]<-.5,r:bt(15)||ax[0]>.5,ok:bt(0)};
     if(bt(9)&&!view.prevStart&&!G.over)setTimeout(togglePause);view.prevStart=bt(9);
+    if(bt(2)&&!view.prevX)setTimeout(()=>toggleFoot(view));view.prevX=bt(2);
     if(bt(3)&&!view.prevY){if(!view.team.vehicle&&mslReady())setTimeout(()=>openStrikeMap(view));else if(G.air)setTimeout(callStrike);}view.prevY=bt(3);
     const cb=bt(10)||bt(11);if(cb&&!view.prevCam)setTimeout(toggleChase);view.prevCam=cb;}
   const v=view.team.vehicle;
@@ -3013,7 +3163,12 @@ function readHuman(view,inp){
     if((v.type==='tank'||v.type==='truck')&&!tur){const rect=renderer.domElement.getBoundingClientRect();
       const nx=(mouse.x-rect.left)/rect.width*2-1,ny=-(mouse.y-rect.top)/rect.height*2+1;ray.setFromCamera({x:nx,y:ny},view.cam);plane.constant=-(v.y+1.5);
       const p=ray.ray.intersectPlane(plane,_v);if(p)aimYaw=Math.atan2(p.x-v.x,p.z-v.z);}}
-  Object.assign(inp,{thr,turn,tur,strafe:v?.type==='heli'?tur:0,fire,special,abandon,aimYaw});
+  if(v&&v.type==='foot'){const locked=document.pointerLockElement===renderer.domElement,kx=(any(km.right)?1:0)-(any(km.left)?1:0),qe=(any(km.tr)?1:0)-(any(km.tl)?1:0);
+    let mz=(any(km.up)?1:0)-(any(km.down)?1:0),mx=(locked?kx:0)+qe,tn=locked?0:kx,look=null;
+    if(pad){const ax=pad.axes,d2=x=>Math.abs(x)>.18?x:0;if(d2(ax[1]))mz=-ax[1];if(d2(ax[0])){mx=ax[0];tn=0;}if(d2(ax[2]||0)||d2(ax[3]||0))look={x:d2(ax[2]||0),y:d2(ax[3]||0)};if(pad.buttons[12]?.pressed)mz=1;if(pad.buttons[13]?.pressed)mz=-1;}
+    if(locked){v.heading-=FP.look.dx*FP.sens;v.pitch=clamp(v.pitch-FP.look.dy*FP.sens,-1.25,1.25);}FP.look.dx=FP.look.dy=0;
+    Object.assign(inp,{thr:mz,turn:tn,tur:0,strafe:clamp(mx,-1,1),fire,special,abandon:false,aimYaw:null,look});}
+  else Object.assign(inp,{thr,turn,tur,strafe:v?.type==='heli'?tur:0,fire,special,abandon,aimYaw});
   // menu edges
   const mk={l:any(km.left)||view.padMenu?.l,r:any(km.right)||view.padMenu?.r,ok:any(km.fire)||(view.ctrl===0&&keys.has('Enter')&&solo)||view.padMenu?.ok};
   view.menuEdge={l:mk.l&&!view.prevMenu?.l,r:mk.r&&!view.prevMenu?.r,ok:mk.ok&&!view.prevMenu?.ok};view.prevMenu=mk;
@@ -3031,7 +3186,7 @@ function makeThumbs(){
 function buildHud(view){
   const el=document.createElement('div');el.className='hud';el.style.setProperty('--tc',TEAMS[view.team.team].css);
   el.innerHTML=`<div class="status"><div class="vname"><span class="vn">—</span><em>${G.views.length>1?'PLAYER '+(view.index+1):TEAMS[view.team.team].name.toUpperCase()}</em></div>
-    <div class="bars"><div class="bar hp">ARMOR<u><i></i></u></div><div class="bar fuel">FUEL<u><i></i></u></div></div><div class="ammo"></div></div>
+    <div class="bars"><div class="bar hp">ARMOR<u><i></i></u></div><div class="bar fuel">FUEL<u><i></i></u></div></div><div class="ammo"></div></div><svg class="xhair" viewBox="0 0 26 26"><g stroke="#fff" stroke-width="2" stroke-linecap="round" style="filter:drop-shadow(0 0 1px #000)"><path d="M13 2v6M13 18v6M2 13h6M18 13h6"/></g><circle cx="13" cy="13" r="1.3" fill="#f2b632"/></svg><div class="hurt"></div>
     <canvas class="mini" width="112" height="188"></canvas>
     <div class="stock"></div><div class="flagbox"></div><div class="msgs"></div><div class="warn"></div>
     <div class="sel" hidden><h2><span>${TEAMS[view.team.team].name}</span> bunker — choose a vehicle</h2><div class="cards"></div><button type="button" class="mslbtn" hidden></button><div class="hint"></div></div>`;
@@ -3093,10 +3248,14 @@ function updateHud(view){
     if(show){const n=mslCount(),ok=mslReady(),key=n+'|'+ok+'|'+(view.sel===MSL_SLOT);if(lastHud.get(mb)!==key){lastHud.set(mb,key);
       mb.innerHTML=`${MSL_ICON}<span class="mt">Missile strike<small>${n?'pick a target on the map':'earn one: finish an op without losing a vehicle'}</small></span><i>×${devActive()?'∞':n}</i>`;mb.toggleAttribute('disabled',!ok);mb.classList.toggle('on',ok&&view.sel===MSL_SLOT);}}}
   let s;
+  {const foot=!!(v&&v.type==='foot');if(view.el&&view.el.classList.contains('foot')!==foot){view.el.classList.toggle('foot',foot);const hb=view.el.querySelector('.bar.hp');if(hb)hb.firstChild.nodeValue=foot?'HEALTH':'ARMOR';}
+    if(view.index===0)document.body.classList.toggle('onfoot',foot&&opts.touch);
+    const hu=view.el&&view.el.querySelector('.hurt');if(hu)hu.style.opacity=foot&&v.hitFlash>0?'1':'0';
+    const tf=view.index===0?document.getElementById('tFoot'):null;if(tf){const show=!!(opts.touch&&footOk()&&v&&v.state==='active'&&!v.def.air);if(tf.hidden===show)tf.hidden=!show;if(show){const txt=foot?'IN':'OUT';if(tf.textContent!==txt)tf.textContent=txt;}}}
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
     q.fuel.style.width=(v.fuel/d.fuel*100).toFixed(1)+'%';
     s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.type==='jeep'&&A.crew?`<div>Riflemen <span>${crewCount(v)}/3</span></div>`:'')+(v.carrying?`<div style="color:var(--signal)">${v.carrying.item?v.carrying.item.s:'FLAG'} ABOARD</div>`:'');
-    q.warn.textContent=v.scuttle>0?'SCUTTLING…':v.supplyMsg?v.supplyMsg:v.floats?'TIRES INFLATED':v.fuel<d.fuel*.2?(v.fuel<=0?'OUT OF FUEL':'LOW FUEL'):'';q.warn.style.color=v.supplyMsg||v.floats?'var(--ok)':'';}
+    q.warn.textContent=v.scuttle>0?'SCUTTLING…':v.supplyMsg?v.supplyMsg:v.type==='foot'&&v.ammo<=0?'OUT OF AMMO — FIND AN AMMO TENT':v.type==='foot'&&G.vehicles.some(o=>o!==v&&o.team===v.team&&o.type!=='foot'&&o.state==='active'&&Math.hypot(o.x-v.x,o.z-v.z)-o.r<2.4)?(opts.touch?'TAP IN TO GET IN':'PRESS G TO GET IN'):v.floats?'TIRES INFLATED':v.fuel<d.fuel*.2?(v.fuel<=0?'OUT OF FUEL':'LOW FUEL'):'';q.warn.style.color=v.supplyMsg||v.floats?'var(--ok)':'';}
   else{q.vn.textContent='In bunker';q.hp.style.width='0';q.fuel.style.width='0';s='';q.warn.textContent='';}
   if(lastHud.get(q.ammo)!==s){q.ammo.innerHTML=s;lastHud.set(q.ammo,s);}
   const st=VORDER.filter(k=>k!=='truck'||t.truckOn).map(k=>`<div class="${t.stock[k]?'':'zero'}">${{tank:'TNK',heli:'HEL',asv:'ASV',jeep:'JEP',truck:'6X6'}[k]} ${t.stock[k]}</div>`).join('');
@@ -3210,7 +3369,7 @@ function gameOver(winner,how){
   },1600);
 }
 function checkLose(){
-  if(G.op){const t=G.teams[0];const jeeps=t.stock.jeep+(t.stock.truck||0)+(t.vehicle&&CARRIER(t.vehicle)?1:0);const left=VORDER.reduce((a,k)=>a+t.stock[k],0);
+  if(G.op){const t=G.teams[0];const jeeps=t.stock.jeep+(t.stock.truck||0)+(t.vehicle&&CARRIER(t.vehicle)?1:0)+(t.parked&&t.parked.state==='active'&&CARRIER(t.parked)?1:0);const left=VORDER.reduce((a,k)=>a+t.stock[k],0);
     if(G.flags[1].state!=='carried'&&(jeeps===0||(!t.vehicle&&left===0)))gameOver(1,jeeps===0?'nojeep':'out');return;}
   for(const t of G.teams){const left=VORDER.reduce((a,k)=>a+t.stock[k],0);if(!t.vehicle&&left===0){gameOver(1-t.team,'out');return;}}}
 const OPS=(()=>{
@@ -3364,13 +3523,15 @@ function render(dt){
     view.cam.position.set(cx,view.focus.y+up,cz);
     if(view.shake>0){view.cam.position.x+=rr(-1,1)*view.shake;view.cam.position.z+=rr(-1,1)*view.shake;view.shake=Math.max(0,view.shake-dt*3);}
     view.cam.lookAt(view.focus.x,view.focus.y,view.focus.z);
-    if(CHASE.on&&v&&!G.demo&&v.state!=='dead')chaseCam(view,v,dt);else{view.cy=null;view.cpos=null;}
+    if(CHASE.on&&v&&!G.demo&&v.state!=='dead'&&v.type!=='foot')chaseCam(view,v,dt);else{view.cy=null;view.cpos=null;}
     if(G.strike&&G.strike.cine&&view===G.strike.view)strikeCam(view,paused?0:dt); // missile strike cinematic: truck, then riding the missile, then the blast
+    const fpOn=!!(v&&v.type==='foot'&&v.state==='active'&&!G.demo&&!(G.strike&&G.strike.cine&&view===G.strike.view)&&!G.debugCam);
+    if(fpOn)fpCamera(view,v,dt);else if(view.fpFov!=null){view.fpFov=null;layoutViews();}
     if(G.debugCam){const d=G.debugCam;view.cam.position.set(d.x,d.h,d.z+(d.back??d.h*.35));view.cam.lookAt(d.x,d.y||0,d.z);view.focus.set(d.x,0,d.z);}
     sun.position.copy(view.focus).addScaledVector(SUN_DIR,140);sun.target.position.copy(view.focus);sun.target.updateMatrixWorld();
     const r=view.rect;renderer.setViewport(r.x,0,r.w,h);renderer.setScissor(r.x,0,r.w,h);
     const sc=r.h/(2*Math.tan(THREE.MathUtils.degToRad(view.cam.fov/2)))*renderer.getPixelRatio()*.02;FIRE.mat.uniforms.scale.value=SMOKE.mat.uniforms.scale.value=sc*50;
-    renderer.render(scene,view.cam);
+    if(fpOn)v.obj.visible=false;renderer.render(scene,view.cam);if(fpOn){v.obj.visible=true;fpRender(view,v,paused?0:dt,r,h);}
     if(!G.demo){updateHud(view);if(((G.time*10)|0)%2===0)drawMini(view);if(view.engine)updateEngine(view);}
   }
 }
@@ -3675,7 +3836,11 @@ $('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dat
  hold($('#tFire'),'fire');hold($('#tSpec'),'special');
  $('#tAir').addEventListener('pointerdown',e=>{audioInit();e.preventDefault();callStrike();});
  $('#tPause').addEventListener('click',()=>{if(G&&!G.demo&&!G.over)togglePause();});
- $('#tCam').addEventListener('click',()=>{if(G&&!G.demo)toggleChase();});$('#tCam').classList.toggle('on',CHASE.on);
+ $('#tCam').addEventListener('click',()=>{if(G&&!G.demo)toggleChase();});
+ $('#tFoot').addEventListener('click',()=>{audioInit();if(G&&!G.demo&&G.views[0])toggleFoot(G.views[0]);});
+ {const lk=$('#tLook');let id=null,lx=0,ly=0;lk.addEventListener('pointerdown',e=>{id=e.pointerId;lx=e.clientX;ly=e.clientY;lk.setPointerCapture(id);e.preventDefault();});
+  lk.addEventListener('pointermove',e=>{if(e.pointerId!==id)return;FP.look.dx+=e.clientX-lx;FP.look.dy+=e.clientY-ly;lx=e.clientX;ly=e.clientY;});
+  const up=e=>{if(e.pointerId===id)id=null;};lk.addEventListener('pointerup',up);lk.addEventListener('pointercancel',up);}$('#tCam').classList.toggle('on',CHASE.on);
  $('#touch').addEventListener('contextmenu',e=>e.preventDefault());}
 $('#pMusic').onclick=()=>setMusic(!AU.music);
 $('#pResume').onclick=()=>togglePause();
@@ -3692,7 +3857,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,FP,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

@@ -330,6 +330,9 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // straw and wildflowers are scattered as cosmetic ground cover
 // jeep crew (Blender, Kenney\SpoonPlatoon_Buildings\jeep_crew): the Humvee with its passenger windows opened + a dark cab, and the
 // two seated lean-out-and-aim poses (jeepAimR / jeepAimL) for riflemen riding in it - see JEEP CREW
+// TROOPS (Matt, 27 Oct 2026): realistic US-style infantry built in Blender with MPFB/MakeHuman - human faces (3 variants), ACH helmet with
+// goggles, OCP camo fatigues, plate carrier, boots and gloves - skinned to the game's Mixamo skeleton, so the old idle/run/jeep clips drive it
+PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;});
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
 PRE.plants=fetchBin('plants.glb').catch(e=>{console.warn('plants',e);return null;});
 const TEXD={}; // linear data textures (detail / weathering masks generated for the building shader)
@@ -339,6 +342,10 @@ PRE.props2=fetchBin('props2.glb').catch(e=>{console.warn('props2',e);return null
 const TEX={},TEX_MEAN={"g1":[0.082,0.0684,0.0058],"g2":[0.0644,0.0488,0.0114],"dirt":[0.122,0.0751,0.0325],"sand":[0.1258,0.1044,0.0502],"rock":[0.1504,0.1219,0.0913],"gravel":[0.0712,0.0508,0.0307],"crate":[0.0847,0.0577,0.0393],"planks":[0.1116,0.0725,0.0456],"planksD":[0.046,0.0382,0.0311],"woodplain":[0.1232,0.0846,0.0574],"woodplainD":[0.0511,0.0426,0.0349],"planks2":[0.1088,0.0732,0.0477],"planks2D":[0.0461,0.0389,0.032],"deck":[0.1086,0.073,0.0476],"stone":[0.1846,0.1625,0.1419]};
 PRE.tex=Promise.all(Object.keys(TEX_MEAN).map(k=>new THREE.TextureLoader().loadAsync(DATA+'tex/'+k+'.jpg?v='+DATA_V).then(t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;TEX[k]=t;}).catch(e=>console.warn('tex',k,e))));
 function prefetchAudio(){if(PRE.audio)return;PRE.audio={};for(const k of [...SFX_KEYS,...MUS_KEYS])PRE.audio[k]=fetchBin('audio/'+k+'.ogg').catch(e=>{console.warn('audio',k,e);return null;});}
+function adaptClip(c){ // Vanguard-era clips on the troop skeleton: joint frames match, so rotations are absolute; limb lengths come from the new rest pose (drop the per-bone translations), only the hips move (the old rig was in cm)
+  const k=c.clone();k.tracks=k.tracks.filter(t=>(!t.name.endsWith('.position')||t.name==='mixamorigHips.position')&&A.troop.getObjectByName(t.name.split('.')[0]));
+  for(const t of k.tracks)if(t.name==='mixamorigHips.position')for(let i=0;i<t.values.length;i++)t.values[i]*=.01;return k;}
+const TEAM_MAT=[],CAMO_MAT=[];
 async function loadAssets(){
   const bin=await PRE.assets;
   const gltf=await new Promise((res,rej)=>new GLTFLoader().parse(bin,'',res,rej));
@@ -349,8 +356,16 @@ async function loadAssets(){
   const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;
   const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));
   A.soldier={scene:sg.scene,idle:sg.animations.find(a=>a.name==='idle'),run:sg.animations.find(a=>a.name==='run')};
+  try{const tb=await PRE.troop;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));
+    A.troop=tg.scene;A.soldier.scene=tg.scene;A.soldier.idle=adaptClip(A.soldier.idle);A.soldier.run=adaptClip(A.soldier.run);
+    const camo=tg.scene.getObjectByName('Uniform')?.material;if(camo){camo.onBeforeCompile=sh=>{ // camo sampled triplanar in bind-pose space: seamless over the fatigues and helmet cover, sticks to the body while it moves
+      sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vCamoP;varying vec3 vCamoN;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCamoP=position;vCamoN=normal;');
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vCamoP;varying vec3 vCamoN;').replace('#include <map_fragment>','{vec3 w=abs(normalize(vCamoN));w=w*w;w/=(w.x+w.y+w.z);vec3 p=vCamoP*0.6;vec4 c=texture2D(map,p.yz)*w.x+texture2D(map,p.xz)*w.y+texture2D(map,p.xy)*w.z;diffuseColor*=vec4(c.rgb*0.8,1.0);}');};camo.needsUpdate=true;
+      for(const T of [0,1]){const m=camo.clone();m.onBeforeCompile=camo.onBeforeCompile;m.color.setRGB(...(T===0?[.82,.9,1.12]:[1.12,.86,.8]));CAMO_MAT[T]=m;}} // a hint of team colour in the camo so squads still read from the overhead camera
+    const bootM=tg.scene.getObjectByName('Boots')?.material;if(bootM)bootM.color.multiplyScalar(.5);
+    tg.scene.traverse(o=>{if(o.isMesh){o.material.roughness=Math.max(o.material.roughness,.55);if(/^Head\d/.test(o.name))o.userData.head=+o.name[4];if(o.name==='HelmetBand'||/^ArmBand/.test(o.name)||o.name==='GoggleStrap')o.userData.team=true;}});}}catch(e){console.warn('troop model',e);}
   try{const jb=await PRE.jeepOpen;if(jb){const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
-  try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));const R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
+  try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
   // YF-23 (from Matt's Kenney folder, cgtrader_optimized_YF23-FBX.fbx -> glb): campaign air strikes, see updateAir
   if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
   // hospital + ammo depot (built in Blender for Matt, SpoonPlatoon_Buildings/*_web.glb): field repair / rearm, see field supply
@@ -386,12 +401,12 @@ async function loadAssets(){
       src.scale.multiplyScalar((rb.max.y-rb.min.y)/(gb.max.y-gb.min.y));const w=new THREE.Group();w.add(src);w.name=k;A[k]=w;};
     swap('crate','G_box-1');swap('barrel','G_Wooden-barrel-bright');}}catch(e){console.warn('props2',e);}
   // realistic soldier (three.js example Soldier.glb / Mixamo rig): model faces -Z, turn it to face +Z like the old one
-  for(const c of sg.scene.children)c.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(UP,Math.PI));let bm=null;sg.scene.traverse(o=>{if(o.isMesh&&!bm)bm=o.material;});
+  for(const c of A.soldier.scene.children)c.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(UP,Math.PI));let bm=null;A.soldier.scene.traverse(o=>{if(o.isMesh&&!bm)bm=o.material;});
   for(const T of [0,1]){const m=bm.clone();m.color.setRGB(...(T===0?[.8,.9,1.1]:[1.1,.86,.78]));m.roughness=.85;m.metalness=0;SOLDIER_MAT[T]=m;
-    HELMET_MAT[T]=new THREE.MeshStandardMaterial({color:T===0?0x3f7fe0:0xd8432f,roughness:.6});}
+    HELMET_MAT[T]=new THREE.MeshStandardMaterial({color:T===0?0x3f7fe0:0xd8432f,roughness:.6});TEAM_MAT[T]=new THREE.MeshStandardMaterial({color:T===0?0x3f7fe0:0xd8432f,roughness:.55,emissive:T===0?0x0a1a40:0x401008});}
   { // rifle: carried at low ready in front of the chest (mounted on the chest bone so it stays steady while running); both hands are
     // pulled onto it every frame by two-bone IK (soldierArms). Everything measured once in the idle pose.
-    const tpl=sg.scene;tpl.scale.setScalar(SOLDIER_SCALE);const mx=new THREE.AnimationMixer(tpl);mx.clipAction(A.soldier.idle).play();mx.setTime(0);tpl.updateMatrixWorld(true);
+    const tpl=A.soldier.scene;tpl.scale.setScalar(SOLDIER_SCALE);const mx=new THREE.AnimationMixer(tpl);mx.clipAction(A.soldier.idle).play();mx.setTime(0);tpl.updateMatrixWorld(true);
     const cb=tpl.getObjectByName('mixamorigSpine2'),qm=new THREE.Quaternion();tpl.getWorldQuaternion(qm);
     const fwd=new V3(0,0,1).applyQuaternion(qm),cp=new V3(),rh=new V3(),lh=new V3(),ws=new V3();cb.getWorldPosition(cp);cb.getWorldScale(ws);
     tpl.getObjectByName('mixamorigRightHand').getWorldPosition(rh);tpl.getObjectByName('mixamorigLeftHand').getWorldPosition(lh);
@@ -2049,10 +2064,11 @@ const _sn=[];
 function spawnSoldier(T,x,z,mode){
   if(!A.soldier||soldierBlocked(x,z,T)){const p=patrolPoint(G.bases[T]);x=p[0];z=p[1];}
   const o=SkeletonUtils.clone(A.soldier.scene);o.scale.setScalar(SOLDIER_SCALE);
-  o.traverse(m=>{if(m.isMesh){m.material=SOLDIER_MAT[T];m.castShadow=true;m.frustumCulled=false;}});
+  const hv=A.troop?(Math.abs((x*73+z*131)|0)%3):-1; // which of the 3 faces this man gets (by spawn spot, so online clients agree)
+  o.traverse(m=>{if(m.isMesh){if(!A.troop)m.material=SOLDIER_MAT[T];else if(m.userData.team)m.material=TEAM_MAT[T];else if(CAMO_MAT[T]&&m.material.name==='Camo')m.material=CAMO_MAT[T];if(m.userData.head!==undefined)m.visible=m.userData.head===hv;m.castShadow=true;m.frustumCulled=false;}});
   const gun=rifleModel().clone();gun.scale.setScalar(GUN_MOUNT.scale);const chest=o.getObjectByName('mixamorigSpine2');if(chest&&GUN_MOUNT.pos){gun.position.copy(GUN_MOUNT.pos);gun.quaternion.copy(GUN_MOUNT.quat);chest.add(gun);}else o.add(gun);
   const bn=n=>o.getObjectByName('mixamorig'+n),arms={R:['RightArm','RightForeArm','RightHand'].map(bn),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
-  const head=o.getObjectByName('mixamorigHead');if(head){const hp=new THREE.Mesh(HELMET_GEO,HELMET_MAT[T]);hp.position.set(0,21,0);head.add(hp);}
+  const head=o.getObjectByName('mixamorigHead');if(head&&!A.troop){const hp=new THREE.Mesh(HELMET_GEO,HELMET_MAT[T]);hp.position.set(0,21,0);head.add(hp);}
   const mx=new THREE.AnimationMixer(o);const idle=mx.clipAction(A.soldier.idle),run=mx.clipAction(A.soldier.run);idle.play();run.play();run.setEffectiveWeight(0);idle.time=RND();run.time=RND()*.6;
   o.position.set(x,groundAt(x,z),z);world.add(o);
   const sd={soldier:true,team:T,x,z,y:o.position.y,heading:RND()*TAU,hp:8,alive:true,mode,obj:o,mx,idle,run,gun:chest?gun:null,arms:arms.R.every(Boolean)&&arms.L.every(Boolean)?arms:null,moving:0,wp:null,cd:rr(.5,2),think:RND()*.4,target:null,deadT:0,
@@ -2073,7 +2089,7 @@ function killSoldier(sd,byTeam,how='shot'){
 // (crew.glb: jeepAimR leans out of a right-hand window, jeepAimL the left), turn at the waist to track targets in their
 // window's arc and shoot. Every hit the jeep takes throws one of them out dead; if the jeep is destroyed they all die.
 // Stowing the jeep in the bunker lets them climb out alive at the pad. Riders stay in G.soldiers (minimap, soldier cap).
-const CREW_SEATS=[{x:-.49,y:.03,z:.242,s:'R'},{x:.51,y:.03,z:-.538,s:'L'},{x:-.49,y:.03,z:-.538,s:'R'}]; // jeep-local: front passenger, rear left, rear right (jeep faces +z, its right is -x)
+const CREW_SEATS=[{x:-.49,y:.09,z:.242,s:'R'},{x:.51,y:.09,z:-.538,s:'L'},{x:-.49,y:.09,z:-.538,s:'R'}]; // jeep-local: front passenger, rear left, rear right (jeep faces +z, its right is -x)
 const CREW_YAW={R:-1.28,L:1.28},CREW_ARC=1.12,CREW_RANGE=34; // window aim centre relative to the jeep heading (the Blender pose aims ~17 deg forward of square)
 const _cm2=new THREE.Matrix4(),_cq=new THREE.Quaternion(),_cq2=new THREE.Quaternion(),_cm=new THREE.Matrix4(),_cv=new V3(),_cv2=new V3(),_cA=new V3(),_cS=new V3(),_cB=new V3(),_cX=new V3(),_cY=new V3();
 function crewSeatFree(v){if(!v.crew)v.crew=[null,null,null];return v.crew.findIndex(c=>!c);}

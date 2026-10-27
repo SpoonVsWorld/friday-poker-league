@@ -377,7 +377,7 @@ PRE.trees=Object.fromEntries([...new Set(Object.values(RT_MAP))].map(f=>[f,fetch
 // REAL VEHICLES (Matt, 27 Oct 2026): PBR M1 Abrams -> tank, M2 Bradley -> ASV (from the FBX packs in his Kenney folder); see fitReal
 PRE.tank=fetchBin('tank.glb').catch(e=>{console.warn('tank',e);return null;}); // (Matt preferred the original ASV, so the Bradley in sp-data/asv.glb is unused)
 PRE.troop=fetchBin('troop.glb').catch(e=>{console.warn('troop',e);return null;});
-PRE.items=['items1.glb','items2.glb','items3.glb'].map(f=>fetchBin(f).catch(e=>{console.warn(f,e);return null;})); // campaign objective items: items1 = Ops 1-5, items2 = Ops 6-10, items3 = Ops 11-15 (Blender, SpoonPlatoon_Items.blend)
+PRE.items=['items1.glb','items2.glb','items3.glb','items4.glb'].map(f=>fetchBin(f).catch(e=>{console.warn(f,e);return null;})); // campaign objective items: items1 = Ops 1-5, items2 = Ops 6-10, items3 = Ops 11-15, items4 = Ops 16-20 (Blender, SpoonPlatoon_Items.blend)
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});

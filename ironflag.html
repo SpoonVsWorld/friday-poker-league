@@ -316,7 +316,7 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='2';
+const DATA='sp-data/',DATA_V='3';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw']; // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -375,7 +375,7 @@ async function loadAssets(){
   try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
     if(base&&ring&&pods.missile&&pods.gun&&pods.cannon){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;if(!o.material.map&&/^(GunMetal|Barrel|OliveSteel)/.test(o.material.name))o.material=vehRealMat(o.material,o);}});A.turrets={base,ring,pods,headY:ring.position.y};}}}catch(e){console.warn('turret models',e);}
   try{const lb=await PRE.launcher;if(lb){const lg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(lb,'',res,rej));const L=lg.scene.getObjectByName('Launcher');
-    if(L){L.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(!/Glass|Lamp/.test(o.material.name))o.material=vehRealMat(o.material,o);else o.material.envMapIntensity=.6;}});A.launcher=L;}}}catch(e){console.warn('launcher model',e);}
+    if(L){L.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;const mn=o.material.name;if(/^Decal/.test(mn)){o.material.polygonOffset=true;o.material.polygonOffsetFactor=-2;o.material.depthWrite=false;o.renderOrder=2;}else if(!/Glass|Lamp/.test(mn)){if(/^Olive/.test(mn))o.material.userData.camo=1;o.material=vehRealMat(o.material,o);}else o.material.envMapIntensity=.6;}});A.launcher=L;}}}catch(e){console.warn('launcher model',e);}
   try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
   // YF-23 (from Matt's Kenney folder, cgtrader_optimized_YF23-FBX.fbx -> glb): campaign air strikes, see updateAir
   if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
@@ -1229,19 +1229,20 @@ function vehRealMat(base,obj){
   m=base.clone();m.envMap=skyEnv();m.envMapIntensity=.45;m.flatShading=base.flatShading;m.userData.real=1;
   const bb=new THREE.Box3().setFromObject(obj||new THREE.Object3D()),y0=isFinite(bb.min.y)?bb.min.y:0,h=isFinite(bb.max.y)?Math.max(.5,bb.max.y-y0):1;
   const uY={value:y0},uH={value:h};
-  m.customProgramCacheKey=()=>'realVeh'+(m.map?1:0);
+  const camo=base.userData.camo?1:0;m.customProgramCacheKey=()=>'realVeh'+(m.map?1:0)+camo;
   m.onBeforeCompile=sh=>{
-    sh.uniforms.t_metal={value:TEXD.concrete};sh.uniforms.t_grime={value:TEXD.grime};sh.uniforms.u_y0=uY;sh.uniforms.u_h=uH; /* the concrete map is a fine isotropic grain: reads as cast/rolled steel at this scale */
+    sh.uniforms.t_metal={value:TEXD.concrete};sh.uniforms.t_grime={value:TEXD.grime};sh.uniforms.u_y0=uY;sh.uniforms.u_h=uH;sh.uniforms.u_camo={value:camo}; /* the concrete map is a fine isotropic grain: reads as cast/rolled steel at this scale */
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRP;varying vec3 vRN;varying float vWy;')
       .replace('#include <begin_vertex>','#include <begin_vertex>\nvRP=transformed;vRN=objectNormal;vWy=transformed.y;');
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
-uniform sampler2D t_metal,t_grime;uniform float u_y0,u_h;varying vec3 vRP;varying vec3 vRN;varying float vWy;
+uniform sampler2D t_metal,t_grime;uniform float u_y0,u_h,u_camo;varying vec3 vRP;varying vec3 vRN;varying float vWy;
 vec3 triV(sampler2D t,vec3 p,vec3 b,float s){return texture2D(t,p.zy*s).rgb*b.x+texture2D(t,p.xz*s).rgb*b.y+texture2D(t,p.xy*s).rgb*b.z;}`)
     .replace('#include <color_fragment>',`#include <color_fragment>
 float vDark=0.,vScuff=0.;
 {vec3 al=diffuseColor.rgb;float lum=dot(al,vec3(.2126,.7152,.0722));vec3 n=dot(vRN,vRN)>1e-6?normalize(vRN):vec3(0.,1.,0.);vec3 b=pow(abs(n),vec3(4.));b/=(b.x+b.y+b.z);
  vDark=1.-smoothstep(.1,.22,lum);
  float met=triV(t_metal,vRP,b,.9).r*2.;vec3 g=triV(t_grime,vRP,b,.11);vec3 g2=triV(t_grime,vRP*3.7,b,.11);
+ if(u_camo>.5){vec3 c1=triV(t_grime,vRP*2.3,b,.11),c2=triV(t_grime,vRP*5.1,b,.11);al=mix(al,vec3(.33,.24,.14),smoothstep(.44,.52,c1.r*.7+c2.g*.3));al=mix(al,vec3(.07,.075,.065),smoothstep(.54,.62,c2.b*.6+c1.g*.4));} /* three-tone NATO camo sprayed over the paint */
  al*=mix(1.,met,.22);                                   /* rolled-steel micro detail */
  al*=1.-clamp((g.r-.5)*.55+(g2.g-.5)*.2,-.12,.45);     /* blotchy grime and faded paint */
  float rel=(vWy-u_y0)/u_h;float dust=(1.-smoothstep(.05,.42,rel))*(1.-vDark*.5);

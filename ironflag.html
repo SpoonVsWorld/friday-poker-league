@@ -391,10 +391,10 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='5';
+const DATA='sp-data/',DATA_V='6';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
-const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw']; // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
+const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop']; // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
 const MUS_KEYS=['m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
 // Retro Tree Pack (Matt's Kenney folder, Low Res GLBs with WebP textures): photo-textured trees replace the cartoon Kenney
@@ -1759,6 +1759,12 @@ function mslGo(){
 // ---- the launch itself
 const _mq=new THREE.Quaternion(),_mq2=new THREE.Quaternion(),_md=new V3(),_mp=new V3(),_mc1=new V3(),_mc2=new V3(),MSL_ZAX=new V3(0,0,1);
 function rocketSound(){
+  if(AU.ctx&&AU.buf.s_missile){ // recorded launch, then its roar looped (crossfaded) for as long as the missile flies
+    const c=AU.ctx,t=c.currentTime,g=c.createGain();g.gain.value=1;g.connect(AU.sfx);
+    const one=c.createBufferSource();one.buffer=AU.buf.s_missile;const g1=c.createGain();one.connect(g1);g1.connect(g);one.start(t);const srcs=[one];
+    if(AU.buf.s_missile_loop){const lp=c.createBufferSource();lp.buffer=AU.buf.s_missile_loop;lp.loop=true;const g2=c.createGain();g2.gain.setValueAtTime(0,t);g2.gain.setValueAtTime(0,t+1.9);g2.gain.linearRampToValueAtTime(.9,t+2.5);
+      lp.connect(g2);g2.connect(g);lp.start(t+1.8);srcs.push(lp);g1.gain.setValueAtTime(1,t+2.0);g1.gain.linearRampToValueAtTime(0,t+2.7);}
+    return {set(v){g.gain.setTargetAtTime(Math.max(.0001,v),c.currentTime,.15);},stop(){const n=c.currentTime;g.gain.cancelScheduledValues(n);g.gain.setTargetAtTime(.0001,n,.08);for(const s of srcs)try{s.stop(n+.7);}catch(e){}}};}
   if(!AU.ctx||!AU.noise)return null;const c=AU.ctx,t=c.currentTime;
   const s=c.createBufferSource();s.buffer=AU.noise;s.loop=true;const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=650;
   const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1900;bp.Q.value=.7;const g2=c.createGain();g2.gain.value=.22;

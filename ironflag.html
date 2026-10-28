@@ -394,7 +394,7 @@ const tmpBox=new THREE.Box3();
 const DATA='sp-data/',DATA_V='6';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
-const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop']; // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
+const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke']; // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
 const MUS_KEYS=['m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
 // Retro Tree Pack (Matt's Kenney folder, Low Res GLBs with WebP textures): photo-textured trees replace the cartoon Kenney
@@ -1751,6 +1751,8 @@ function mslGo(){
   closeStrikeMap(false);if(!G.launcher||G.strike||mslCount()<=0)return;
   const ty=s?s.y0+Math.min(s.h*.45,5):Math.max(groundAt(MM.tx,MM.tz),0);
   G.strike={phase:'raise',t:0,tx:MM.tx,tz:MM.tz,ty,tgt:s,name:s?mslTargetName(s):null,view:MM.view||G.views[0],cine:true};
+  if(AU.ctx&&AU.buf.s_nuke){const c=AU.ctx,src=c.createBufferSource(),g=c.createGain();src.buffer=AU.buf.s_nuke;src.connect(g);g.connect(AU.sfx);src.start(); // Matt's nuclear-launch sound while the erector raises the missile
+    G.strike.raiseSnd={stop(fade=.5){const n=c.currentTime;g.gain.cancelScheduledValues(n);g.gain.setValueAtTime(g.gain.value,n);g.gain.linearRampToValueAtTime(.0001,n+fade);try{src.stop(n+fade+.05);}catch(e){}}};}
   note(0,'Missile armed — erector raising','info',true);sfx('click');
   if(AU.ctx&&!G.demo){tone(.13,MSL.raise,62,96,'sawtooth');noiseHit(.12,MSL.raise,260,700,'bandpass',3);}
   musicStop();
@@ -1783,6 +1785,7 @@ function mslLaunch(S){
   const b0=p1,b1=new V3(p1.x,top,p1.z),b2=new V3(S.tx-hx*dist*.3,top,S.tz-hz*dist*.3),b3=new V3(S.tx,S.ty,S.tz);
   const pts=[],cum=[0];const N=240;for(let i=0;i<=N;i++){const t=i/N,u=1-t;pts.push(new V3().addScaledVector(b0,u*u*u).addScaledVector(b1,3*u*u*t).addScaledVector(b2,3*u*t*t).addScaledVector(b3,t*t*t));if(i)cum.push(cum[i-1]+pts[i].distanceTo(pts[i-1]));}
   S.path={pts,cum,len:cum[N],i:0};S.p0=p0;S.hx=hx;S.hz=hz;S.s=0;S.v=0;S.roll=0;S.dir=new V3(0,1,0);
+  if(S.raiseSnd){S.raiseSnd.stop(.6);S.raiseSnd=null;}
   S.snd=rocketSound();if(!devActive())setStrikes(mslCount()-1);
   for(let i=0;i<70;i++){const a=rr(0,TAU),sp=rr(6,16);SMOKE.spawn(p0.x+rr(-2,2),Math.max(groundAt(p0.x,p0.z),0)+rr(.3,2),p0.z+rr(-2,2),Math.cos(a)*sp,rr(.5,3),Math.sin(a)*sp,rr(3,5.5),3,10,[.82,.8,.76],[.62,.6,.57],.75,-.3,1.4);}
   for(let i=0;i<40;i++)FIRE.spawn(p0.x+rr(-1.5,1.5),p0.y-6+rr(0,2),p0.z+rr(-1.5,1.5),rr(-9,9),rr(-2,4),rr(-9,9),rr(.25,.6),3,6,C_FIRE0,C_FIRE1,1,-2,2);
@@ -3386,7 +3389,7 @@ function newGame(mode,seed,demo=false){
   if(!demo){if(G.op){note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);if(G.flags[1].item)setTimeout(()=>note(0,`Objective: find and recover the ${G.flags[1].item.n}`,'good'),3400);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
 }
 function endGame(){
-  if(!G)return;if(G.strike&&G.strike.snd)G.strike.snd.stop();MSL_LIGHT.intensity=0;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
+  if(!G)return;if(G.strike&&G.strike.snd)G.strike.snd.stop();if(G.strike&&G.strike.raiseSnd)G.strike.raiseSnd.stop(.05);MSL_LIGHT.intensity=0;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
   if(world){scene.remove(world);world.traverse(o=>{if(o.isMesh&&o.geometry&&!o.geometry.userData?.keep){if(o.isInstancedMesh)o.dispose();}});
     world.traverse(o=>{if(o.isMesh&&(o.parent===world)&&o.geometry.type!=='BufferGeometry')o.geometry.dispose();});}
   musicStop();G=null;

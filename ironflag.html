@@ -391,11 +391,11 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='6';
+const DATA='sp-data/',DATA_V='7';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
-const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke']; // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
-const MUS_KEYS=['m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
+const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry']; // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
+const MUS_KEYS=['m_drums','m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
 // Retro Tree Pack (Matt's Kenney folder, Low Res GLBs with WebP textures): photo-textured trees replace the cartoon Kenney
 // trees everywhere (pines/dead trees on the beaches too). Kenney trees stay as the fallback if a file fails to load.
@@ -604,7 +604,7 @@ function audioInit(){
   AU.mus=c.createGain();AU.mus.gain.value=AU.music?MUSIC_GAIN:0;AU.mus.connect(AU.master);
   const len=c.sampleRate*2,b=c.createBuffer(1,len,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;AU.noise=b;
   loadAudio();
-  if(state==='title'||state==='ops')musicPlay('diesirae');
+  if(state==='title'||state==='ops')musicPlay(document.getElementById('story')&&!document.getElementById('story').hidden?'drums':'diesirae');
 }
 // ---- iOS / Safari unlock. Two things silence the game on an iPhone otherwise:
 // 1) Safari creates the AudioContext suspended and only lets it start inside a
@@ -2685,7 +2685,7 @@ function launchStrike(T,tx,tz){
   const j={jet:true,team:T,alive:true,hp:JET.hp,tx,tz,dx,dz,s:-JET.approach,x:tx-dx*JET.approach,z:tz-dz*JET.approach,y:ty,vx:dx*JET.speed,vz:dz*JET.speed,pts,obj:makeJetObj(T),roared:false};
   j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.y=Math.atan2(dx,dz);world.add(j.obj);G.jets.push(j);
   if(T===1){sfx('alarm');note(0,'ENEMY AIR STRIKE INBOUND — get off the red markers!','bad',true);note(1,'Air strike launched','info');}
-  else{sfx('click');note(0,`Air strike inbound — ${airLeft()} left${onFoot()?' on foot':''}`,'good');}
+  else{sfx('click');sample('s_radio',.9,1,.25);note(0,`Air strike inbound — ${airLeft()} left${onFoot()?' on foot':''}`,'good');}
   return j;}
 function killJet(j,byTeam){if(!j.alive)return;j.alive=false;
   explosion(j.x,j.y,j.z,1.8);sfx('bigboom',j.x,j.z);debris(j.x,j.y,j.z,8,10);for(let i=0;i<10;i++)puff(j.x,j.y,j.z,C_SMK0,3,1.6,.7);
@@ -3159,6 +3159,8 @@ addEventListener('keydown',e=>{audioInit();if(GAME_KEYS.has(e.code)&&state!=='ti
 addEventListener('keyup',e=>keys.delete(e.code));
 addEventListener('blur',()=>keys.clear());
 const mouse={x:0,y:0,moved:-99,l:false,r:false};
+// menu buttons (title, operations, briefings, pause/end screens, bunker cards): Matt's military-case latch. The in-game touch controls keep their own feel.
+document.addEventListener('pointerdown',e=>{const b=e.target&&e.target.closest&&e.target.closest('button,.op,.card');if(!b||b.disabled||b.closest('#touch'))return;audioInit();if(AU.ctx&&AU.buf.s_case)sample('s_case',.7,1);},true);
 renderer.domElement.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;mouse.moved=performance.now();});
 renderer.domElement.addEventListener('pointerdown',e=>{audioInit();if(e.pointerType==='mouse'&&G&&!G.demo&&state==='play'&&!paused&&G.views[0]?.team.vehicle?.type==='foot'&&document.pointerLockElement!==renderer.domElement){try{renderer.domElement.requestPointerLock();}catch(_){}} /* ON FOOT: capture the mouse for mouse look */
   if(e.button===0)mouse.l=true;if(e.button===2)mouse.r=true;mouse.moved=performance.now();});
@@ -3386,7 +3388,7 @@ function newGame(mode,seed,demo=false){
     cam.position.set(view.focus.x,70,view.focus.z+(T===0?44:-44));cam.lookAt(view.focus);if(!demo){buildHud(view);if(AU.ctx)view.engine=engineFor(view);}return view;});
   miniBase();layoutViews();
   sun.castShadow=opts.shadows;
-  if(!demo){if(G.op){note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);if(G.flags[1].item)setTimeout(()=>note(0,`Objective: find and recover the ${G.flags[1].item.n}`,'good'),3400);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
+  if(!demo){if(G.op){setTimeout(()=>{if(G&&!G.over&&!G.demo)sample('s_cry',.75,1);},700); /* the platoon's battle cry as the operation starts */note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);if(G.flags[1].item)setTimeout(()=>note(0,`Objective: find and recover the ${G.flags[1].item.n}`,'good'),3400);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
 }
 function endGame(){
   if(!G)return;if(G.strike&&G.strike.snd)G.strike.snd.stop();if(G.strike&&G.strike.raiseSnd)G.strike.raiseSnd.stop(.05);MSL_LIGHT.intensity=0;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
@@ -3472,7 +3474,7 @@ function storyParas(el,list){el.innerHTML='';for(const t of list){const p=docume
 let ST=null; // open story screen: {go,back}
 function openStory(o){ST=o;$('#stKick').textContent=o.kick;$('#stTitle').textContent=o.title;const ob=$('#stObj');ob.hidden=!o.obj;if(o.obj)ob.innerHTML='Objective: <b></b>',ob.querySelector('b').textContent=o.obj;
   storyParas($('#stBody'),o.paras);$('#stIntel').hidden=!o.intel;$('#stIntel').textContent=o.intel||'';$('#stGo').textContent=o.goLabel;$('#stBack').hidden=!o.back;
-  $('#ops').hidden=true;$('#title').hidden=true;$('#over').hidden=true;const sc=$('#story');sc.hidden=false;sc.scrollTop=0;state='ops';audioInit();musicPlay('diesirae');
+  $('#ops').hidden=true;$('#title').hidden=true;$('#over').hidden=true;const sc=$('#story');sc.hidden=false;sc.scrollTop=0;state='ops';audioInit();musicPlay('drums'); /* Royal Marine drummers under the intro and every briefing */
   setTimeout(()=>{if(!sc.hidden)$('#stGo').focus({preventScroll:true});},50);
   const pad0={};(function poll(){if(sc.hidden||ST!==o)return;const pads=navigator.getGamepads?[...navigator.getGamepads()].filter(Boolean):[];const pad=pads[0];
     if(pad){for(const i of [0,1,9]){const d=!!pad.buttons[i]?.pressed;if(d&&pad0[i]===false){if(i===1&&o.back)storyBack();else if(i!==1)storyGo();return;}pad0[i]=d;}}requestAnimationFrame(poll);})();}

@@ -1601,7 +1601,7 @@ function devLabel(){const b=document.getElementById('devBtn');if(b){b.textConten
 function devTick(){ // every sim step: keep the player's vehicle topped up, strikes unlimited
   if(!devActive())return;const t=G.teams[0],v=t.vehicle;
   if(v&&v.state==='active'){const d=v.def;v.hp=d.hp;v.fuel=d.fuel;v.ammo=d.ammo;if(d.ammo2!=null)v.ammo2=d.ammo2;}
-  if(!G.air)G.air={total:99,left:[99,0],enemyT:1e9};G.air.left[0]=99;
+  if(!G.air)G.air={total:99,left:[99,0],enemyT:1e9};G.air.left[0]=99;G.footAir=99;
 }
 function mslCount(){if(devActive())return 99;return G&&G.strikes!=null?G.strikes:strikesBanked();}
 function mslReady(){return !!(G&&(G.op||devActive())&&G.launcher&&G.launcher.er&&G.launcher.msl&&!G.net&&!G.demo&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&mslCount()>0);}
@@ -2105,6 +2105,13 @@ VDEF.foot={name:'On foot',hp:50,speed:5.4,turn:2.4,fuel:1,ammo:210,ammo2:50,r:.5
 const HERO_H=1.79,VM={x:-.04,y:.035,z:-.13,rx:-.09,ry:.08,rz:0,fov:55},VMP={x:-.08,y:-.06,z:-.42,rx:-.02,ry:.06,rz:0,fov:64,world:78}; // phone upright: rifle centred low, further out // VMP: phone held upright // viewmodel nudge (camera space) from the Blender pose
 const FP={look:{dx:0,dy:0},sens:.0022,scene:null,cam:null,rig:null,muzzle:new V3(),flash:null,flashT:0,bob:0,recoil:0,sway:{x:0,y:0},prevH:null,prevP:0,hint:false};
 function footOk(){return !!(A.hero&&G&&!G.net&&!G.demo);}
+const FOOT_AIR=10; // (Matt, 27 Oct 2026) on foot you can call 10 air strikes per operation, on top of the vehicle ones
+function onFoot(){const v=G&&G.teams[0].vehicle;return !!(v&&v.type==='foot'&&v.state==='active');}
+function airLeft(){return onFoot()?(G.footAir??FOOT_AIR):(G.air?G.air.left[0]:0);}
+function footAim(v){ // where the crosshair meets the ground (or 60 m ahead when looking level / up)
+  const cp=Math.cos(v.pitch),dx=Math.sin(v.heading)*cp,dy=Math.sin(v.pitch),dz=Math.cos(v.heading)*cp;let x=v.x,y=v.y+1.6,z=v.z;
+  for(let d=0;d<140;d+=1.5){x=v.x+dx*d;y=v.y+1.6+dy*d;z=v.z+dz*d;if(d>6&&y<=Math.max(groundAt(x,z),0))return {x,z};}
+  return {x:v.x+Math.sin(v.heading)*60,z:v.z+Math.cos(v.heading)*60};}
 function fpSetup(){
   if(FP.scene||!A.hero)return;const sc=new THREE.Scene();const cam=new THREE.PerspectiveCamera(55,1,.02,30);
   sc.add(new THREE.HemisphereLight(0xe4ecf2,0x4d4535,1.3));const sun=new THREE.DirectionalLight(0xfff0d8,2.6);sc.add(sun);sc.add(sun.target);
@@ -2669,7 +2676,7 @@ function launchStrike(T,tx,tz){
   const j={jet:true,team:T,alive:true,hp:JET.hp,tx,tz,dx,dz,s:-JET.approach,x:tx-dx*JET.approach,z:tz-dz*JET.approach,y:ty,vx:dx*JET.speed,vz:dz*JET.speed,pts,obj:makeJetObj(T),roared:false};
   j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.y=Math.atan2(dx,dz);world.add(j.obj);G.jets.push(j);
   if(T===1){sfx('alarm');note(0,'ENEMY AIR STRIKE INBOUND — get off the red markers!','bad',true);note(1,'Air strike launched','info');}
-  else{sfx('click');note(0,`Air strike inbound — ${G.air.left[0]} left`,'good');}
+  else{sfx('click');note(0,`Air strike inbound — ${airLeft()} left${onFoot()?' on foot':''}`,'good');}
   return j;}
 function killJet(j,byTeam){if(!j.alive)return;j.alive=false;
   explosion(j.x,j.y,j.z,1.8);sfx('bigboom',j.x,j.z);debris(j.x,j.y,j.z,8,10);for(let i=0;i<10;i++)puff(j.x,j.y,j.z,C_SMK0,3,1.6,.7);
@@ -2677,16 +2684,19 @@ function killJet(j,byTeam){if(!j.alive)return;j.alive=false;
   if(byTeam!==undefined)note(byTeam,j.team===1?'Enemy jet shot down — strike stopped!':'Jet down','good',true);
   if(j.team===0)note(0,'Your jet was shot down','bad');}
 function callStrike(){
-  const air=G&&G.air;if(!air||G.over||paused||state!=='play')return;const v=G.teams[0].vehicle;
-  if(air.left[0]<=0){note(0,'No air strikes left','warn');return;}
+  if(!G||G.over||paused||state!=='play')return;const v=G.teams[0].vehicle,foot=onFoot();
+  if(foot&&!G.air)G.air={total:0,left:[0,0],enemyT:1e9}; // skirmish has no air strikes, but the on-foot ten still work
+  const air=G.air;if(!air)return;if(G.footAir==null)G.footAir=FOOT_AIR;
+  if(airLeft()<=0){note(0,foot?'No on-foot air strikes left':'No air strikes left','warn');return;}
   if(!v||v.state!=='active'){note(0,'Launch a vehicle first, then call the strike','warn');return;}
   if(G.jets.some(j=>j.alive&&j.team===0&&j.pts.some(p=>!p.dropped))){note(0,'Your jet is already inbound','warn');return;}
   let tx,tz;const view=G.views[0];
   if(opts.mouse&&!opts.touch&&performance.now()-mouse.moved<4000&&view){const rect=renderer.domElement.getBoundingClientRect();
     ray.setFromCamera({x:(mouse.x-rect.left)/rect.width*2-1,y:-(mouse.y-rect.top)/rect.height*2+1},view.cam);plane.constant=-(v.y);const p=ray.ray.intersectPlane(plane,_v);if(p){tx=p.x;tz=p.z;}}
+  if(foot){const p=footAim(v);tx=p.x;tz=p.z;}
   if(tx===undefined){const a=v.heading+(v.type==='tank'?v.turret:0);tx=v.x+Math.sin(a)*45;tz=v.z+Math.cos(a)*45;}
   tx=clamp(tx,X0+20,-X0-20);tz=clamp(tz,Z0+20,-Z0-20);
-  air.left[0]--;launchStrike(0,tx,tz);}
+  if(foot)G.footAir--;else air.left[0]--;launchStrike(0,tx,tz);}
 function updateAir(dt){
   const air=G.air;
   if(air&&air.left[1]>0&&!G.over){const pv=G.teams[0].vehicle,pb=G.bases[0];
@@ -3134,7 +3144,7 @@ addEventListener('keydown',e=>{audioInit();if(GAME_KEYS.has(e.code)&&state!=='ti
   if(/^Digit[1-6]$/.test(e.code)&&G&&G.views.length===1&&G.views[0].team.human)G.views[0].digit=+e.code[5];
   if(e.code==='Escape'&&G&&!G.demo&&!G.over)togglePause();
   if(e.code==='KeyM'&&state!=='title')setMusic(!AU.music);
-  if(e.code==='KeyF'&&G&&G.air&&state==='play')callStrike();
+  if(e.code==='KeyF'&&G&&(G.air||onFoot())&&state==='play')callStrike();
   if(e.code==='KeyV'&&G&&!G.demo&&state==='play')toggleChase();
   if(e.code==='KeyG'&&G&&!G.demo&&state==='play'&&G.views.length===1&&G.views[0].team.human)toggleFoot(G.views[0]);});
 addEventListener('keyup',e=>keys.delete(e.code));
@@ -3177,7 +3187,7 @@ function readHuman(view,inp){
     view.padMenu={l:bt(14)||ax[0]<-.5,r:bt(15)||ax[0]>.5,ok:bt(0)};
     if(bt(9)&&!view.prevStart&&!G.over)setTimeout(togglePause);view.prevStart=bt(9);
     if(bt(2)&&!view.prevX)setTimeout(()=>toggleFoot(view));view.prevX=bt(2);
-    if(bt(3)&&!view.prevY){if(!view.team.vehicle&&mslReady())setTimeout(()=>openStrikeMap(view));else if(G.air)setTimeout(callStrike);}view.prevY=bt(3);
+    if(bt(3)&&!view.prevY){if(!view.team.vehicle&&mslReady())setTimeout(()=>openStrikeMap(view));else if(G.air||onFoot())setTimeout(callStrike);}view.prevY=bt(3);
     const cb=bt(10)||bt(11);if(cb&&!view.prevCam)setTimeout(toggleChase);view.prevCam=cb;}
   const v=view.team.vehicle;
   if(solo&&opts.mouse&&v&&(performance.now()-mouse.moved<4000||mouse.l||mouse.r)){
@@ -3285,7 +3295,7 @@ function updateHud(view){
   const st=VORDER.filter(k=>k!=='truck'||t.truckOn).map(k=>`<div class="${t.stock[k]?'':'zero'}">${{tank:'TNK',heli:'HEL',asv:'ASV',jeep:'JEP',truck:'6X6'}[k]} ${t.stock[k]}</div>`).join('');
   if(lastHud.get(q.stock)!==st){q.stock.innerHTML=st;lastHud.set(q.stock,st);}
   const lab={hidden:'HIDDEN',exposed:'EXPOSED',carried:'TAKEN',captured:'CAPTURED'};const ef=G.flags[1-t.team],mf=G.flags[t.team];
-  const dv=devActive()&&t.team===0;const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air?`<div>AIR STRIKES <b style="color:${G.air.left[t.team]?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
+  const dv=devActive()&&t.team===0;const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air||(t.team===0&&onFoot())?`<div>AIR STRIKES <b style="color:${(t.team===0?airLeft():G.air.left[t.team])?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':t.team===0?airLeft():G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
   if(lastHud.get(q.flag)!==fl){q.flag.innerHTML=fl;lastHud.set(q.flag,fl);}
 }
 function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat in front
@@ -3572,7 +3582,7 @@ function loop(now){
   if(G.mslMap)mslMapTick(dt);
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
-  const showAir=showT&&!!G.air&&G.air.left[0]>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;
+  const showAir=showT&&airLeft()>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;
 }
 
 // ============================================================ online multiplayer (Supabase Realtime)

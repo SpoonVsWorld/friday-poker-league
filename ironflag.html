@@ -3242,7 +3242,7 @@ function launchStrike(T,tx,tz){
   if(T===0&&G.carrier){const C=G.carrier;let cx=tx-C.bowX,cz=tz-C.bowZ;const L=Math.hypot(cx,cz)||1;cx/=L;cz/=L;j.dx=cx;j.dz=cz;j.s=-L;j.L=L;j.x=C.bowX;j.z=C.bowZ;j.y0=C.deckY+1.5;j.ty=ty;j.y=j.y0;j.spd=CVN.spd;j.vx=cx*j.spd;j.vz=cz*j.spd; // off the catapult: from the bow, straight at the target, climbing to bombing height
     for(const p of pts){p.x=tx+cx*(p.s);p.z=tz+cz*(p.s);p.ring.position.set(p.x,Math.max(groundAt(p.x,p.z),0)+.15,p.z);}
     for(let i=0;i<30;i++)SMOKE.spawn(C.bowX-cx*rr(0,30),j.y0-.5,C.bowZ-cz*rr(0,30),rr(-2,2),rr(1,4),rr(-2,2),rr(1.5,3),3,9,[.85,.85,.85],[.7,.7,.7],.5,0,.6);}
-  j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.y=Math.atan2(dx,dz);world.add(j.obj);G.jets.push(j);
+  j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.order='YXZ';j.obj.rotation.y=Math.atan2(j.dx,j.dz);world.add(j.obj);G.jets.push(j);
   if(T===1){sfx('alarm');note(0,'ENEMY AIR STRIKE INBOUND — get off the red markers!','bad',true);note(1,'Air strike launched','info');}
   else{sfx('click');sample('s_radio',.9,1,.25);note(0,`Air strike inbound — ${airLeft()} left${onFoot()?' on foot':''}`,'good');}
   return j;}
@@ -3274,7 +3274,7 @@ function updateAir(dt){
   for(let i=G.jets.length-1;i>=0;i--){const j=G.jets[i];
     if(!j.alive){G.jets.splice(i,1);continue;}
     j.s+=(j.spd||JET.speed)*dt;j.x=j.tx+j.dx*j.s;j.z=j.tz+j.dz*j.s;
-    if(j.y0!=null){const k=smooth(-j.L+10,-j.L+220,j.s);j.y=lerp(j.y0,j.ty,k);j.obj.rotation.x=-(1-smooth(-j.L+150,-j.L+260,j.s))*.28*(j.s>-j.L+10?1:0);} // climbing out off the deck
+    if(j.y0!=null){const k=smooth(-j.L+10,-j.L+220,j.s);j.y=lerp(j.y0,j.ty,k);j.obj.rotation.y=Math.atan2(j.dx,j.dz);j.obj.rotation.x=-(1-smooth(-j.L+150,-j.L+260,j.s))*.28*(j.s>-j.L+10?1:0);} // climbing out off the deck (yaw then pitch, in the jet's own frame)
     j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.z=Math.sin(G.time*3)*.04;
     if(Math.random()<dt*40)FIRE.spawn(j.x-j.dx*5.8,j.y+.2,j.z-j.dz*5.8,-j.vx*.05,0,-j.vz*.05,.18,1.2,.3,C_FIRE0,C_FIRE1,.8);
     if(!j.roared&&j.s>-110){j.roared=true;sfx('jet',j.tx,j.tz);}

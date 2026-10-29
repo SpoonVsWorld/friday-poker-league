@@ -154,7 +154,7 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .mslbtn.on{border-color:var(--signal);box-shadow:0 0 0 2px var(--signal) inset}
 .mslbtn[disabled]{opacity:.5;cursor:not-allowed}
 .mslbtn:not([disabled]):hover{border-color:var(--signal)}
-.mslbtn.nukebtn i{color:#ff8a6a}.mslbtn.nukebtn.on{border-color:#ff8a6a;box-shadow:0 0 0 2px #ff8a6a inset}
+.mslbtn.orbbtn i{color:#7fb0ff}.mslbtn.orbbtn.on{border-color:#7fb0ff;box-shadow:0 0 0 2px #7fb0ff inset}.mslbtn.nukebtn i{color:#ff8a6a}.mslbtn.nukebtn.on{border-color:#ff8a6a;box-shadow:0 0 0 2px #ff8a6a inset}
 #msl{position:fixed;inset:0;z-index:18;background:#0b1a20;touch-action:none;user-select:none;-webkit-user-select:none}
 #msl canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
 #msl .mtop,#msl .mbot{position:absolute;left:0;right:0;display:flex;align-items:center;gap:12px;background:rgba(8,11,8,.86);color:var(--sand);box-sizing:border-box;padding-left:calc(14px + var(--sal));padding-right:calc(14px + var(--sar))}
@@ -420,7 +420,7 @@ const tmpBox=new THREE.Box3();
 const DATA='sp-data/',DATA_V='12';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
-const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death']; // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
+const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
 const MUS_KEYS=['m_drums','m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
 // Retro Tree Pack (Matt's Kenney folder, Low Res GLBs with WebP textures): photo-textured trees replace the cartoon Kenney
@@ -441,6 +441,8 @@ PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);retur
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.sub=fetchBin('sub.glb').catch(e=>{console.warn('sub',e);return null;}); // NUCLEAR STRIKE: the player's ballistic-missile submarine (Blender, scratch-built 28 Oct 2026: Hull/Sail/Hatch pivot/Mount)
 PRE.carrier=fetchBin('carrier.glb').catch(e=>{console.warn('carrier',e);return null;}); // (Matt, 29 Oct 2026) his aircraft carrier (cn 004 assault, a Wings 3D file decoded + decimated in Blender): sits off your end of the island, your air strikes launch from it
+PRE.station=fetchBin('station.glb').catch(e=>{console.warn('station',e);return null;}); // (Matt, 29 Oct 2026) orbital laser platform SPOON, scratch-built in Blender (truss, hab modules, folding solar wings + radiators, gimballed emitter)
+PRE.orbtex=Promise.all([['earth','earth',1],['clouds','clouds',1],['rough','earth_r',0]].map(([k,f,srgb])=>new THREE.TextureLoader().loadAsync(DATA+f+'.webp?v='+DATA_V).then(t=>{t.colorSpace=srgb?THREE.SRGBColorSpace:THREE.NoColorSpace;t.anisotropy=8;ORBT[k]=t;}).catch(e=>console.warn('orbtex',k,e))));
 PRE.m4=fetchBin('m4.glb').catch(e=>{console.warn('m4',e);return null;}); // (Matt, 29 Oct 2026) the M4 carbine, scratch-built in Blender: 14.5 in barrel, quad rail, FSB, A2 hider, flat-top + red dot, 6-position stock, STANAG mag
 PRE.props=fetchBin('props.glb').catch(e=>{console.warn('props',e);return null;}); // Blender ordnance (29 Oct 2026): M67 grenade, M15 anti-tank mine, Mk 82 bomb
 PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
@@ -491,6 +493,7 @@ async function loadAssets(){
     A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
   try{const cb=await PRE.carrier;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(cb,'',res,rej));const cr=cg.scene.getObjectByName('Carrier')||cg.scene;cr.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.4;o.material.flatShading=false;o.material.fog=false;o.material.color.lerp(new THREE.Color(FOG),.22);}}});A.carrier=cr;}}catch(e){console.warn('carrier model',e);}
   try{const mb=await PRE.m4;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const m4=mg.scene.getObjectByName('M4')||mg.scene;m4.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;if(o.material){o.material.envMapIntensity=.7;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}}});A.m4=m4;RIFLE.tpl=null;RIFLE.grip.copy(RIFLE.m4.grip);RIFLE.fore.copy(RIFLE.m4.fore);}}catch(e){console.warn('m4 model',e);}
+  try{const sb=await PRE.station;if(sb){const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));const st=sg.scene.getObjectByName('Station')||sg.scene;st.traverse(o=>{if(o.isMesh&&o.material){o.material.metalness=Math.min(o.material.metalness,.35);o.material.envMapIntensity=.5;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}});A.station=st;}await PRE.orbtex;}catch(e){console.warn('station model',e);}
   try{const pb=await PRE.props;if(pb){const pg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(pb,'',res,rej));A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
   try{const tb=await PRE.trooper;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
@@ -1769,16 +1772,18 @@ function islandSnapshot(){ // one top-down render of the whole island for the ta
   return c||G.miniImg;
 }
 function openStrikeMap(view,nuke){
-  if(nuke){if(!nukeReady()){if(G&&!nukeCount())note(0,`Nuclear strike needs ${NUKE.cost} banked missile strikes`,'warn');return;}}
+  const orb=nuke==='orb';
+  if(orb){if(!orbReady()){if(G&&!orbCount())note(0,`Orbital strike needs ${ORB.cost} banked missile strikes`,'warn');return;}}
+  else if(nuke){if(!nukeReady()){if(G&&!nukeCount())note(0,`Nuclear strike needs ${NUKE.cost} banked missile strikes`,'warn');return;}}
   else if(!mslReady()){if(G&&G.op&&!mslCount())note(0,'No missile strikes banked — finish an operation without losing a vehicle','warn');return;}
-  mslBuildUI();MM.nuke=!!nuke;MM.site=nuke?nukeSite():null;if(nuke&&!MM.site){note(0,'No open water off your coast for the submarine','warn');return;}
-  MM.el.querySelector('.mtop b').textContent=nuke?'Nuclear strike':'Missile strike';MM.el.classList.toggle('nukemap',!!nuke);MM.armed=false;MM.keys=[false,false];MM.broken=false;MM.hits=0;if(MM.q2){MM.q2.keys.forEach(k=>k.classList.remove('on'));MM.q2.fire.disabled=true;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';}G.mslMap=true;MM.view=view;MM.img=islandSnapshot();MM.el.hidden=false;MM.z=1;MM.cx=0;MM.cz=0;MM.hover=null;MM.ptrs.clear();MM.pinch=null;MM.pinched=false;MM.drag=null;MM.txt={};
+  mslBuildUI();MM.nuke=!!nuke;MM.orb=orb;MM.site=nuke&&!orb?nukeSite():null;if(nuke&&!orb&&!MM.site){note(0,'No open water off your coast for the submarine','warn');return;}
+  MM.el.querySelector('.mtop b').textContent=orb?'Orbital strike':nuke?'Nuclear strike':'Missile strike';MM.el.classList.toggle('nukemap',!!nuke);MM.el.querySelector('.nkwarn').textContent=orb?'⚡ ORBITAL LASER · STARTS ON YOUR TARGET, THEN EVERY ENEMY STRUCTURE, VEHICLE AND SOLDIER ON THE ISLAND':'☢ NUCLEAR RELEASE · 60 m VAPORISED · 90 m LETHAL · 140 m FALLOUT · YOUR OWN FORCES IN THE ZONE WILL BE LOST';MM.armed=false;MM.keys=[false,false];MM.broken=false;MM.hits=0;if(MM.q2){MM.q2.keys.forEach(k=>k.classList.remove('on'));MM.q2.fire.disabled=true;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';}G.mslMap=true;MM.view=view;MM.img=islandSnapshot();MM.el.hidden=false;MM.z=1;MM.cx=0;MM.cz=0;MM.hover=null;MM.ptrs.clear();MM.pinch=null;MM.pinched=false;MM.drag=null;MM.txt={};
   mslLayout();
-  const last=(MM.nuke?MM.lastN:MM.last)&&(MM.nuke?MM.lastN:MM.last).seed===G.seed?(MM.nuke?MM.lastN:MM.last):null;
-  if(last)mslAim(last.x,last.z);else if(MM.nuke){const b=G.bases[1];mslAim(b.x,b.z);}else{const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}
+  const lastP=MM.orb?MM.lastO:MM.nuke?MM.lastN:MM.last,last=lastP&&lastP.seed===G.seed?lastP:null;
+  if(last)mslAim(last.x,last.z);else if(MM.orb){const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}else if(MM.nuke){const b=G.bases[1];mslAim(b.x,b.z);}else{const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}
   MM.z=clamp(.9/MM.fit,1,6);MM.cx=MM.tx;MM.cz=MM.tz;mslClamp(); // small screens open zoomed in on the target; pinch / wheel / ± to see the whole island
   const pads=navigator.getGamepads?[...navigator.getGamepads()].filter(Boolean):[];const pad=pads[0];MM.pad={};if(pad)for(const i of [0,1,4,5])MM.pad[i]=!!pad.buttons[i]?.pressed;
-  MM.q.num.textContent=MM.nuke?`×${nukeCount()} ready · ${NUKE.cost} missile strikes each`:`×${mslCount()} ready`;
+  MM.q.num.textContent=MM.orb?`×${orbCount()} ready · ${ORB.cost} missile strikes each`:MM.nuke?`×${nukeCount()} ready · ${NUKE.cost} missile strikes each`:`×${mslCount()} ready`;
   MM.q.help.innerHTML=MM.nuke?(opts.touch?'Drag to aim · turn both keys · break the glass · press the red button':'Aim · <kbd>Enter</kbd> key A, key B, break the glass (twice), fire · <kbd>Esc</kbd> cancel'):opts.touch?'Drag to aim · pinch to zoom':'Click a spot or building · wheel zoom · drag to pan · <kbd>Tab</kbd> next target · <kbd>Enter</kbd> launch · <kbd>Esc</kbd> cancel';
   sfx('click');
 }
@@ -1814,18 +1819,19 @@ function mslDraw(){
   x.strokeStyle='rgba(239,226,184,.07)';x.lineWidth=1;x.beginPath();for(let gx=X0;gx<=-X0+.1;gx+=50){const [a]=P(gx,0);x.moveTo(a,iy);x.lineTo(a,iy+L*s);}for(let gz=Z0;gz<=-Z0+.1;gz+=50){const [,b]=P(0,gz);x.moveTo(ix,b);x.lineTo(ix+W*s,b);}x.stroke();
   for(const st of G.statics){if(!st.alive||st.team!==1||!MSL_SNAP.has(st.kind)||st===MM.snap)continue;const [px,py]=P(st.x,st.z);mslBracket(x,px,py,Math.max(4,mslExtent(st)*s*.75),'rgba(255,140,120,.5)',1);}
   for(const b of G.bases){const [px,py]=P(b.x,b.z);x.fillStyle=TEAMS[b.team].css;x.font='600 11px Chakra Petch, sans-serif';x.textAlign='center';x.fillText(b.team===0?'YOUR BASE':'ENEMY BASE',px,py+(b.team===0?-1:1)*Math.max(26,40*s)+4);}
-  const Ln=G.launcher,site=MM.nuke?MM.site:{x:Ln.s.x,z:Ln.s.z},[lx,ly]=P(site.x,site.z),[tx,ty]=P(MM.tx,MM.tz),tooClose=MM.nuke&&nukeTooClose(MM.tx,MM.tz);
-  if(MM.nuke){const ob=G.bases[0],[bx,by]=P(ob.x,ob.z);x.save();x.setLineDash([5,5]);x.strokeStyle=tooClose?'rgba(255,90,70,.95)':'rgba(255,120,100,.55)';x.lineWidth=1.5;x.fillStyle='rgba(255,70,50,.08)';x.beginPath();x.arc(bx,by,(NUKE.R+NUKE.keep)*s,0,TAU);x.fill();x.stroke();x.restore();}
+  const Ln=G.launcher,site=MM.orb?{x:MM.tx,z:MM.tz}:MM.nuke?MM.site:{x:Ln.s.x,z:Ln.s.z},[lx,ly]=P(site.x,site.z),[tx,ty]=P(MM.tx,MM.tz),tooClose=MM.nuke&&!MM.orb&&nukeTooClose(MM.tx,MM.tz);
+  if(MM.nuke&&!MM.orb){const ob=G.bases[0],[bx,by]=P(ob.x,ob.z);x.save();x.setLineDash([5,5]);x.strokeStyle=tooClose?'rgba(255,90,70,.95)':'rgba(255,120,100,.55)';x.lineWidth=1.5;x.fillStyle='rgba(255,70,50,.08)';x.beginPath();x.arc(bx,by,(NUKE.R+NUKE.keep)*s,0,TAU);x.fill();x.stroke();x.restore();}
   // flight line: truck -> target
-  x.save();x.setLineDash([7,6]);x.strokeStyle='rgba(242,182,50,.75)';x.lineWidth=1.6;x.beginPath();x.moveTo(lx,ly);const mx=(lx+tx)/2,my=(ly+ty)/2,dl=Math.hypot(tx-lx,ty-ly);x.quadraticCurveTo(mx+(ty-ly)*.12,my-(tx-lx)*.12-dl*.04,tx,ty);x.stroke();x.restore();
-  x.fillStyle='#7fb0ff';x.strokeStyle='#0b1210';x.lineWidth=2;x.beginPath();x.arc(lx,ly,5,0,TAU);x.fill();x.stroke();x.font='600 10px Chakra Petch, sans-serif';x.textAlign='left';x.fillStyle='#cfe0ff';x.fillText(MM.nuke?'SSBN 20':'LAUNCHER',lx+8,ly+3);
+  if(!MM.orb){x.save();x.setLineDash([7,6]);x.strokeStyle='rgba(242,182,50,.75)';x.lineWidth=1.6;x.beginPath();x.moveTo(lx,ly);const mx=(lx+tx)/2,my=(ly+ty)/2,dl=Math.hypot(tx-lx,ty-ly);x.quadraticCurveTo(mx+(ty-ly)*.12,my-(tx-lx)*.12-dl*.04,tx,ty);x.stroke();x.restore();
+  x.fillStyle='#7fb0ff';x.strokeStyle='#0b1210';x.lineWidth=2;x.beginPath();x.arc(lx,ly,5,0,TAU);x.fill();x.stroke();x.font='600 10px Chakra Petch, sans-serif';x.textAlign='left';x.fillStyle='#cfe0ff';x.fillText(MM.nuke?'SSBN 20':'LAUNCHER',lx+8,ly+3);}
+  else{x.save();x.strokeStyle='rgba(127,176,255,.8)';x.lineWidth=1.2;x.setLineDash([3,4]);x.beginPath();x.arc(tx,ty,Math.max(14,36*s),0,TAU);x.stroke();x.restore();x.font='600 10px Chakra Petch, sans-serif';x.textAlign='center';x.fillStyle='#cfe0ff';x.fillText('BEAM STARTS HERE',tx,ty+Math.max(14,36*s)+12);}
   // mouse hover preview (what a click would pick)
   if(MM.hover&&!MM.drag?.moved){const [hx,hz]=mslToWorld(MM.hover[0],MM.hover[1]);const hs=mslSnap(hx,hz,Math.max(3,16/s));if(hs&&hs!==MM.snap){const [px,py]=P(hs.x,hs.z);mslBracket(x,px,py,Math.max(6,mslExtent(hs)*s*.85),'rgba(255,255,255,.85)',1.5);}}
   // blast radius + crosshair
-  if(MM.nuke){x.save();x.font='700 9px Chakra Petch, sans-serif';x.textAlign='center';
+  if(MM.nuke&&!MM.orb){x.save();x.font='700 9px Chakra Petch, sans-serif';x.textAlign='center';
     for(const [rad,col,lab,dash] of [[NUKE.FALL,'rgba(90,255,120,.75)','FALLOUT 140 m',[6,5]],[NUKE.R2,'rgba(255,160,60,.85)','LETHAL 90 m',[]]]){const rp=rad*s;x.setLineDash(dash);x.strokeStyle=col;x.lineWidth=1.3;x.beginPath();x.arc(tx,ty,rp,0,TAU);x.stroke();x.setLineDash([]);x.fillStyle=col;x.fillText(lab,tx,ty-rp-4);}
     x.restore();}
-  const R=Math.max(7,(MM.nuke?NUKE.R:MSL.R)*s),pulse=.5+.5*Math.sin(performance.now()/180);
+  const R=Math.max(7,(MM.orb?5:MM.nuke?NUKE.R:MSL.R)*s),pulse=.5+.5*Math.sin(performance.now()/180);
   x.fillStyle=tooClose?'rgba(255,60,40,.3)':MM.nuke?'rgba(255,140,60,.18)':'rgba(229,84,74,.16)';x.strokeStyle='rgba(242,182,50,.95)';x.lineWidth=1.5;x.beginPath();x.arc(tx,ty,R,0,TAU);x.fill();x.stroke();
   const cr=R+10+pulse*3;x.strokeStyle='#f2b632';x.lineWidth=2;x.beginPath();x.moveTo(tx-cr-10,ty);x.lineTo(tx-R*.45,ty);x.moveTo(tx+R*.45,ty);x.lineTo(tx+cr+10,ty);x.moveTo(tx,ty-cr-10);x.lineTo(tx,ty-R*.45);x.moveTo(tx,ty+R*.45);x.lineTo(tx,ty+cr+10);x.stroke();
   x.beginPath();x.arc(tx,ty,2,0,TAU);x.fillStyle='#f2b632';x.fill();
@@ -1833,7 +1839,7 @@ function mslDraw(){
     const lab=mslTargetName(MM.snap).toUpperCase();x.font='700 12px Chakra Petch, sans-serif';const tw=x.measureText(lab).width+12,ly2=py-Math.max(8,mslExtent(MM.snap)*s*.9)-26;
     x.fillStyle='rgba(8,11,8,.85)';x.fillRect(px-tw/2,ly2,tw,18);x.fillStyle='#ff8070';x.textAlign='center';x.fillText(lab,px,ly2+13);}
   const dist=Math.hypot(MM.tx-site.x,MM.tz-site.z);
-  const info=(MM.snap?mslTargetName(MM.snap):groundAt(MM.tx,MM.tz)<0?'Open water':'Open ground')+` · ${Math.round(dist)} m`+(tooClose?' · TOO CLOSE TO YOUR BUNKER':'');
+  const info=(MM.snap?mslTargetName(MM.snap):groundAt(MM.tx,MM.tz)<0?'Open water':'Open ground')+(MM.orb?' · first target':` · ${Math.round(dist)} m`)+(tooClose?' · TOO CLOSE TO YOUR BUNKER':'');
   if(MM.nuke&&MM.q2){const dis=!MM.armed||!MM.broken||tooClose;if(MM.q2.fire.disabled!==dis)MM.q2.fire.disabled=dis;}
   if(MM.txt.info!==info){MM.q.info.textContent=info;MM.txt.info=info;}
 }
@@ -1841,13 +1847,13 @@ function nukeKey(i){ // two-man rule: both keys turned, then the glass, then the
   if(!MM.nuke||!G||!G.mslMap)return;MM.keys=MM.keys||[false,false];MM.keys[i]=!MM.keys[i];MM.q2.keys[i].classList.toggle('on',MM.keys[i]);MM.armed=MM.keys[0]&&MM.keys[1];
   if(!MM.armed&&MM.broken){MM.broken=false;MM.hits=0;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';}
   MM.q2.glass.classList.toggle('locked',!MM.armed);MM.q2.fire.disabled=!MM.armed||!MM.broken||nukeTooClose(MM.tx,MM.tz);
-  if(AU.ctx){tone(.3,.08,1400,500,'square');noiseHit(.25,.12,2500,900,'bandpass',1);if(MM.armed)tone(.22,.5,880,880,'sine',.15);}
+  if(!sample('s_switch',1,MM.keys[i]?1:.88)&&AU.ctx){tone(.3,.08,1400,500,'square');noiseHit(.25,.12,2500,900,'bandpass',1);}if(MM.armed&&AU.ctx)tone(.22,.5,880,880,'sine',.15);
   note(0,MM.armed?'BOTH KEYS TURNED — break the glass':MM.keys[i]?`Key ${i?'B':'A'} turned`:'Safe','warn');}
 function nukeGlass(){
   if(!MM.nuke||!G||!G.mslMap||MM.broken)return;if(!MM.armed){note(0,'Turn both keys first','warn');sfx('click');return;}
   MM.hits=(MM.hits||0)+1;const g=MM.q2.glass;g.style.transform='scale(.96)';setTimeout(()=>{g.style.transform='';},90);
-  if(MM.hits===1){g.classList.add('cracked');if(AU.ctx){noiseHit(.35,.09,4200,1800,'bandpass',2);tone(.15,.06,2600,900,'square');}note(0,'Cracked — hit it again','warn');return;}
-  MM.broken=true;g.classList.add('gone');if(AU.ctx){noiseHit(.5,.35,3600,900,'bandpass',1.2);noiseHit(.3,.5,6000,2500,'highpass',.4,.05);for(let i=0;i<6;i++)tone(.05,.12,2000+Math.random()*4000,1500,'triangle',i*.04);}
+  if(MM.hits===1){g.classList.add('cracked');if(!sample('s_glass',.4,1.4)&&AU.ctx){noiseHit(.35,.09,4200,1800,'bandpass',2);tone(.15,.06,2600,900,'square');}note(0,'Cracked — hit it again','warn');return;}
+  MM.broken=true;g.classList.add('gone');if(!sample('s_glass',1,1)&&AU.ctx){noiseHit(.5,.35,3600,900,'bandpass',1.2);noiseHit(.3,.5,6000,2500,'highpass',.4,.05);for(let i=0;i<6;i++)tone(.05,.12,2000+Math.random()*4000,1500,'triangle',i*.04);}
   MM.q2.fire.disabled=!MM.armed||nukeTooClose(MM.tx,MM.tz);note(0,'GLASS BROKEN — press the red button to launch','bad',true);}
 function nukeArm(on){if(on){if(!MM.keys||!MM.keys[0])nukeKey(0);if(!MM.keys[1])nukeKey(1);}else{if(MM.keys&&MM.keys[0])nukeKey(0);if(MM.keys&&MM.keys[1])nukeKey(1);}}
 function mslGo(){
@@ -2070,7 +2076,7 @@ function mslImpact(S){
   const nm=S.name;note(0,nm?`Direct hit — ${nm.toLowerCase()} destroyed`:'Impact','good',true);
 }
 function updateStrike(dt){
-  const S=G.strike;if(!S)return;S.t+=dt;if(S.nuke){updateNuke(S,dt);return;}const Ln=G.launcher;
+  const S=G.strike;if(!S)return;S.t+=dt;if(S.orb){updateOrb(S,dt);return;}if(S.nuke){updateNuke(S,dt);return;}const Ln=G.launcher;
   if(!Ln||!Ln.er){G.strike=null;return;}
   mslOpTick(S,dt);
   switch(S.phase){
@@ -2116,7 +2122,7 @@ function mslObserver(S){ // a spot behind the pad with a clear view of the missi
     if(!best)best={x,y,z};if(!mslBlocked(x,y,z,S.p0.x,S.p0.y+6,S.p0.z,G.launcher.s)&&!mslBlocked(x,y,z,S.p0.x,S.p0.y+30,S.p0.z,G.launcher.s))return {x,y,z};}
   return best;}
 function strikeCam(view,dt){
-  const S=G.strike;if(S.nuke)return nukeCam(view,dt);const Ln=G.launcher,cam=view.cam,o=Ln.obj,hd=o.rotation.y,fx=Math.sin(hd),fz=Math.cos(hd);let k=1-Math.exp(-dt*5);
+  const S=G.strike;if(S.orb)return orbCam(view,dt);if(S.nuke)return nukeCam(view,dt);const Ln=G.launcher,cam=view.cam,o=Ln.obj,hd=o.rotation.y,fx=Math.sin(hd),fz=Math.cos(hd);let k=1-Math.exp(-dt*5);
   if(S.phase==='raise'||S.phase==='ignite'){ // 3/4 view of the trailer from the open side (away from the bunker)
     const px=o.position.x-fx*12,pz=o.position.z-fz*12,py=o.position.y,rx=Math.cos(hd),rz=-Math.sin(hd),b=G.bases[0];
     if(S.camA==null)S.camA=mslCamAngle(o,px,py,pz,rx,rz,fx,fz,b);const a=S.camA+(S.phase==='raise'?S.t:MSL.raise+S.t)*.04;
@@ -2153,7 +2159,7 @@ const NUKE_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><ellipse cx="32" cy
 function nukeCount(){if(devActive())return 99;return Math.floor(mslCount()/NUKE.cost);}
 function nukeShown(){return !!(A.sub&&G&&(G.op||devActive())&&!G.net&&!G.demo);}
 function nukeReady(){return !!(nukeShown()&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&nukeCount()>0);}
-function nukeTooClose(x,z){const b=G.bases[0];return Math.hypot(x-b.x,z-b.z)<NUKE.R+NUKE.keep;}
+function nukeTooClose(x,z){if(MM.orb)return false;const b=G.bases[0];return Math.hypot(x-b.x,z-b.z)<NUKE.R+NUKE.keep;}
 function nukeSite(){ // open water off the coast nearest your bunker, the sub lying broadside to the shore
   const b=G.bases[0];const a0=Math.atan2(b.x,b.z);const inside=(x,z)=>x>X0-160&&x<-X0+160&&z>Z0-160&&z<-Z0+160; // the sea runs well past the island's own rectangle
   for(let k=0;k<24;k++){const a=a0+(k%2?1:-1)*Math.ceil(k/2)*(TAU/24),dx=Math.sin(a),dz=Math.cos(a);let shore=null;
@@ -2162,7 +2168,7 @@ function nukeSite(){ // open water off the coast nearest your bunker, the sub ly
     if(ok)return {x,z,hd:Math.atan2(dz,-dx),ix:-dx,iz:-dz,shore:{x:b.x+dx*shore,z:b.z+dz*shore}};}
   return null;}
 function nukeGo(){
-  if(!G||!G.mslMap)return;if(nukeTooClose(MM.tx,MM.tz)){note(0,'Too close to your own bunker','warn');sfx('click');return;}
+  if(!G||!G.mslMap)return;if(MM.orb)return orbGo();sample('s_switch',1,.75);if(nukeTooClose(MM.tx,MM.tz)){note(0,'Too close to your own bunker','warn');sfx('click');return;}
   const s=MM.snap&&MM.snap.alive?MM.snap:null;MM.lastN={x:MM.tx,z:MM.tz,seed:G.seed};const site=MM.site;closeStrikeMap(false);if(!site||G.strike||nukeCount()<=0)return;
   const ty=s?s.y0+Math.min(s.h*.45,5):Math.max(groundAt(MM.tx,MM.tz),0);
   const sub=A.sub.clone();sub.position.set(site.x,NUKE.deepY,site.z);sub.rotation.y=site.hd;world.add(sub);
@@ -2467,6 +2473,147 @@ function nukeCam(view,dt){
     else tx=S.killed?`GROUND ZERO · ${S.killed} STRUCTURES VAPORISED`:'GROUND ZERO';
     if(MM.cineT!==tx){MM.cineTxt.textContent=tx;MM.cineT=tx;}}
 }
+// ============================================================ orbital laser strike (Matt, 29 Oct 2026)
+// Unlocked by beating the last operation. Six banked missile strikes (two nukes' worth) buy one shot. The bunker's
+// "Orbital strike" opens the targeting map (same two keys / glass / red button as the nuke); the first target is the
+// spot you pick. Then a cut to orbit: platform SPOON (Blender, station.glb) over a procedurally textured Earth unfolds
+// its solar wings and radiators, swings the emitter down at the island, locks on ("target acquired") and charges.
+// Cut back to the ground: the beam comes down out of the sky on your target and walks the island, nearest-next,
+// through every enemy structure, turret, gate, vehicle, drone, jet and soldier, burning a trail into the ground, with
+// the camera chasing the impact point. Matt's sounds: the switch clicks for the keys and button, the glass, the
+// "super erasism beam" as the beam, his power-down clip for each zap and for the platform powering down at the end.
+const ORB={cost:6,orbit:7,deploy:8,aim:5,charge:3,end:5,maxT:160,sweep:70,dwell:{static:.5,vehicle:.4,soldier:.2,drone:.25,jet:.3},sky:new V3(-260,760,-200)};
+const ORB_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><rect x="3" y="9" width="17" height="6" fill="#4f7fd0"/><rect x="44" y="9" width="17" height="6" fill="#4f7fd0"/><rect x="22" y="7" width="20" height="10" rx="2" fill="#c9b98a"/><path d="M32 17v7" stroke="#ff5a4a" stroke-width="2"/><circle cx="32" cy="12" r="2.5" fill="#ff5a4a"/></svg>';
+const ORB_KINDS=new Set(['building','hospital','depot','gas','turret','gate','radio','tower','gen','fuel','tent']);
+const ORBS={scene:null,cam:null,earth:null,clouds:null,st:null,parts:null,glow:null};
+const ORBT={};
+function orbUnlocked(){if(DEV.on)return true;const b=loadOps().best||{};return b[OPS.length-1]!=null;}
+function orbShown(){return !!(A.station&&G&&(G.op||devActive())&&!G.net&&!G.demo&&orbUnlocked());}
+function orbCount(){if(devActive())return 99;return Math.floor(mslCount()/ORB.cost);}
+function orbReady(){return !!(orbShown()&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&orbCount()>0);}
+function orbSpace(S){return S.phase==='orbit'||S.phase==='deploy'||S.phase==='aim'||S.phase==='charge';}
+function orbBuild(){ // the orbit set: stars, Earth (map + clouds + a fresnel atmosphere), the sun, the platform
+  if(ORBS.scene)return ORBS;const sc=new THREE.Scene();sc.background=new THREE.Color(0x000000);
+  const cam=new THREE.PerspectiveCamera(50,1,.5,20000);
+  const n=4000,pa=new Float32Array(n*3);for(let i=0;i<n;i++){const u=rr(-1,1),a=rr(0,TAU),s=Math.sqrt(1-u*u),r=9000;pa[i*3]=s*Math.cos(a)*r;pa[i*3+1]=u*r;pa[i*3+2]=s*Math.sin(a)*r;}
+  const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.BufferAttribute(pa,3));sc.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:16,sizeAttenuation:true,fog:false})));
+  const R=640;const earth=new THREE.Mesh(new THREE.SphereGeometry(R,96,64),new THREE.MeshStandardMaterial({color:0xffffff,map:ORBT.earth||null,roughnessMap:ORBT.rough||null,roughness:1,metalness:0,fog:false}));const ep=new THREE.Group();ep.position.set(0,-R-120,0);ep.rotation.set(Math.PI/2+.35,0,.3);ep.add(earth);sc.add(ep);
+  const clouds=new THREE.Mesh(new THREE.SphereGeometry(R*1.012,96,64),new THREE.MeshStandardMaterial({color:0xffffff,map:ORBT.clouds||null,transparent:true,opacity:.95,depthWrite:false,roughness:1,fog:false}));earth.add(clouds);
+  const atm=new THREE.Mesh(new THREE.SphereGeometry(R*1.035,64,48),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,vertexShader:`varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}`,fragmentShader:`varying vec3 vN;varying vec3 vV;void main(){float d=max(0.,dot(vN,vV));float f=pow(1.-d,3.2);gl_FragColor=vec4(.4,.65,1.,1.)*(f*1.1+.04);}`}));earth.add(atm);
+  const sun=new THREE.DirectionalLight(0xfff4e0,3.4);sun.position.set(900,350,500);sc.add(sun);sc.add(new THREE.AmbientLight(0x3a4a70,.5));
+  const st=A.station.clone();sc.add(st);ORBS.parts={};for(const k of ['WingL','WingR','RadT','RadB','Gimbal','Emitter','Dish'])ORBS.parts[k]=st.getObjectByName(k);
+  ORBS.glow=[];st.traverse(o=>{if(o.isMesh&&o.material&&o.material.emissive&&(o.name==='Lens'||o.name==='LensCore'||/^FRing/.test(o.name))){o.material=o.material.clone();o.material.emissive.set(0xff3a20);o.material.emissiveIntensity=.25;o.material.toneMapped=false;ORBS.glow.push(o.material);}});
+  const chg=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),new THREE.MeshBasicMaterial({color:0xff6a30,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));chg.position.set(0,0,5.8);chg.scale.setScalar(.001);const chg2=new THREE.Mesh(new THREE.SphereGeometry(.45,16,12),new THREE.MeshBasicMaterial({color:0xfff4e0,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));chg.add(chg2);const chl=new THREE.PointLight(0xff7040,0,40,2);chg.add(chl);chg.userData.light=chl;if(ORBS.parts.Emitter)ORBS.parts.Emitter.add(chg);
+  Object.assign(ORBS,{scene:sc,cam,earth,clouds,st,chg});return ORBS;
+}
+function orbPose(w,r,e,yaw){ // solar wings w, radiators r, emitter pitch e (0 stowed .. 1 deployed), gimbal yaw
+  const P=ORBS.parts;if(!P)return;const sw=smooth(0,1,clamp(w,0,1)),sr=smooth(0,1,clamp(r,0,1)),se=smooth(0,1,clamp(e,0,1));
+  if(P.WingR)P.WingR.scale.set(lerp(.06,1,sw),1,1);if(P.WingL)P.WingL.scale.set(lerp(.06,1,sw),1,1); // the blankets concertina out along the masts
+  if(P.RadT)P.RadT.rotation.set((1-sr)*Math.PI/2,0,0);if(P.RadB)P.RadB.rotation.set(-(1-sr)*Math.PI/2,0,0);
+  if(P.Emitter)P.Emitter.rotation.set(se*Math.PI/2,0,0);if(P.Gimbal)P.Gimbal.rotation.set(0,yaw||0,0);
+  if(P.Dish)P.Dish.rotation.set(0,(yaw||0)*.5,-.3*se);
+}
+function orbGo(){
+  if(!G||!G.mslMap)return;const s=MM.snap&&MM.snap.alive?MM.snap:null;MM.lastO={x:MM.tx,z:MM.tz,seed:G.seed};closeStrikeMap(false);if(G.strike||orbCount()<=0||!A.station)return;
+  sample('s_switch',1,.75);orbBuild();orbPose(0,0,0,0);for(const m of ORBS.glow)m.emissiveIntensity=.25;ORBS.chg.scale.setScalar(.001);
+  G.strike={orb:true,phase:'orbit',t:0,ft:0,tx:MM.tx,tz:MM.tz,tgt:s,name:s?mslTargetName(s):null,view:MM.view||G.views[0],cine:true,n:0,snd:null};
+  if(!devActive())setStrikes(mslCount()-ORB.cost);
+  note(0,'Uplink to orbital platform SPOON — stand by','warn',true);sfx('alarm');sample('s_radio',.8,1,.6);musicStop();
+}
+function orbCandidates(){ // everything on the enemy side that is still standing
+  const c=[];for(const s of G.statics)if(s.alive&&s.team===1&&ORB_KINDS.has(s.kind))c.push({k:'static',o:s});
+  for(const v of G.vehicles)if(v.team===1&&v.state==='active')c.push({k:'vehicle',o:v});
+  for(const d of G.drones)if(d.alive&&d.team===1)c.push({k:'drone',o:d});
+  for(const j of G.jets)if(j.alive&&j.team===1)c.push({k:'jet',o:j});
+  for(const sd of G.soldiers)if(sd.alive&&sd.team===1&&!sd.ride)c.push({k:'soldier',o:sd});
+  return c;}
+function orbPos(t,out){const o=t.o;out.set(o.x,t.k==='static'?Math.max(groundAt(o.x,o.z),0):(o.y||Math.max(groundAt(o.x,o.z),0)),o.z);if(t.k==='static'&&o.kind==='turret')out.y+=1.2;return out;}
+function orbAlive(t){const o=t.o;return t.k==='static'?o.alive:t.k==='vehicle'?o.state==='active':o.alive;}
+function orbNext(S,x,z){let best=null,bd=1e9;for(const c of orbCandidates()){const d=Math.hypot(c.o.x-x,c.o.z-z);if(d<bd){bd=d;best=c;}}return best;}
+function orbBeamMake(){
+  const g=new THREE.Group();const cyl=(r,col,op,seg)=>{const ge=new THREE.CylinderGeometry(r,r,1,seg,1,true);ge.translate(0,.5,0);const m=new THREE.Mesh(ge,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}));m.frustumCulled=false;return m;};
+  const core=cyl(.5,0xfff6e8,1,10),mid=cyl(1.6,0xff7a30,.45,14),outer=cyl(5,0xff3010,.12,16);g.add(core,mid,outer);
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(6,24).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffb060,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));disc.renderOrder=6;g.add(disc);
+  const light=new THREE.PointLight(0xff7030,0,110,2);g.add(light);
+  const L=ORB.sky.length()*1.4,q=new THREE.Quaternion().setFromUnitVectors(new V3(0,1,0),ORB.sky.clone().normalize());for(const m of [core,mid,outer]){m.quaternion.copy(q);m.scale.y=L;}
+  world.add(g);return {g,core,mid,outer,disc,light,ip:new V3(),dir:new V3(1,0,0),trail:0,flick:0};
+}
+function orbFireStart(S){
+  const B=S.beam=orbBeamMake();B.ip.set(S.tx,Math.max(groundAt(S.tx,S.tz),0),S.tz);B.g.position.copy(B.ip);
+  S.cur=S.tgt&&S.tgt.alive?{k:'static',o:S.tgt}:orbNext(S,S.tx,S.tz);S.dwell=0;S.phase='fire';S.t=0;S.ft=0;S.zapT=0;
+  if(AU.ctx&&AU.buf.s_beam){const c=AU.ctx,src=c.createBufferSource(),g=c.createGain();src.buffer=AU.buf.s_beam;src.loop=true;g.gain.value=.9;src.connect(g);g.connect(AU.sfx);src.start();
+    S.snd={set(v){g.gain.setTargetAtTime(Math.max(.0001,v),c.currentTime,.15);},stop(fade=1.2){const n=c.currentTime;g.gain.cancelScheduledValues(n);g.gain.setValueAtTime(g.gain.value,n);g.gain.linearRampToValueAtTime(.0001,n+fade);try{src.stop(n+fade+.05);}catch(e){}}};}
+  if(AU.ctx){noiseHit(.7,.5,3000,400,'bandpass',1.5);tone(.4,.6,1800,200,'sawtooth');}
+  if(S.view)S.view.shake=Math.max(S.view.shake,.6);
+  explosion(B.ip.x,B.ip.y,B.ip.z,1.6);note(0,'ORBITAL LASER FIRING','bad',true);
+}
+function orbZap(S,t){ // the beam has dwelt on the target long enough: it goes
+  const o=t.o;_mp.copy(S.beam.ip);
+  if(t.k==='static'){damage(o,1e7,0);explosion(o.x,Math.max(groundAt(o.x,o.z),0)+1,o.z,o.kind==='building'||o.kind==='hospital'||o.kind==='depot'?2.2:1.3);addBurn(o.x,o.z,rr(40,90),rr(1.4,2.4),.8);}
+  else if(t.k==='vehicle'){damage(o,1e7,0);}
+  else if(t.k==='soldier'){killSoldier(o,0,'blast');FIRE.spawn(o.x,o.y+1,o.z,0,3,0,rr(.4,.8),.8,2.2,[1,.9,.6],[.6,.1,.02],.9,-2,1);addBurn(o.x,o.z,rr(6,14),.5,.5);}
+  else if(t.k==='drone')killDrone(o,0);else if(t.k==='jet')damage(o,1e7,0);
+  S.n++;debris(_mp.x,_mp.y+.5,_mp.z,t.k==='soldier'?2:6,t.k==='soldier'?4:9);
+  if(S.zapT<=0&&(t.k!=='soldier'||RND()<.35)){sample('s_power',t.k==='soldier'?.45:.7,rr(.92,1.12));S.zapT=.28;}
+  if(AU.ctx)noiseHit(t.k==='soldier'?.15:.35,.25,2400,300,'bandpass',1.2);
+}
+function orbFireTick(S,dt){
+  const B=S.beam,ip=B.ip;S.ft+=dt;S.zapT-=dt;B.flick+=dt;
+  if(S.cur&&!orbAlive(S.cur))S.cur=null;if(!S.cur){S.cur=orbNext(S,ip.x,ip.z);S.dwell=0;}
+  if(!S.cur||S.ft>ORB.maxT){S.phase='end';S.t=0;if(S.snd){S.snd.stop(1.6);S.snd=null;}sample('s_power',1,.8,.4);const left=orbCandidates().length;note(0,left?`Orbital platform out of charge — ${S.n} targets destroyed`:`Enemy island cleared — ${S.n} targets destroyed by the orbital laser`,'good',true);return;}
+  const tp=orbPos(S.cur,_md);const dx=tp.x-ip.x,dz=tp.z-ip.z,d=Math.hypot(dx,dz);
+  if(d>.6){const sp=Math.max(ORB.sweep,d/.7)*dt,mv=Math.min(d,sp);ip.x+=dx/d*mv;ip.z+=dz/d*mv;B.dir.set(dx/d,0,dz/d);
+    const gy=S.cur.k==='static'||S.cur.k==='soldier'||S.cur.k==='vehicle'?Math.max(groundAt(ip.x,ip.z),0):lerp(ip.y,tp.y,1-Math.exp(-dt*6));ip.y=gy;
+    B.trail+=mv;if(B.trail>1.4){B.trail=0;addBurn(ip.x,ip.z,rr(8,22),rr(.45,.8),.45);FIRE.spawn(ip.x,ip.y+.3,ip.z,rr(-2,2),rr(3,7),rr(-2,2),rr(.5,1.1),.8,2.4,[1,.95,.7],[.7,.15,.02],.9,-2,1.2);}
+    // anything standing on the trail burns too
+    for(const sd of G.soldiers)if(sd.alive&&sd.team===1&&!sd.ride&&Math.hypot(sd.x-ip.x,sd.z-ip.z)<1.6)killSoldier(sd,0,'blast');}
+  else{ip.y=lerp(ip.y,tp.y,1-Math.exp(-dt*8));S.dwell+=dt;ip.x+=rr(-.15,.15);ip.z+=rr(-.15,.15);
+    if(S.dwell>=ORB.dwell[S.cur.k]){orbZap(S,S.cur);S.cur=null;S.dwell=0;}}
+  B.g.position.copy(ip);const f=.85+.15*Math.sin(B.flick*41)+.08*Math.sin(B.flick*7.3);B.core.scale.x=B.core.scale.z=f;B.mid.scale.x=B.mid.scale.z=f*(1+.1*Math.sin(B.flick*13));B.outer.scale.x=B.outer.scale.z=1+.2*Math.sin(B.flick*5);
+  B.disc.scale.setScalar(.8+.3*Math.sin(B.flick*29));B.light.intensity=140+40*Math.sin(B.flick*31);B.light.position.y=3;
+  const n=Math.ceil(dt*90);for(let i=0;i<n;i++){const a=rr(0,TAU),sp=rr(2,9);FIRE.spawn(ip.x+rr(-.6,.6),ip.y+.2,ip.z+rr(-.6,.6),Math.cos(a)*sp,rr(4,12),Math.sin(a)*sp,rr(.3,.8),.5,1.6,[1,1,.85],[1,.4,.05],1,-3,1.5);}
+  const ns=Math.ceil(dt*30);for(let i=0;i<ns;i++){const a=rr(0,TAU);SMOKE.spawn(ip.x,ip.y+.5,ip.z,Math.cos(a)*rr(.5,3),rr(3,8),Math.sin(a)*rr(.5,3),rr(2,4),1.2,5,[.2,.18,.16],[.4,.38,.36],.7,-1,1);}
+  if(S.snd)S.snd.set(.8+.2*Math.sin(S.ft*5));
+  if(S.view&&(S.ft*10|0)%3===0)S.view.shake=Math.max(S.view.shake,.12);
+}
+function orbEnd(S){if(S.beam){world.remove(S.beam.g);S.beam=null;}if(S.snd){S.snd.stop();S.snd=null;}}
+function updateOrb(S,dt){
+  const O=ORBS;if(O.earth){O.earth.rotation.y+=dt*.012;O.clouds.rotation.y+=dt*.004;}
+  switch(S.phase){
+    case 'orbit':{if(S.t>=ORB.orbit){S.phase='deploy';S.t=0;note(0,'Platform SPOON — deploying solar arrays and radiators','info');if(AU.ctx){noiseHit(.25,ORB.deploy*.7,500,900,'bandpass',4);tone(.08,ORB.deploy*.7,70,90,'sawtooth');}}break;}
+    case 'deploy':{orbPose(S.t/5.5,(S.t-2)/4.5,0,0);if(S.t>=ORB.deploy){S.phase='aim';S.t=0;note(0,'Emitter tracking the island','info');if(AU.ctx){tone(.12,ORB.aim*.8,110,140,'sawtooth');noiseHit(.15,ORB.aim*.8,700,1100,'bandpass',3);}}break;}
+    case 'aim':{const q=S.t/ORB.aim;orbPose(1,1,q,Math.sin(q*Math.PI)*.5);for(const m of O.glow)m.emissiveIntensity=.25+q*1.5;
+      if(S.t>=ORB.aim){S.phase='charge';S.t=0;orbPose(1,1,1,0);sample('s_lock',1);sample('s_power',.9,1,.9);note(0,'TARGET ACQUIRED — charging','warn',true);if(AU.ctx)tone(.2,ORB.charge,180,900,'sine');}break;}
+    case 'charge':{const q=S.t/ORB.charge;for(const m of O.glow)m.emissiveIntensity=1.7+q*7+Math.sin(S.t*30)*q*1.5;O.chg.scale.setScalar(.3+q*3+Math.sin(S.t*25)*.35*q);O.chg.userData.light.intensity=q*60;if(S.t>=ORB.charge){orbFireStart(S);}break;}
+    case 'fire':orbFireTick(S,dt);break;
+    case 'end':{const B=S.beam;if(B){const k=Math.max(0,1-S.t/1.6);B.core.material.opacity=k;B.mid.material.opacity=.45*k;B.outer.material.opacity=.12*k;B.disc.material.opacity=.75*k;B.light.intensity=150*k;if(k<=0){world.remove(B.g);S.beam=null;}}
+      if(S.t>=ORB.end){orbEnd(S);S.cine=false;mslCineEnd();G.strike=null;const n=orbCount();note(0,n>0?`Platform powered down — ${n} orbital strike${n>1?'s':''} left`:`Platform powered down — bank ${ORB.cost} missile strikes for another`,'info');}break;}
+  }
+}
+function orbCam(view,dt){
+  const S=G.strike;
+  if(orbSpace(S)){const c=ORBS.cam;let px,py,pz,lx=0,ly=0,lz=0,k=1-Math.exp(-dt*2.5);
+    if(S.phase==='orbit'){const a=.5+S.t*.09,r=80-S.t*3;px=Math.cos(a)*r;pz=Math.sin(a)*r;py=10+S.t*.6;ly=-5;}
+    else if(S.phase==='deploy'){const a=1.3+S.t*.045,r=72+S.t*1.5;px=Math.cos(a)*r;pz=Math.sin(a)*r;py=22-S.t*1.2;ly=-4;}
+    else{const q=S.phase==='charge'?1:clamp(S.t/ORB.aim,0,1);px=lerp(-34,-22,q);py=lerp(2,-1,q);pz=lerp(40,26,q);ly=lerp(-9,-13,q);lz=S.phase==='charge'?-3:0;}
+    if(!S.camInit){S.camInit=true;mslCineStart(view);}
+    if(S.cut!==S.phase){const first=!S.cpos;S.cut=S.phase;if(first||S.phase!=='deploy'){S.cpos=new V3(px,py,pz);S.clook=new V3(lx,ly,lz);}} // hard cuts between the shots
+    S.cpos.lerp(_mc1.set(px,py,pz),k);S.clook.lerp(_mc2.set(lx,ly,lz),Math.min(1,k*1.5));c.position.copy(S.cpos);c.lookAt(S.clook);
+    if(c.aspect!==view.cam.aspect){c.aspect=view.cam.aspect;c.updateProjectionMatrix();}
+    if(MM.cine){if(MM.cine.hidden)MM.cine.hidden=false;let tx;
+      if(S.phase==='orbit')tx=`ORBITAL PLATFORM SPOON · UPLINK ${Math.min(100,Math.round(S.t/ORB.orbit*100))}%`;else if(S.phase==='deploy')tx='DEPLOYING SOLAR ARRAYS · RADIATORS';else if(S.phase==='aim')tx=S.t<ORB.aim*.75?'EMITTER TRACKING':'TARGET ACQUIRED';else tx=`CHARGING · ${Math.min(100,Math.round(S.t/ORB.charge*100))}%`;
+      if(MM.cineT!==tx){MM.cineTxt.textContent=tx;MM.cineT=tx;}}
+    return;}
+  const cam=view.cam,B=S.beam,ip=B?B.ip:_mp.set(S.tx,Math.max(groundAt(S.tx,S.tz),0),S.tz);let k=1-Math.exp(-dt*7);if(S.phase==='fire')view.shake=Math.min(view.shake,.35);
+  if(S.phase==='end'){_mc1.set(ip.x-30,ip.y+40+S.t*35,ip.z+30);_mc2.copy(ip);k=1-Math.exp(-dt*1.5);}
+  else{const d=B?B.dir:_md.set(1,0,0);const sx=-d.z,sz=d.x;_mc1.set(ip.x-d.x*34+sx*12,ip.y+22,ip.z-d.z*34+sz*12);_mc1.y=Math.max(_mc1.y,groundAt(_mc1.x,_mc1.z)+5);_mc2.set(ip.x+d.x*5,ip.y+3,ip.z+d.z*5);}
+  if(S.cut!=='ground'){S.cut='ground';S.cpos=_mc1.clone();S.clook=_mc2.clone();mslCineStart(view);}
+  else if(S.cpos.distanceTo(_mc1)>150){S.cpos.copy(_mc1);S.clook.copy(_mc2);} // a long jump across the island: cut
+  S.cpos.lerp(_mc1,k);S.clook.lerp(_mc2,Math.min(1,k*1.4));cam.position.copy(S.cpos);
+  if(view.shake>0){cam.position.x+=rr(-.5,.5)*view.shake;cam.position.y+=rr(-.5,.5)*view.shake;cam.position.z+=rr(-.5,.5)*view.shake;view.shake=Math.max(0,view.shake-dt*1.2);}
+  cam.lookAt(S.clook);view.focus.set(ip.x,Math.max(0,groundAt(ip.x,ip.z)),ip.z);
+  if(MM.cine){if(MM.cine.hidden)MM.cine.hidden=false;const left=S.phase==='fire'?orbCandidates().length:0;const tx=S.phase==='end'?`PLATFORM POWERING DOWN · ${S.n} TARGETS DESTROYED`:`ORBITAL LASER · ${S.n} DESTROYED · ${left} LEFT`;if(MM.cineT!==tx){MM.cineTxt.textContent=tx;MM.cineT=tx;}}
+}
 function scatterNature(){
   const B=G.batches;const tries=4200;const n4=makeNoise(G.seed+33);
   const kinds=[['palm',6.5],['palmBend',6.5],['palmShort',6],['tree',5.5],['oak',6.2],['pine',6],['treeD',6]];
@@ -2544,7 +2691,7 @@ const VORDER=['tank','heli','asv','jeep','truck'];
 // SIX-WHEELER (Matt, 27 Oct 2026): a special jeep. Unlocked by beating Operation 10 (or dev mode); one per operation, campaign only.
 // Same job as the jeep (carries the objective, inflates its tyres to cross water) plus a roof gun that tracks the nearest threat
 // (mouse / Q-E / right stick take over), 9x the jeep's armour, faster wading and it flattens trees like the tank.
-const MSL_SLOT=VORDER.length,NUKE_SLOT=MSL_SLOT+1; // bunker menu slots: missile strike, then the nuclear strike (after the vehicle cards)
+const MSL_SLOT=VORDER.length,NUKE_SLOT=MSL_SLOT+1,ORB_SLOT=NUKE_SLOT+1; // bunker menu slots: missile strike, then the nuclear strike (after the vehicle cards)
 const CARRIER=v=>v.type==='jeep'||v.type==='truck'||v.type==='foot'; // vehicles that can pick up and run the objective home
 const TRUCK_LEN=6.2,TRUCK_ITEM={y:2.2,z:-2.55,s:.6},_tq=new V3();
 function truckUnlocked(){if(!A.truck)return false;if(DEV.on)return true;const b=loadOps().best||{};return b[9]!=null;}
@@ -3741,7 +3888,7 @@ const keys=new Set();
 const GAME_KEYS=new Set(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Enter','Tab']);
 addEventListener('keydown',e=>{audioInit();if(GAME_KEYS.has(e.code)&&state!=='title')e.preventDefault();if(e.repeat)return;keys.add(e.code);
   if(G&&G.mslMap&&mslKey(e))return; // targeting map open: it owns the keyboard
-  if(/^Digit[1-7]$/.test(e.code)&&G&&G.views.length===1&&G.views[0].team.human)G.views[0].digit=+e.code[5];
+  if(/^Digit[1-8]$/.test(e.code)&&G&&G.views.length===1&&G.views[0].team.human)G.views[0].digit=+e.code[5];
   if(e.code==='Escape'&&G&&!G.demo&&!G.over)togglePause();
   if(e.code==='KeyM'&&state!=='title')setMusic(!AU.music);
   if(e.code==='KeyF'&&G&&(G.air||onFoot())&&state==='play')callStrike();
@@ -3825,12 +3972,13 @@ function buildHud(view){
     <div class="bars"><div class="bar hp">ARMOR<u><i></i></u></div><div class="bar fuel">FUEL<u><i></i></u></div></div><div class="ammo"></div></div><svg class="xhair" viewBox="0 0 26 26"><g stroke="#fff" stroke-width="2" stroke-linecap="round" style="filter:drop-shadow(0 0 1px #000)"><path d="M13 2v6M13 18v6M2 13h6M18 13h6"/></g><circle cx="13" cy="13" r="1.3" fill="#f2b632"/></svg><div class="hurt"></div>
     <canvas class="mini" width="112" height="188"></canvas>
     <div class="stock"></div><div class="bodies" title="Enemy soldiers killed">☠ <b>0</b></div><div class="flagbox"></div><div class="msgs"></div><div class="warn"></div>
-    <div class="sel" hidden><h2><span>${TEAMS[view.team.team].name}</span> bunker — choose a vehicle</h2><div class="cards"></div><button type="button" class="mslbtn" hidden></button><button type="button" class="mslbtn nukebtn" hidden></button><div class="hint"></div></div>`;
+    <div class="sel" hidden><h2><span>${TEAMS[view.team.team].name}</span> bunker — choose a vehicle</h2><div class="cards"></div><button type="button" class="mslbtn" hidden></button><button type="button" class="mslbtn nukebtn" hidden></button><button type="button" class="mslbtn orbbtn" hidden></button><div class="hint"></div></div>`;
   $('#huds').appendChild(el);view.el=el;
   view.q={bodies:el.querySelector('.bodies b'),vn:el.querySelector('.vn'),hp:el.querySelector('.hp i'),fuel:el.querySelector('.fuel i'),ammo:el.querySelector('.ammo'),mini:el.querySelector('.mini'),stock:el.querySelector('.stock'),
-    flag:el.querySelector('.flagbox'),msgs:el.querySelector('.msgs'),warn:el.querySelector('.warn'),sel:el.querySelector('.sel'),cards:el.querySelector('.cards'),hint:el.querySelector('.hint'),msl:el.querySelector('.mslbtn'),nuke:el.querySelector('.nukebtn')};
+    flag:el.querySelector('.flagbox'),msgs:el.querySelector('.msgs'),warn:el.querySelector('.warn'),sel:el.querySelector('.sel'),cards:el.querySelector('.cards'),hint:el.querySelector('.hint'),msl:el.querySelector('.mslbtn'),nuke:el.querySelector('.nukebtn'),orb:el.querySelector('.orbbtn')};
   view.q.msl.addEventListener('click',()=>{audioInit();view.sel=MSL_SLOT;launchFromMenu(view);});view.q.msl.addEventListener('pointerenter',()=>{if(mslReady())view.sel=MSL_SLOT;});
   view.q.nuke.addEventListener('click',()=>{audioInit();view.sel=NUKE_SLOT;launchFromMenu(view);});view.q.nuke.addEventListener('pointerenter',()=>{if(nukeReady())view.sel=NUKE_SLOT;});
+  view.q.orb.addEventListener('click',()=>{audioInit();view.sel=ORB_SLOT;launchFromMenu(view);});view.q.orb.addEventListener('pointerenter',()=>{if(orbReady())view.sel=ORB_SLOT;});
   view.q.cards.innerHTML=VORDER.map((k,i)=>`<button class="card" data-k="${k}" id="card${view.index}${k}"><img alt="" src="${thumbs[k+view.team.team]}"><div class="nm">${VDEF[k].name}<i></i></div><div class="ds">${VDEF[k].desc}</div></button>`).join('');
   view.q.cards.classList.toggle('five',!!view.team.truckOn);view.q.cards.querySelectorAll('.card').forEach((c,i)=>{if(VORDER[i]==='truck')c.hidden=!view.team.truckOn;c.addEventListener('click',()=>{audioInit();view.sel=i;launchFromMenu(view);});c.addEventListener('pointerenter',()=>{view.sel=i;});});
   const km=view.ctrl===0?'<kbd>A</kbd>/<kbd>D</kbd> choose · <kbd>Space</kbd> launch':'<kbd>←</kbd>/<kbd>→</kbd> choose · <kbd>K</kbd> launch';
@@ -3872,7 +4020,7 @@ function drawMini(view){
     for(const p of j.pts){if(p.dropped)continue;const [rx,ry]=P(p.x,p.z);x.beginPath();x.arc(rx,ry,1.8,0,TAU);x.stroke();}
     const [px,py]=P(j.x,j.z),hx=j.dx*112/W,hz=j.dz*188/L,hl=Math.hypot(hx,hz)||1,ux=hx/hl,uz=hz/hl;x.fillStyle=col;x.beginPath();x.moveTo(px+ux*5,py+uz*5);x.lineTo(px-ux*3-uz*3,py-uz*3+ux*3);x.lineTo(px-ux*3+uz*3,py-uz*3-ux*3);x.closePath();x.fill();}
   if(G.strike){const Sk=G.strike,[rx,ry]=P(Sk.tx,Sk.tz);x.strokeStyle='#f2b632';x.lineWidth=1.2;x.beginPath();x.arc(rx,ry,2.5+((G.time*2)%1)*4,0,TAU);x.stroke();
-    if(Sk.m&&Sk.phase==='fly'){const [mx,my]=P(Sk.m.position.x,Sk.m.position.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2,0,TAU);x.fill();}}
+    if(Sk.m&&Sk.phase==='fly'){const [mx,my]=P(Sk.m.position.x,Sk.m.position.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2,0,TAU);x.fill();}if(Sk.beam){const [mx,my]=P(Sk.beam.ip.x,Sk.beam.ip.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2.5,0,TAU);x.fill();}}
   for(const sd of G.soldiers){if(!sd.alive)continue;const [px,py]=P(sd.x,sd.z);x.fillStyle=sd.team===T?'rgba(170,200,255,.8)':'rgba(255,170,160,.8)';x.fillRect(px-.5,py-.5,1,1);}
   for(const v of G.vehicles){const [px,py]=P(v.x,v.z);x.fillStyle=TEAMS[v.team].css;x.beginPath();x.arc(px,py,v===view.team.vehicle?3.2:2.4,0,TAU);x.fill();if(v===view.team.vehicle){x.strokeStyle='#fff';x.lineWidth=1;x.stroke();}}
   const blink=(G.time*3|0)%2;for(const f of G.flags){if(f.state==='hidden'||f.state==='captured')continue;const p=f.state==='carried'?f.carrier:f;const [px,py]=P(p.x,p.z);if(f.state==='exposed'){const k=(G.time*1.2)%1;x.strokeStyle=f.team===0?'rgba(90,150,255,'+(1-k)+')':'rgba(255,90,80,'+(1-k)+')';x.lineWidth=2;x.beginPath();x.arc(px,py-3,4+k*9,0,TAU);x.stroke();}if(blink){x.fillStyle='#f2b632';x.beginPath();x.moveTo(px,py-6);x.lineTo(px+5,py-3.5);x.lineTo(px,py-1);x.fill();x.fillRect(px-.5,py-6,1.2,7);}}
@@ -3888,7 +4036,10 @@ function updateHud(view){
       mb.innerHTML=`${MSL_ICON}<span class="mt">Missile strike<small>${n?'pick a target on the map':'earn one: finish an op without losing a vehicle'}</small></span><i>×${devActive()?'∞':n}</i>`;mb.toggleAttribute('disabled',!ok);mb.classList.toggle('on',ok&&view.sel===MSL_SLOT);}}
     const nb=q.nuke,nshow=nukeShown();if(nb.hidden===nshow)nb.hidden=!nshow;
     if(nshow){const n=nukeCount(),ok=nukeReady(),need=NUKE.cost-(mslCount()%NUKE.cost),key='n'+n+'|'+ok+'|'+need+'|'+(view.sel===NUKE_SLOT);if(lastHud.get(nb)!==key){lastHud.set(nb,key);
-      nb.innerHTML=`${NUKE_ICON}<span class="mt">Nuclear strike<small>${n?'from the submarine — trades in 3 missile strikes':`bank ${need} more missile strike${need>1?'s':''} (3 per nuke)`}</small></span><i>×${devActive()?'∞':n}</i>`;nb.toggleAttribute('disabled',!ok);nb.classList.toggle('on',ok&&view.sel===NUKE_SLOT);}}}
+      nb.innerHTML=`${NUKE_ICON}<span class="mt">Nuclear strike<small>${n?'from the submarine — trades in 3 missile strikes':`bank ${need} more missile strike${need>1?'s':''} (3 per nuke)`}</small></span><i>×${devActive()?'∞':n}</i>`;nb.toggleAttribute('disabled',!ok);nb.classList.toggle('on',ok&&view.sel===NUKE_SLOT);}}
+    const ob=q.orb,oshow=orbShown();if(ob.hidden===oshow)ob.hidden=!oshow;
+    if(oshow){const n=orbCount(),ok=orbReady(),need=ORB.cost-(mslCount()%ORB.cost),key='o'+n+'|'+ok+'|'+need+'|'+(view.sel===ORB_SLOT);if(lastHud.get(ob)!==key){lastHud.set(ob,key);
+      ob.innerHTML=`${ORB_ICON}<span class="mt">Orbital strike<small>${n?'platform SPOON lasers every enemy on the island — trades in 6 missile strikes':`bank ${need} more missile strike${need>1?'s':''} (6 per shot)`}</small></span><i>×${devActive()?'∞':n}</i>`;ob.toggleAttribute('disabled',!ok);ob.classList.toggle('on',ok&&view.sel===ORB_SLOT);}}}
   let s;
   {const foot=!!(v&&v.type==='foot');if(view.el&&view.el.classList.contains('foot')!==foot){view.el.classList.toggle('foot',foot);const hb=view.el.querySelector('.bar.hp');if(hb)hb.firstChild.nodeValue=foot?'HEALTH':'ARMOR';}
     if(view.index===0)document.body.classList.toggle('onfoot',foot&&opts.touch);
@@ -3915,16 +4066,16 @@ function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat i
   for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&sd.team!==v.team)consider(sd,sd.x,sd.z,1.1);
   for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr,dr.x,dr.z,.55);
   return best;}
-function launchFromMenu(view){const t=view.team;if(view.watch||view.hold>0||mslBusy())return;if(view.sel===MSL_SLOT||view.sel===NUKE_SLOT){if(!t.vehicle)openStrikeMap(view,view.sel===NUKE_SLOT);return;}const k=VORDER[view.sel];if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
+function launchFromMenu(view){const t=view.team;if(view.watch||view.hold>0||mslBusy())return;if(view.sel===MSL_SLOT||view.sel===NUKE_SLOT||view.sel===ORB_SLOT){if(!t.vehicle)openStrikeMap(view,view.sel===ORB_SLOT?'orb':view.sel===NUKE_SLOT);return;}const k=VORDER[view.sel];if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
   if(G.net&&!G.net.host){NET.matchCh&&NET.matchCh.send({type:'broadcast',event:'pick',payload:{k}});sfx('click');return;} // guest: ask the host to spawn it, never mutate local state
   spawnVehicle(t.team,k);sfx('click');}}
 function menuInput(view){
   const t=view.team;if(t.vehicle||t.respawnT>0||mslBusy())return;
-  const msl=!!((G.op||devActive())&&G.launcher),nk=nukeShown(),N=nk?NUKE_SLOT+1:MSL_SLOT+(msl?1:0),can=i=>i<MSL_SLOT?t.stock[VORDER[i]]>0:i===MSL_SLOT?mslReady():nukeReady(); // last slot = missile strike (campaign); slot 5 = six-wheeler card (hidden until unlocked, stock 0)
+  const msl=!!((G.op||devActive())&&G.launcher),nk=nukeShown(),ob=orbShown(),N=ob?ORB_SLOT+1:nk?NUKE_SLOT+1:MSL_SLOT+(msl?1:0),can=i=>i<MSL_SLOT?t.stock[VORDER[i]]>0:i===MSL_SLOT?mslReady():i===NUKE_SLOT?nukeReady():orbReady(); // last slot = missile strike (campaign); slot 5 = six-wheeler card (hidden until unlocked, stock 0)
   if(view.sel==null||!can(view.sel)){view.sel=VORDER.findIndex(k=>t.stock[k]>0);if(view.sel<0)view.sel=msl&&can(MSL_SLOT)?MSL_SLOT:0;}
   const e=view.menuEdge;if(!e)return;
   const step=d=>{for(let i=1;i<=N;i++){const n=(view.sel+d*i+N*2)%N;if(can(n)){view.sel=n;sfx('click');return;}}};
-  if(e.l)step(-1);if(e.r)step(1);if(view.digit){const i=view.digit===5?MSL_SLOT:view.digit===6?VORDER.indexOf('truck'):view.digit===7?NUKE_SLOT:view.digit-1;view.digit=0;if(i<N&&can(i)){view.sel=i;launchFromMenu(view);return;}} /* keys: 1-4 vehicles, 5 missile strike (as before), 6 six-wheeler */
+  if(e.l)step(-1);if(e.r)step(1);if(view.digit){const i=view.digit===5?MSL_SLOT:view.digit===6?VORDER.indexOf('truck'):view.digit===7?NUKE_SLOT:view.digit===8?ORB_SLOT:view.digit-1;view.digit=0;if(i<N&&can(i)){view.sel=i;launchFromMenu(view);return;}} /* keys: 1-4 vehicles, 5 missile strike (as before), 6 six-wheeler */
   if(e.ok)launchFromMenu(view);
 }
 function layoutViews(){
@@ -3993,7 +4144,7 @@ function newGame(mode,seed,demo=false){
   if(!demo){if(G.op){setTimeout(()=>{if(G&&!G.over&&!G.demo)sample('s_cry',.75,1);},700); /* the platoon's battle cry as the operation starts */note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);if(G.flags[1].item)setTimeout(()=>note(0,`Objective: find and recover the ${G.flags[1].item.n}`,'good'),3400);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
 }
 function endGame(){
-  if(!G)return;if(G.strike&&G.strike.snd)G.strike.snd.stop();if(G.strike&&G.strike.raiseSnd)G.strike.raiseSnd.stop(.05);MSL_LIGHT.intensity=0;MSL_LIGHT.distance=260;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
+  if(!G)return;if(G.strike&&G.strike.orb)orbEnd(G.strike);if(G.strike&&G.strike.snd)G.strike.snd.stop();if(G.strike&&G.strike.raiseSnd)G.strike.raiseSnd.stop(.05);MSL_LIGHT.intensity=0;MSL_LIGHT.distance=260;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
   if(world){scene.remove(world);world.traverse(o=>{if(o.isMesh&&o.geometry&&!o.geometry.userData?.keep){if(o.isInstancedMesh)o.dispose();}});
     world.traverse(o=>{if(o.isMesh&&(o.parent===world)&&o.geometry.type!=='BufferGeometry')o.geometry.dispose();});}
   musicStop();G=null;
@@ -4178,7 +4329,8 @@ function render(dt){
     sun.position.copy(view.focus).addScaledVector(SUN_DIR,140);sun.target.position.copy(view.focus);sun.target.updateMatrixWorld();
     const r=view.rect;renderer.setViewport(r.x,0,r.w,h);renderer.setScissor(r.x,0,r.w,h);
     const sc=r.h/(2*Math.tan(THREE.MathUtils.degToRad(view.cam.fov/2)))*renderer.getPixelRatio()*.02;FIRE.mat.uniforms.scale.value=SMOKE.mat.uniforms.scale.value=sc*50;
-    const tp=fpOn&&v.parts&&v.parts.sd.trooper;if(fpOn&&!tp)v.obj.visible=false;renderer.render(scene,view.cam);if(fpOn&&!tp){v.obj.visible=true;fpRender(view,v,paused?0:dt,r,h);}
+    if(G.strike&&G.strike.orb&&orbSpace(G.strike)&&view===G.strike.view&&ORBS.scene){renderer.render(ORBS.scene,ORBS.cam);}
+    else{const tp=fpOn&&v.parts&&v.parts.sd.trooper;if(fpOn&&!tp)v.obj.visible=false;renderer.render(scene,view.cam);if(fpOn&&!tp){v.obj.visible=true;fpRender(view,v,paused?0:dt,r,h);}}
     if(!G.demo){updateHud(view);if(((G.time*10)|0)%2===0)drawMini(view);if(view.engine)updateEngine(view);}
   }
 }
@@ -4507,7 +4659,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

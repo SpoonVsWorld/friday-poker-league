@@ -183,6 +183,12 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 #msl .nkkey.on .nkslot{transform:rotate(90deg)}#msl .nkkey.on{color:#7fe08b}
 #msl .nkfire{width:58px;height:58px;border-radius:50%;padding:0;border:3px solid #5a1a16;background:radial-gradient(circle at 40% 35%,#ff6a5a,#8a1d16 70%);color:#fff;font:700 9px var(--ui);letter-spacing:.08em;box-shadow:inset 0 -6px 10px rgba(0,0,0,.5),0 2px 0 #000;text-transform:uppercase}
 #msl .nkfire[disabled]{filter:grayscale(.7) brightness(.55);cursor:not-allowed;box-shadow:inset 0 -6px 10px rgba(0,0,0,.5)}
+#msl .nkcase{position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#2a2d2f;box-shadow:inset 0 0 0 2px #0b0d0e,0 1px 0 #000}
+#msl .nkglass{position:absolute;inset:0;border-radius:6px;cursor:pointer;background:linear-gradient(135deg,rgba(200,230,255,.55),rgba(120,160,200,.25) 45%,rgba(230,245,255,.5));border:2px solid #9fb6c4;box-shadow:inset 0 0 12px rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;text-align:center;font:700 9px var(--ui);letter-spacing:.1em;color:#fff;text-shadow:0 1px 1px #000;transition:transform .12s}
+#msl .nkglass .nkcrack{position:absolute;inset:0;width:100%;height:100%;opacity:0}#msl .nkglass.cracked .nkcrack{opacity:.95}#msl .nkglass.cracked span{opacity:.35}
+#msl .nkglass.gone{animation:nkshatter .45s forwards;pointer-events:none}
+@keyframes nkshatter{0%{transform:scale(1);opacity:1}40%{transform:scale(1.15) rotate(6deg);opacity:.8}100%{transform:scale(1.6) translateY(30px) rotate(-14deg);opacity:0}}
+#msl .nkglass.locked{cursor:not-allowed;filter:saturate(.4)}
 #msl .nkfire:not([disabled]){animation:nkblink 1s infinite}
 @keyframes nkblink{0%,100%{box-shadow:inset 0 -6px 10px rgba(0,0,0,.5),0 0 0 0 rgba(255,80,60,.9)}50%{box-shadow:inset 0 -6px 10px rgba(0,0,0,.5),0 0 0 9px rgba(255,80,60,0)}}
 @media (max-width:640px){#msl .nkwarn{display:none!important}}
@@ -411,7 +417,7 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='8';
+const DATA='sp-data/',DATA_V='9';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death']; // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -434,6 +440,7 @@ PRE.items=['items1.glb','items2.glb','items3.glb','items4.glb'].map(f=>fetchBin(
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.sub=fetchBin('sub.glb').catch(e=>{console.warn('sub',e);return null;}); // NUCLEAR STRIKE: the player's ballistic-missile submarine (Blender, scratch-built 28 Oct 2026: Hull/Sail/Hatch pivot/Mount)
+PRE.props=fetchBin('props.glb').catch(e=>{console.warn('props',e);return null;}); // Blender ordnance (29 Oct 2026): M67 grenade, M15 anti-tank mine, Mk 82 bomb
 PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
 PRE.hero=fetchBin('hero.glb').catch(e=>{console.warn('hero',e);return null;}); // ON FOOT: Matt's own soldier (Male Military Soldier, Mixamo) + first-person arms/carbine posed from it (FPView)
 PRE.truck=fetchBin('truck.glb').catch(e=>{console.warn('truck',e);return null;}); // six-wheeler (Matt's 6x6, Kenney\blend.blend, reduced to ~31k tris: TruckBody, TruckGun on the roof ring, Wheel_F/M/B L/R)
@@ -480,6 +487,7 @@ async function loadAssets(){
     const wrap=new THREE.Group();wrap.add(hs);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(hs,true);wrap.scale.setScalar(HERO_H/Math.max(.5,bb.max.y-bb.min.y));
     const strip=c=>{const k=c.clone();k.tracks=k.tracks.filter(t=>!t.name.endsWith('.position')&&!t.name.startsWith('mixamorigHips.')&&hs.getObjectByName(t.name.split('.')[0])); /* the troop clips' hip rotation is in a different armature frame: keep this rig's own upright hips */return k;};
     A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
+  try{const pb=await PRE.props;if(pb){const pg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(pb,'',res,rej));A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
   try{const tb=await PRE.trooper;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
@@ -1690,13 +1698,13 @@ function mslBuildUI(){
   if(MM.el)return;
   const el=document.createElement('div');el.id='msl';el.hidden=true;
   el.innerHTML=`<canvas></canvas><div class="mtop"><b>Missile strike</b><span class="mnum"></span><span class="nkwarn">☢ NUCLEAR RELEASE · 60 m VAPORISED · 90 m LETHAL · 140 m FALLOUT · YOUR OWN FORCES IN THE ZONE WILL BE LOST</span><span class="minfo"></span></div>
-    <div class="mbot"><button type="button" class="mz" data-z="-1" aria-label="Zoom out">−</button><button type="button" class="mz" data-z="1" aria-label="Zoom in">+</button><span class="mhelp"></span><button type="button" class="mcancel">Cancel</button><button type="button" class="mgo">Launch</button><div class="nkcon"><div class="nkkey" role="button" tabindex="0"><div class="nkslot"><i></i></div><span>ARM</span></div><button type="button" class="nkfire" disabled>Launch</button></div></div>`;
+    <div class="mbot"><button type="button" class="mz" data-z="-1" aria-label="Zoom out">−</button><button type="button" class="mz" data-z="1" aria-label="Zoom in">+</button><span class="mhelp"></span><button type="button" class="mcancel">Cancel</button><button type="button" class="mgo">Launch</button><div class="nkcon"><div class="nkkey" data-k="0" role="button" tabindex="0"><div class="nkslot"><i></i></div><span>KEY A</span></div><div class="nkkey" data-k="1" role="button" tabindex="0"><div class="nkslot"><i></i></div><span>KEY B</span></div><div class="nkcase"><button type="button" class="nkfire" disabled>Launch</button><div class="nkglass" role="button" tabindex="0"><svg viewBox="0 0 70 70" class="nkcrack"><path d="M35 2 L31 22 L18 30 L28 38 L22 60 M35 2 L40 25 L55 20 L44 36 L58 50 M31 22 L10 14 M40 25 L52 8 M28 38 L34 69 M44 36 L36 52 L50 66" fill="none" stroke="#fff" stroke-width="1.4"/></svg><span>BREAK<br>GLASS</span></div></div></div></div>`;
   document.body.appendChild(el);MM.el=el;MM.cv=el.querySelector('canvas');MM.ctx=MM.cv.getContext('2d');
   MM.q={num:el.querySelector('.mnum'),info:el.querySelector('.minfo'),help:el.querySelector('.mhelp'),top:el.querySelector('.mtop'),bot:el.querySelector('.mbot')};
   el.querySelectorAll('.mz').forEach(b=>b.onclick=()=>{mslZoomAt(MM.z*(+b.dataset.z>0?1.6:1/1.6),MM.w/2,MM.my0);sfx('click');});
   el.querySelector('.mcancel').onclick=()=>closeStrikeMap(true);
   el.querySelector('.mgo').onclick=()=>mslGo();
-  MM.q2={key:el.querySelector('.nkkey'),fire:el.querySelector('.nkfire')};MM.q2.key.onclick=()=>nukeArm(!MM.armed);MM.q2.fire.onclick=()=>{if(MM.armed)nukeGo();};
+  MM.q2={keys:[...el.querySelectorAll('.nkkey')],fire:el.querySelector('.nkfire'),glass:el.querySelector('.nkglass')};MM.q2.keys.forEach((k,i)=>k.onclick=()=>nukeKey(i));MM.q2.glass.onclick=()=>nukeGlass();MM.q2.fire.onclick=()=>{if(MM.armed&&MM.broken)nukeGo();};
   const cv=MM.cv;
   cv.addEventListener('pointerdown',e=>{audioInit();e.preventDefault();try{cv.setPointerCapture(e.pointerId);}catch(_){}
     MM.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -1760,14 +1768,14 @@ function openStrikeMap(view,nuke){
   if(nuke){if(!nukeReady()){if(G&&!nukeCount())note(0,`Nuclear strike needs ${NUKE.cost} banked missile strikes`,'warn');return;}}
   else if(!mslReady()){if(G&&G.op&&!mslCount())note(0,'No missile strikes banked — finish an operation without losing a vehicle','warn');return;}
   mslBuildUI();MM.nuke=!!nuke;MM.site=nuke?nukeSite():null;if(nuke&&!MM.site){note(0,'No open water off your coast for the submarine','warn');return;}
-  MM.el.querySelector('.mtop b').textContent=nuke?'Nuclear strike':'Missile strike';MM.el.classList.toggle('nukemap',!!nuke);MM.armed=false;if(MM.q2){MM.q2.key.classList.remove('on');MM.q2.fire.disabled=true;}G.mslMap=true;MM.view=view;MM.img=islandSnapshot();MM.el.hidden=false;MM.z=1;MM.cx=0;MM.cz=0;MM.hover=null;MM.ptrs.clear();MM.pinch=null;MM.pinched=false;MM.drag=null;MM.txt={};
+  MM.el.querySelector('.mtop b').textContent=nuke?'Nuclear strike':'Missile strike';MM.el.classList.toggle('nukemap',!!nuke);MM.armed=false;MM.keys=[false,false];MM.broken=false;MM.hits=0;if(MM.q2){MM.q2.keys.forEach(k=>k.classList.remove('on'));MM.q2.fire.disabled=true;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';}G.mslMap=true;MM.view=view;MM.img=islandSnapshot();MM.el.hidden=false;MM.z=1;MM.cx=0;MM.cz=0;MM.hover=null;MM.ptrs.clear();MM.pinch=null;MM.pinched=false;MM.drag=null;MM.txt={};
   mslLayout();
   const last=(MM.nuke?MM.lastN:MM.last)&&(MM.nuke?MM.lastN:MM.last).seed===G.seed?(MM.nuke?MM.lastN:MM.last):null;
   if(last)mslAim(last.x,last.z);else if(MM.nuke){const b=G.bases[1];mslAim(b.x,b.z);}else{const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}
   MM.z=clamp(.9/MM.fit,1,6);MM.cx=MM.tx;MM.cz=MM.tz;mslClamp(); // small screens open zoomed in on the target; pinch / wheel / ± to see the whole island
   const pads=navigator.getGamepads?[...navigator.getGamepads()].filter(Boolean):[];const pad=pads[0];MM.pad={};if(pad)for(const i of [0,1,4,5])MM.pad[i]=!!pad.buttons[i]?.pressed;
   MM.q.num.textContent=MM.nuke?`×${nukeCount()} ready · ${NUKE.cost} missile strikes each`:`×${mslCount()} ready`;
-  MM.q.help.innerHTML=MM.nuke?(opts.touch?'Drag to aim · turn the key · press the red button':'Aim · <kbd>Enter</kbd> turns the key, <kbd>Enter</kbd> again fires · <kbd>Esc</kbd> cancel'):opts.touch?'Drag to aim · pinch to zoom':'Click a spot or building · wheel zoom · drag to pan · <kbd>Tab</kbd> next target · <kbd>Enter</kbd> launch · <kbd>Esc</kbd> cancel';
+  MM.q.help.innerHTML=MM.nuke?(opts.touch?'Drag to aim · turn both keys · break the glass · press the red button':'Aim · <kbd>Enter</kbd> key A, key B, break the glass (twice), fire · <kbd>Esc</kbd> cancel'):opts.touch?'Drag to aim · pinch to zoom':'Click a spot or building · wheel zoom · drag to pan · <kbd>Tab</kbd> next target · <kbd>Enter</kbd> launch · <kbd>Esc</kbd> cancel';
   sfx('click');
 }
 function closeStrikeMap(cancel){if(!MM.el)return;MM.el.hidden=true;const gb=MM.el.querySelector('.mgo');if(gb)gb.disabled=false;if(G){G.mslMap=false;if(cancel)sfx('click');}MM.ptrs.clear();MM.pinch=null;MM.drag=null;}
@@ -1822,13 +1830,24 @@ function mslDraw(){
     x.fillStyle='rgba(8,11,8,.85)';x.fillRect(px-tw/2,ly2,tw,18);x.fillStyle='#ff8070';x.textAlign='center';x.fillText(lab,px,ly2+13);}
   const dist=Math.hypot(MM.tx-site.x,MM.tz-site.z);
   const info=(MM.snap?mslTargetName(MM.snap):groundAt(MM.tx,MM.tz)<0?'Open water':'Open ground')+` · ${Math.round(dist)} m`+(tooClose?' · TOO CLOSE TO YOUR BUNKER':'');
-  if(MM.nuke&&MM.q2){const dis=!MM.armed||tooClose;if(MM.q2.fire.disabled!==dis)MM.q2.fire.disabled=dis;}
+  if(MM.nuke&&MM.q2){const dis=!MM.armed||!MM.broken||tooClose;if(MM.q2.fire.disabled!==dis)MM.q2.fire.disabled=dis;}
   if(MM.txt.info!==info){MM.q.info.textContent=info;MM.txt.info=info;}
 }
-function nukeArm(on){if(!MM.nuke||!G||!G.mslMap)return;MM.armed=!!on;MM.q2.key.classList.toggle('on',MM.armed);MM.q2.fire.disabled=!MM.armed||nukeTooClose(MM.tx,MM.tz);
-  if(AU.ctx){tone(.3,.08,1400,500,'square');noiseHit(.25,.12,2500,900,'bandpass',1);if(MM.armed)tone(.22,.5,880,880,'sine',.15);}note(0,MM.armed?'ARMED — press the red button to launch':'Safe','warn');}
+function nukeKey(i){ // two-man rule: both keys turned, then the glass, then the button
+  if(!MM.nuke||!G||!G.mslMap)return;MM.keys=MM.keys||[false,false];MM.keys[i]=!MM.keys[i];MM.q2.keys[i].classList.toggle('on',MM.keys[i]);MM.armed=MM.keys[0]&&MM.keys[1];
+  if(!MM.armed&&MM.broken){MM.broken=false;MM.hits=0;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';}
+  MM.q2.glass.classList.toggle('locked',!MM.armed);MM.q2.fire.disabled=!MM.armed||!MM.broken||nukeTooClose(MM.tx,MM.tz);
+  if(AU.ctx){tone(.3,.08,1400,500,'square');noiseHit(.25,.12,2500,900,'bandpass',1);if(MM.armed)tone(.22,.5,880,880,'sine',.15);}
+  note(0,MM.armed?'BOTH KEYS TURNED — break the glass':MM.keys[i]?`Key ${i?'B':'A'} turned`:'Safe','warn');}
+function nukeGlass(){
+  if(!MM.nuke||!G||!G.mslMap||MM.broken)return;if(!MM.armed){note(0,'Turn both keys first','warn');sfx('click');return;}
+  MM.hits=(MM.hits||0)+1;const g=MM.q2.glass;g.style.transform='scale(.96)';setTimeout(()=>{g.style.transform='';},90);
+  if(MM.hits===1){g.classList.add('cracked');if(AU.ctx){noiseHit(.35,.09,4200,1800,'bandpass',2);tone(.15,.06,2600,900,'square');}note(0,'Cracked — hit it again','warn');return;}
+  MM.broken=true;g.classList.add('gone');if(AU.ctx){noiseHit(.5,.35,3600,900,'bandpass',1.2);noiseHit(.3,.5,6000,2500,'highpass',.4,.05);for(let i=0;i<6;i++)tone(.05,.12,2000+Math.random()*4000,1500,'triangle',i*.04);}
+  MM.q2.fire.disabled=!MM.armed||nukeTooClose(MM.tx,MM.tz);note(0,'GLASS BROKEN — press the red button to launch','bad',true);}
+function nukeArm(on){if(on){if(!MM.keys||!MM.keys[0])nukeKey(0);if(!MM.keys[1])nukeKey(1);}else{if(MM.keys&&MM.keys[0])nukeKey(0);if(MM.keys&&MM.keys[1])nukeKey(1);}}
 function mslGo(){
-  if(!G||!G.mslMap)return;if(MM.nuke){if(!MM.armed){nukeArm(true);return;}return nukeGo();}const s=MM.snap&&MM.snap.alive?MM.snap:null;MM.last={x:MM.tx,z:MM.tz,seed:G.seed};
+  if(!G||!G.mslMap)return;if(MM.nuke){if(!MM.keys||!MM.keys[0]){nukeKey(0);return;}if(!MM.keys[1]){nukeKey(1);return;}if(!MM.broken){nukeGlass();return;}return nukeGo();}const s=MM.snap&&MM.snap.alive?MM.snap:null;MM.last={x:MM.tx,z:MM.tz,seed:G.seed};
   closeStrikeMap(false);if(!G.launcher||G.strike||mslCount()<=0)return;
   const ty=s?s.y0+Math.min(s.h*.45,5):Math.max(groundAt(MM.tx,MM.tz),0);
   G.strike={phase:'raise',t:0,tx:MM.tx,tz:MM.tz,ty,tgt:s,name:s?mslTargetName(s):null,view:MM.view||G.views[0],cine:true};
@@ -1944,7 +1963,7 @@ function updateCraters(dt){if(!G||!G.craters)return;for(const c of G.craters){if
 // burning grass patches
 function addBurn(x,z,life,size,k=1){if(!G)return;const h=H(x,z);if(h<1.1||onBridge(x,z))return;(G.burns=G.burns||[]).push({x,z,life,max:life,size,k,t:0,acc:0,sacc:0,ph:Math.random()*9});} // k: particle budget of this fire (grass and tree fires are many, so they each spawn less)
 function updateBurns(dt){
-  updateFelled(dt);updateRad(dt);updateClouds(dt);
+  updateFelled(dt);updateRad(dt);updateClouds(dt);updateAsh(dt);
   if(!G||!G.burns||!G.burns.length){return;}
   let glow=0,gx=0,gz=0,gw=0;
   for(let i=G.burns.length-1;i>=0;i--){const b=G.burns[i];b.t+=dt;const left=b.max-b.t;if(left<=-8){G.burns.splice(i,1);continue;}
@@ -2102,17 +2121,17 @@ function strikeCam(view,dt){
 // coast nearest your base, opens a hatch, launches (Matt's nuclear-launch sound), the camera rides the missile to the
 // target and pulls far back for a nuclear detonation: flash, condensation dome, fireball, mushroom cloud, a 24 m crater
 // and burning ground. Everything within 60 m dies, yours included; damage falls off to 90 m. Then the sub dives.
-const NUKE={cost:3,R:60,R2:90,FALL:140,keep:20,surface:5,hatch:2.4,ignite:1.1,dive:4,subLen:90,surfY:-2,deepY:-27,siteOff:58,boostT:1.4,boostH:60,vmax:175,acc:70,impactT:12,rc:24,depth:7,rim:2,out:2.2,burnT:[40,90],front:{speed:125,max:720},mslBack:5.3};
+const NUKE={cost:3,R:60,R2:90,FALL:140,keep:20,surface:5,hatch:2.4,ignite:1.1,dive:4,subLen:90,surfY:-2,deepY:-27,siteOff:150,boostT:1.4,boostH:60,vmax:175,acc:70,impactT:12,rc:24,depth:7,rim:2,out:2.2,burnT:[40,90],front:{speed:125,max:720},mslBack:5.3};
 const NUKE_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><ellipse cx="32" cy="7" rx="17" ry="6" fill="#e5544a"/><ellipse cx="32" cy="7" rx="9" ry="4" fill="#f2b632"/><path d="M27 10h10l-2 8h-6z" fill="#c9b98a"/><path d="M20 20q12-6 24 0v4H20z" fill="#6f7f3c"/></svg>';
 function nukeCount(){if(devActive())return 99;return Math.floor(mslCount()/NUKE.cost);}
 function nukeShown(){return !!(A.sub&&G&&(G.op||devActive())&&!G.net&&!G.demo);}
 function nukeReady(){return !!(nukeShown()&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&nukeCount()>0);}
 function nukeTooClose(x,z){const b=G.bases[0];return Math.hypot(x-b.x,z-b.z)<NUKE.R+NUKE.keep;}
 function nukeSite(){ // open water off the coast nearest your bunker, the sub lying broadside to the shore
-  const b=G.bases[0];const a0=Math.atan2(b.x,b.z);const inside=(x,z)=>x>X0+18&&x<-X0-18&&z>Z0+18&&z<-Z0-18;
+  const b=G.bases[0];const a0=Math.atan2(b.x,b.z);const inside=(x,z)=>x>X0-160&&x<-X0+160&&z>Z0-160&&z<-Z0+160; // the sea runs well past the island's own rectangle
   for(let k=0;k<24;k++){const a=a0+(k%2?1:-1)*Math.ceil(k/2)*(TAU/24),dx=Math.sin(a),dz=Math.cos(a);let shore=null;
     for(let r=6;r<460;r+=2){const x=b.x+dx*r,z=b.z+dz*r;if(!inside(x,z))break;if(H(x,z)<-2){shore=r;break;}}
-    if(shore==null)continue;const r=shore+NUKE.siteOff,x=b.x+dx*r,z=b.z+dz*r;if(!inside(x,z))continue;let ok=true;for(const q of [-44,-22,0,22,44]){const px=x+dz*q,pz=z-dx*q;if(!inside(px,pz)||H(px,pz)>-2){ok=false;break;}}
+    if(shore==null)continue;const r=shore+NUKE.siteOff,x=b.x+dx*r,z=b.z+dz*r;if(!inside(x,z))continue;const eb=G.bases[1];if(Math.hypot(x-eb.x,z-eb.z)<Math.hypot(x-b.x,z-b.z)+120)continue;let ok=true; // and never on the enemy's side of the islandfor(const q of [-44,-22,0,22,44]){const px=x+dz*q,pz=z-dx*q;if(!inside(px,pz)||H(px,pz)>-2){ok=false;break;}}
     if(ok)return {x,z,hd:Math.atan2(dz,-dx),ix:-dx,iz:-dz,shore:{x:b.x+dx*shore,z:b.z+dz*shore}};}
   return null;}
 function nukeGo(){
@@ -2121,6 +2140,7 @@ function nukeGo(){
   const ty=s?s.y0+Math.min(s.h*.45,5):Math.max(groundAt(MM.tx,MM.tz),0);
   const sub=A.sub.clone();sub.position.set(site.x,NUKE.deepY,site.z);sub.rotation.y=site.hd;world.add(sub);
   G.strike={nuke:true,phase:'surface',t:0,tx:MM.tx,tz:MM.tz,ty,tgt:s,name:s?mslTargetName(s):null,view:MM.view||G.views[0],cine:true,site,sub,hatch:sub.getObjectByName('Hatch'),mount:sub.getObjectByName('Mount'),wacc:0,armed:false};MM.armed=false;
+  nukePrewarm(site);
   if(AU.ctx&&AU.buf.s_nuke){const c=AU.ctx,src=c.createBufferSource(),g=c.createGain();src.buffer=AU.buf.s_nuke;src.connect(g);g.connect(AU.sfx);src.start();
     G.strike.raiseSnd={stop(fade=.5){const n=c.currentTime;g.gain.cancelScheduledValues(n);g.gain.setValueAtTime(g.gain.value,n);g.gain.linearRampToValueAtTime(.0001,n+fade);try{src.stop(n+fade+.05);}catch(e){}}};}
   note(0,'Submarine surfacing — nuclear missile armed','warn',true);sfx('alarm');musicStop();
@@ -2144,28 +2164,32 @@ function nukeLaunch(S){
 function nukeKill(x,z){ // everything inside the fireball dies, whoever it belongs to; damage falls off to R2
   const R=NUKE.R,R2=NUKE.R2;let n=0;
   const st=G.statics.filter(s=>s.alive&&s.name!=='launcher'&&Math.hypot(s.x-x,s.z-z)<R+(s.pts&&s.pts[0]?s.pts[0][2]*.5:0)).sort((a,b)=>Math.hypot(a.x-x,a.z-z)-Math.hypot(b.x-x,b.z-z));
-  for(const s of st){if(['building','hospital','depot','gas','turret','gate','radio','tower','gen','fuel','tent'].includes(s.kind))n++;damage(s,1e7,s.team===1?0:-1);}
+  const kq=[];for(const s of st){if(['building','hospital','depot','gas','turret','gate','radio','tower','gen','fuel','tent'].includes(s.kind))n++;kq.push({s,by:s.team===1?0:-1});} // flattened over the next dozen frames, behind the flash (one frame of rubble for 18 buildings was a visible hitch)
   for(const s of G.statics){if(!s.alive||s.name==='launcher')continue;const d=Math.hypot(s.x-x,s.z-z);if(d<R)continue;
     if(d<R2*.85&&s.kind==='tree'&&s.batch){fellTree(s,(s.x-x)/d,(s.z-z)/d,1);addBurn(s.x,s.z,rr(45,95),rr(1.3,2.2),.7);} // trees past the fireball are blown flat and set alight
-    else if(d<R2*.85&&['wall','hedge','tree','crate','barrel','prop','tent','radio','tower'].includes(s.kind))damage(s,1e7,s.team===1?0:-1);} // the shock front flattens the light stuff out to the fall-off ring
+    else if(d<R2*.85&&['wall','hedge','tree','crate','barrel','prop','tent','radio','tower'].includes(s.kind))kq.push({s,by:s.team===1?0:-1});} // the shock front flattens the light stuff out to the fall-off ring
   for(const v of [...G.vehicles]){if(v.state!=='active')continue;const d=Math.hypot(v.x-x,v.z-z);if(d<R+v.r)damage(v,1e7,v.team===1?0:undefined);}
   const b0=G.bodies?G.bodies[0]+G.bodies[1]:0;for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&Math.hypot(sd.x-x,sd.z-z)<R2*.9)killSoldier(sd,undefined,'blast');G.nukeBodies=G.bodies?G.bodies[0]+G.bodies[1]-b0:0;
   for(const dr of G.drones)if(dr.alive&&Math.hypot(dr.x-x,dr.z-z)<R+12)killDrone(dr,dr.team===1?0:undefined);
   for(const j of G.jets)if(j.alive&&Math.hypot(j.x-x,j.z-z)<R+20&&j.y<150)damage(j,1e7,j.team===1?0:undefined);
   for(const m of G.mines)if(Math.hypot(m.x-x,m.z-z)<R2)m.boom=true;
-  splashDamage(x,Math.max(groundAt(x,z),0)+1,z,R2,260,-1,null); // falloff ring (and the bridges)
   for(const f of G.flags)if(f.state==='carried'&&f.carrier&&f.carrier.state!=='active')dropFlag(f,f.carrier.x,f.carrier.z);
-  return n;}
+  G.strike.kq=kq;return n;}
+function nukeKillTick(S){ // a few structures per frame, nearest first; the fall-off splash and the crater once the queue is through
+  if(S.kq){for(let i=0;i<4&&S.kq.length;i++){const q=S.kq.shift();if(q.s.alive)damage(q.s,1e7,q.by);}
+    if(!S.kq.length){S.kq=null;splashDamage(S.ix,Math.max(groundAt(S.ix,S.iz),0)+1,S.iz,NUKE.R2,260,-1,null);}}
+  else if(!S.craterDone){S.craterDone=true;if(!S.water){const x=S.ix,z=S.iz;const keep={...BLAST};Object.assign(BLAST,{rc:NUKE.rc,depth:NUKE.depth,rim:NUKE.rim,out:NUKE.out,burnT:NUKE.burnT});try{if(!onBridge(x,z))S.crater=makeCrater(x,z);}catch(e){console.warn('nuke crater',e);}Object.assign(BLAST,keep);
+    for(const sd of G.soldiers)if(!sd.alive&&Math.hypot(sd.x-x,sd.z-z)<NUKE.rc*NUKE.out){sd.y=Math.max(groundAt(sd.x,sd.z),0);if(sd.obj)sd.obj.position.y=sd.y;}
+    if(G.shadows&&G.shadows.length){const m=G.shadows[G.shadows.length-1],pa=m.geometry.attributes.position;for(let i=0;i<pa.count;i++)pa.setY(i,H(pa.getX(i),pa.getZ(i))+.1);pa.needsUpdate=true;} /* the shadow decal was laid before the ground sank: re-seat it */}}}
 function nukeImpact(S){
   const x=S.tx,z=S.tz;world.remove(S.m);if(S.snd){S.snd.stop();S.snd=null;}
   const water=groundAt(x,z)<0,gy=water?0:Math.max(groundAt(x,z),0);S.ix=x;S.iy=gy;S.iz=z;S.water=water;S.sec=[];
   if(!water)try{nukeShadows(x,z);}catch(e){console.warn('nuke shadows',e);} // burnt into the ground before anything is removed
   S.killed=nukeKill(x,z);
-  if(!water){const keep={...BLAST};Object.assign(BLAST,{rc:NUKE.rc,depth:NUKE.depth,rim:NUKE.rim,out:NUKE.out,burnT:NUKE.burnT});try{if(!onBridge(x,z))S.crater=makeCrater(x,z);}catch(e){console.warn('nuke crater',e);}Object.assign(BLAST,keep);
-    for(const sd of G.soldiers)if(!sd.alive&&Math.hypot(sd.x-x,sd.z-z)<NUKE.rc*NUKE.out){sd.y=Math.max(groundAt(sd.x,sd.z),0);if(sd.obj)sd.obj.position.y=sd.y;}}
-  else{explosion(x,0,z,MSL.size*2.5,true);for(let i=0;i<500;i++){const a=rr(0,TAU),r=rr(0,14);SMOKE.spawn(x+Math.cos(a)*r,.3,z+Math.sin(a)*r,Math.cos(a)*rr(2,12),rr(25,70),Math.sin(a)*rr(2,12),rr(2,4.5),4,12,C_WATER,[.85,.9,.93],.85,26,.3);}
+  if(water){explosion(x,0,z,MSL.size*2.5,true);for(let i=0;i<500;i++){const a=rr(0,TAU),r=rr(0,14);SMOKE.spawn(x+Math.cos(a)*r,.3,z+Math.sin(a)*r,Math.cos(a)*rr(2,12),rr(25,70),Math.sin(a)*rr(2,12),rr(2,4.5),4,12,C_WATER,[.85,.9,.93],.85,26,.3);}
     for(let i=0;i<24;i++)S.sec.push({t:rr(.1,2.5),x:x+rr(-40,40),z:z+rr(-40,40),s:rr(1.5,3)});}
-  nukeBlastAt(S);nukeFront(S);if(!water)radiationAt(x,z);nukeCloud(x,gy,z);
+  nukeBlastAt(S);nukeFront(S);if(!water)radiationAt(x,z);nukeCloud(x,gy,z);if(G.prewarm){world.remove(G.prewarm);G.prewarm=null;}
+  ashStart();if(!G.hazmat)hazmatOn(0);
   MSL_LIGHT.distance=700;
   sfx('bigboom',x,z);sfx('bigboom',x,z);sfx(water?'waterboom':'boom',x,z);
   if(AU.ctx&&!G.demo){noiseHit(1.6,9,420,16);tone(1.2,7,40,12,'sine');noiseHit(.7,4,2600,120,'lowpass',1,.2);noiseHit(.9,8,700,40,'lowpass',.7,1.4);noiseHit(.5,6,300,30,'lowpass',.7,4);}
@@ -2192,7 +2216,7 @@ function nukeBlastAt(S){
   S.capAcc=0;S.stemAcc=0;const cam=S.view&&S.view.cam;S.shakeAt=cam?Math.hypot(cam.position.x-x,cam.position.y-gy,cam.position.z-z)/340:.2;S.shook=false;
 }
 function nukeTick(S,dt){
-  const t=S.t,x=S.ix,gy=S.iy,z=S.iz;
+  const t=S.t,x=S.ix,gy=S.iy,z=S.iz;nukeKillTick(S);
   const fl=Math.exp(-t*2.6);renderer.toneMappingExposure=1.05+7*fl*(t<.12?t/.12:1);
   MSL_LIGHT.position.set(x,gy+10+Math.min(t,8)*12,z);MSL_LIGHT.color.setRGB(1,lerp(.5,.92,fl),lerp(.18,.8,fl));MSL_LIGHT.intensity=t<7?(500000*fl+90000*Math.exp(-t*.9)*(.85+.15*Math.sin(t*30))):MSL_LIGHT.intensity;
   if(S.core){const k=t/.9;S.core.scale.setScalar(6+70*Math.min(1,k)**.5);S.core.material.opacity=Math.max(0,1-k*k);if(k>=1){world.remove(S.core);S.core.geometry.dispose();S.core.material.dispose();S.core=null;}}
@@ -2247,6 +2271,7 @@ function radiationAt(x,z){
   (G.rad=G.rad||[]).push({x,z,r,t:0,mesh,light,acc:0});}
 function updateRad(dt){if(!G||!G.rad)return;for(const R of G.rad){R.t+=dt;const on=smooth(0,6,R.t),pulse=.5+.5*Math.sin(R.t*2.1)*Math.sin(R.t*.7);
     R.mesh.material.opacity=on*(.22+.14*pulse);R.light.intensity=on*(220+120*pulse);
+    for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&sd.team!==G.hazmat&&Math.hypot(sd.x-R.x,sd.z-R.z)<R.r*.9){sd.radT=(sd.radT||0)+dt;if(sd.radT>3.5)killSoldier(sd,undefined,'blast');} // no suit: a few seconds in the zone is lethal
     R.acc+=dt*34*on;while(R.acc>=1){R.acc--;const a=rr(0,TAU),q=Math.sqrt(Math.random())*R.r*.95,px=R.x+Math.cos(a)*q,pz=R.z+Math.sin(a)*q,gy=Math.max(groundAt(px,pz),0);
       SMOKE.spawn(px,gy+rr(.2,2),pz,rr(-.4,.4),rr(.5,1.6),rr(-.4,.4),rr(.5,1.1),rr(3,6),rr(1.2,2.2),[.35,1,.45],[.2,.8,.3],.55,.1,.2);}}}
 
@@ -2256,9 +2281,10 @@ function nukeShadows(x,z){
   const RS=NUKE.R2*1.25,PX=1024,k=PX/(RS*2),cv=document.createElement('canvas');cv.width=cv.height=PX;const c=cv.getContext('2d');
   const nz=makeNoise((G.seed*17+(x|0)*3+(z|0))>>>0);
   // bleached ash: strong near the centre, mottled, fading to nothing at the edge; clear inside the crater bowl (the crater mesh covers that)
-  const img=c.createImageData(PX,PX),d=img.data;for(let j=0;j<PX;j++)for(let i=0;i<PX;i++){const wx=(i+.5)/k-RS,wz=(j+.5)/k-RS,r=Math.hypot(wx,wz)/RS;const n=nz(wx*.06+3,wz*.06+7)*.6+nz(wx*.35,wz*.35)*.4;
-    let a=(1-smooth(.55,1,r))*(.55+.45*n)*smooth(NUKE.rc*1.15/RS,NUKE.rc*1.6/RS,r);const o=(j*PX+i)*4;d[o]=232+18*n;d[o+1]=229+16*n;d[o+2]=220+12*n;d[o+3]=a*245;}
-  c.putImageData(img,0,0);
+  const SM=160,sc=document.createElement('canvas');sc.width=sc.height=SM;const scx=sc.getContext('2d');const img=scx.createImageData(SM,SM),d=img.data;const ks=SM/(RS*2); // the bleach is painted on a 160 px grid and scaled up: a few ms instead of a full second
+  for(let j=0;j<SM;j++)for(let i=0;i<SM;i++){const wx=(i+.5)/ks-RS,wz=(j+.5)/ks-RS,r=Math.hypot(wx,wz)/RS;const n=nz(wx*.06+3,wz*.06+7)*.6+nz(wx*.35,wz*.35)*.4;
+    let a=(1-smooth(.55,1,r))*(.55+.45*n)*smooth(NUKE.rc*1.15/RS,NUKE.rc*1.6/RS,r);const o=(j*SM+i)*4;d[o]=232+18*n;d[o+1]=229+16*n;d[o+2]=220+12*n;d[o+3]=a*245;}
+  scx.putImageData(img,0,0);c.imageSmoothingEnabled=true;c.drawImage(sc,0,0,PX,PX);
   c.fillStyle='rgba(12,10,8,.94)';c.shadowColor='rgba(12,10,8,.8)';c.shadowBlur=1.5;
   const H0=9; // light comes from the fireball, ~9 m up at ground zero: shadows stretch out with distance
   const cast=(ox,oz,kind,r,h)=>{const dx=ox-x,dz=oz-z,dist=Math.hypot(dx,dz);if(dist<NUKE.rc*1.2||dist>RS*.95)return;const ux=dx/dist,uz=dz/dist;
@@ -2312,6 +2338,11 @@ void main(){vec3 n=normalize(vN);vec3 sd=normalize((viewMatrix*vec4(uSun,0.)).xy
  col+=glow;float a=uFade*(.7+.3*pow(ndv,.7));col=mix(col,uFogC,smoothstep(300.,1500.,vDist)*.45);
  gl_FragColor=vec4(col,a);}`});
   return m;}
+function nukePrewarm(site){ // the cloud, dome and radiation shaders get compiled now, under the sea, not on the frame the bomb lands
+  try{if(G.prewarm)return;const g=new THREE.Group();g.position.set(site.x,-400,site.z);
+    for(const m of [new THREE.Mesh(new THREE.SphereGeometry(1,8,6),cloudMat()),new THREE.Mesh(new THREE.TorusGeometry(1,.4,6,8),cloudMat()),new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,8,4,true),cloudMat()),new THREE.Mesh(new THREE.SphereGeometry(1,8,6),BLAST_DOME_MAT.clone()),
+      new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})),new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(document.createElement('canvas')),transparent:true}))]){m.frustumCulled=false;g.add(m);}
+    const u=g.children[2].material.uniforms;u.uSt.value.set(1,4,1);world.add(g);G.prewarm=g;}catch(e){console.warn('prewarm',e);}}
 function nukeCloud(x,gy,z){
   const cap=new THREE.Mesh(new THREE.SphereGeometry(1,72,44),cloudMat()),ring=new THREE.Mesh(new THREE.TorusGeometry(1,.46,36,80),cloudMat()),stem=new THREE.Mesh(new THREE.CylinderGeometry(1.25,.8,1,64,48,true),cloudMat());
   ring.rotation.x=Math.PI/2;stem.material.side=THREE.DoubleSide;
@@ -2321,6 +2352,23 @@ function nukeCloud(x,gy,z){
   const skirt=new THREE.Mesh(new THREE.TorusGeometry(1,.28,16,64),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false,fog:true}));skirt.rotation.x=Math.PI/2;
   for(const o of [stem,ring,cap,skirt]){o.renderOrder=4;o.frustumCulled=false;world.add(o);}
   (G.clouds=G.clouds||[]).push({x,gy,z,t:0,cap,ring,stem,skirt,dead:false});}
+// ---- after the bomb: ash falls over the whole island for the rest of the match, the sky goes grey
+const ASH_C=[[.5,.48,.45],[.3,.29,.27],[.72,.7,.66]];
+function ashStart(){if(!G||G.ash)return;G.ash={t:0,acc:0};}
+function updateAsh(dt){if(!G||!G.ash)return;const A2=G.ash;A2.t+=dt;const on=smooth(0,20,A2.t);
+  const k=1-Math.exp(-dt*.14);scene.fog.color.lerp(_ashFog,k);scene.background.lerp(_ashFog,k);hemi.intensity=lerp(hemi.intensity,.8,k);sun.intensity=lerp(sun.intensity,1.7,k);
+  for(const v of G.views){const cx=v.cam.position.x,cz=v.cam.position.z;A2.acc+=dt*140*on;while(A2.acc>=1){A2.acc--;const a=rr(0,TAU),r=Math.sqrt(Math.random())*45,px=cx+Math.cos(a)*r,pz=cz+Math.sin(a)*r;const c=ASH_C[(Math.random()*3)|0];
+      SMOKE.spawn(px,Math.max(groundAt(px,pz),v.cam.position.y-6)+rr(4,26),pz,rr(-.6,.6),rr(-1.8,-.9),rr(-.6,.6),rr(8,16),rr(.14,.32),rr(.16,.38),c,c,.9,-.04,.5);}}}
+const _ashFog=new THREE.Color(0x5b5a55);
+// ---- hazmat: once the bomb has gone off your men suit up (yellow, hooded), and the radiation at ground zero only hurts the other side
+const HAZ={mat:null,tm:null};
+function hazMat(){if(!HAZ.mat){HAZ.mat=new THREE.MeshStandardMaterial({color:0xe8c23a,roughness:.42,metalness:0});HAZ.tm=new THREE.MeshStandardMaterial({color:0x1b1d20,roughness:.6,metalness:.1});}return HAZ.mat;}
+function hazmatDress(o,fp){ // every mesh goes yellow; the head/visor stays dark; the first-person body keeps its head-hiding shader
+  hazMat();o.traverse(m=>{if(!m.isMesh)return;if(m.userData.hazDone)return;m.userData.hazDone=true;const head=/head|visor|goggle|glass/i.test(m.name)||m.userData.head!==undefined;
+    if(fp&&m.userData.hideHead){const h=m.material.clone();h.onBeforeCompile=m.material.onBeforeCompile;h.customProgramCacheKey=m.material.customProgramCacheKey;h.map=null;h.normalMap=null;h.color.set(0xe8c23a);h.roughness=.55;h.metalness=0;m.material=h;}
+    else m.material=head||/boot|glove|belt|strap|holster|goggle/i.test(m.name+' '+(m.material&&m.material.name||''))?HAZ.tm:HAZ.mat;});}
+function hazmatOn(T){if(!G)return;G.hazmat=T;for(const sd of G.soldiers)if(sd.team===T&&sd.alive)hazmatDress(sd.obj,false);
+  for(const v of G.vehicles)if(v.type==='foot'&&v.team===T&&v.parts)hazmatDress(v.obj,true);note(T,'Hazmat suits issued — your men can work the fallout zone','good',true);}
 function updateClouds(dt){if(!G||!G.clouds)return;for(const C of G.clouds){if(C.dead)continue;C.t+=dt;const t=C.t;
     const rise=1-Math.exp(-t/7.5),cy=C.gy+10+300*rise,r=9+74*(1-Math.exp(-t/8.5)),flat=smooth(4,18,t);
     const fade=t<75?1:Math.max(0,1-(t-75)/35);if(fade<=0){for(const k of ['cap','ring','stem','skirt']){world.remove(C[k]);C[k].geometry.dispose();C[k].material.dispose();}C.dead=true;continue;}
@@ -2492,7 +2540,7 @@ function trooperSetup(tg){
   const sc=tg.scene,root=sc.getObjectByName('Trooper')||sc.children[0];
   sc.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;const m=o.material;if(m){m.transparent=false;m.alphaTest=0;m.side=THREE.FrontSide;m.roughness=Math.max(m.roughness??.5,.5);m.metalness=Math.min(m.metalness??0,.25);m.envMapIntensity=.45;if(m.map)m.map.anisotropy=4;}}});
   const clips={};for(const c of tg.animations){clips[c.name]=c;}
-  const upper={};for(const k of ['fire','reload','grenade','hit'])if(clips[k]){const c=clips[k].clone();c.tracks=c.tracks.filter(t=>TROOP.upperRe.test(t.name)&&!/Hips/.test(t.name));upper[k]=c;}
+  const upper={};for(const k of ['fire','reload','grenade','hit','salute'])if(clips[k]){const c=clips[k].clone();c.tracks=c.tracks.filter(t=>TROOP.upperRe.test(t.name)&&!/Hips/.test(t.name));upper[k]=c;}
   const wrap=new THREE.Group();wrap.add(root);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(root,true);const scale=HERO_H/Math.max(.5,bb.max.y-bb.min.y);wrap.scale.setScalar(scale);
   const mats=new Map();sc.traverse(o=>{if(o.isMesh)mats.set(o.name,o.material);});A.trooper={body:wrap,clips,upper,scale,mats};
   // the rifle sits in his right hand: pose him in 'aim', then fit the rifle's grip to the right palm and its fore-end to the left palm
@@ -2512,7 +2560,7 @@ function trooperSetup(tg){
       const hk=th.position.length()/Math.max(.01,ch.position.length()*ch.parent.scale.x); // and the troop's legs are longer: hips height scales with them
       const fix=c=>{const k=adaptClip(c);const q=new THREE.Quaternion(),v=new V3();for(const t of k.tracks){if(t.name==='mixamorigHips.quaternion'){for(let i=0;i<t.values.length;i+=4){q.fromArray(t.values,i).premultiply(Rfix);q.toArray(t.values,i);}}
         else if(t.name==='mixamorigHips.position'){for(let i=0;i<t.values.length;i+=3){v.fromArray(t.values,i).applyQuaternion(Rfix).multiplyScalar(hk);v.toArray(t.values,i);}}}return k;};
-      A.soldier.m={};for(const k of ['idle','aim','walkF','runF','dieF','dieB','dieR','hit'])if(clips[k])A.soldier.m[k]=fix(clips[k]);}catch(e){console.warn('soldier moves',e);}}
+      A.soldier.m={};for(const k of ['idle','aim','walkF','runF','dieF','dieB','dieR','hit','salute'])if(clips[k])A.soldier.m[k]=fix(clips[k]);}catch(e){console.warn('soldier moves',e);}}
 }
 function trooperHideHead(o){ // first person: discard every fragment the head or neck joints own (scaling the bone leaves neck spikes)
   o.traverse(m=>{if(!m.isSkinnedMesh)return;const idx=[];m.skeleton.bones.forEach((b,i)=>{if(/mixamorig(Head|HeadTop_End|Neck)$/.test(b.name))idx.push(i);});if(!idx.length)return;
@@ -2520,8 +2568,8 @@ function trooperHideHead(o){ // first person: discard every fragment the head or
 {vHd=0.;${idx.map(i=>`vHd+=(abs(skinIndex.x-${i}.)<.5?skinWeight.x:0.)+(abs(skinIndex.y-${i}.)<.5?skinWeight.y:0.)+(abs(skinIndex.z-${i}.)<.5?skinWeight.z:0.)+(abs(skinIndex.w-${i}.)<.5?skinWeight.w:0.);`).join('')}}`);
       sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vHd;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vHd>.3)discard;');};
     mat.customProgramCacheKey=()=>'hidehead'+idx.join('_');m.material=mat;m.userData.hideHead=mat;m.userData.showMat=null;});}
-function trooperActs(o,mx){const acts={};for(const k in A.trooper.clips){const c=A.trooper.upper[k]||A.trooper.clips[k];const a=mx.clipAction(c);a.enabled=true;a.setEffectiveWeight(0);a.play();if(/^(die|jump|grenade|hit|reload|turn)/.test(k)){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true;a.stop();}acts[k]=a;}return acts;}
-const _bq=new THREE.Quaternion(),_bq2=new THREE.Quaternion(),_bax=new V3();
+function trooperActs(o,mx){const acts={};for(const k in A.trooper.clips){const c=A.trooper.upper[k]||A.trooper.clips[k];const a=mx.clipAction(c);a.enabled=true;a.setEffectiveWeight(0);a.play();if(/^(die|jump|grenade|hit|reload|turn|salute)/.test(k)){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true;a.stop();}acts[k]=a;}return acts;}
+const _bq=new THREE.Quaternion(),_bq2=new THREE.Quaternion(),_bax=new V3(),_gd=new V3(),_ge=new V3(),_gt=new V3(),_gg=new V3(),_gu=new V3(),_gr=new V3(),_gm=new THREE.Matrix4(),_gq=new THREE.Quaternion(),_gq2=new THREE.Quaternion();
 function bendBone(bone,axis,ang){ // rotate a bone about a WORLD axis, after the mixer has posed it
   if(!bone||!ang)return;_bq.setFromAxisAngle(axis,ang);bone.parent.getWorldQuaternion(_bq2);_bq2.invert();bone.quaternion.premultiply(_bq2.clone().multiply(_bq).multiply(_bq2.clone().invert()));}
 function trooperOneShot(sd,k,ts=1,hold=false){const a=sd.acts[k];if(!a)return;a.reset();a.timeScale=ts;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=hold;a.play();sd.shot={k,t:0};}
@@ -2544,6 +2592,8 @@ function trooperAnim(v,sd,dt,inp){ // weights for the player's body from what he
   sd.mx.update(dt);
   // the torso follows the aim (the camera is in the head, so this is what bends the rifle up and down)
   if(!v.air){_bax.set(-Math.cos(v.heading),0,Math.sin(v.heading));const a=v.pitch*TROOP.spineK*(v.crouch?.6:1);bendBone(sd.bones.spine1,_bax,a*.45);bendBone(sd.bones.spine2,_bax,a*.55);}
+  if(sd.gun&&sd.bones.rhand&&!v.air&&!v.sprint){sd.obj.updateMatrixWorld(true);const cp=Math.cos(v.pitch);_gd.set(Math.sin(v.heading)*cp,Math.sin(v.pitch),Math.cos(v.heading)*cp);sd.bones.head.getWorldPosition(_ge);_ge.y+=.08;_ge.addScaledVector(_gd,.1);_gt.copy(_ge).addScaledVector(_gd,30); // the point under the crosshair, 30 m out
+    sd.gun.localToWorld(_gg.copy(RIFLE.grip));_gd.copy(_gt).sub(_gg).normalize();_gu.set(0,1,0).addScaledVector(_gd,-_gd.y).normalize();_gr.crossVectors(_gu,_gd).normalize();_gm.makeBasis(_gr,_gu,_gd);_gq.setFromRotationMatrix(_gm);sd.bones.rhand.getWorldQuaternion(_gq2);_gq2.invert();sd.gun.quaternion.copy(_gq2.multiply(_gq));sd.gun.updateMatrixWorld(true);} // muzzle on the target; the left hand follows below
   if(sd.gun&&sd.bones.L.every(Boolean)&&!sd.shot){sd.obj.updateMatrixWorld(true);sd.obj.getWorldQuaternion(_sq);_sf.set(0,0,1).applyQuaternion(_sq);_sr.set(1,0,0).applyQuaternion(_sq);const L=sd.bones.L;L[0].getWorldPosition(_pl);_pl.addScaledVector(UP,-1).addScaledVector(_sr,-.6).addScaledVector(_sf,-.1);ik2(L[0],L[1],L[2],sd.gun.localToWorld(_tg.copy(RIFLE.fore)),_pl);} // left hand on the handguard
   if(sd.flash){FP.flashT-=dt;const fo=FP.flashT>0;sd.flash.visible=fo;sd.flashLight.intensity=fo?4:0;if(fo){sd.flash.material.rotation=Math.random()*TAU;sd.flash.scale.setScalar(rr(.14,.22));}}
 }
@@ -2593,6 +2643,7 @@ function buildTrooperObj(T,firstPerson=true){
   const g=new THREE.Group();const o=SkeletonUtils.clone(A.trooper.body);g.add(o);o.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});
   const bn=n=>o.getObjectByName('mixamorig'+n),bones={head:bn('Head'),neck:bn('Neck'),spine1:bn('Spine1'),spine2:bn('Spine2'),rhand:bn('RightHand'),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   if(firstPerson)trooperHideHead(o); // the camera lives in the head: helmet and mask would sit over the lens
+  if(G&&G.hazmat===T)hazmatDress(o,firstPerson);
   let gun=null,flash=null,flashLight=null;
   if(bones.rhand&&TROOP.gun){gun=rifleModel().clone();bones.rhand.add(gun);TROOP.gun.decompose(gun.position,gun.quaternion,gun.scale);
     const cv=document.createElement('canvas');cv.width=cv.height=64;const x=cv.getContext('2d');const gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,250,220,1)');gr.addColorStop(.25,'rgba(255,200,90,.9)');gr.addColorStop(1,'rgba(255,120,20,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);
@@ -2865,7 +2916,7 @@ const PK={
 const PGEO={shell:new THREE.SphereGeometry(.28,6,4),bullet:new THREE.BoxGeometry(.12,.12,1.6),missile:new THREE.CylinderGeometry(.18,.18,1.3,6).rotateX(Math.PI/2),grenade:new THREE.SphereGeometry(.3,6,4)};
 const PMAT={shell:new THREE.MeshBasicMaterial({color:0xffe08a}),bullet:new THREE.MeshBasicMaterial({color:0xfff2b0}),missile:new THREE.MeshStandardMaterial({color:0xe8e4d8,roughness:.5}),grenade:new THREE.MeshStandardMaterial({color:0x2c3a20})};
 const ppool={};
-function pmesh(geo){const p=ppool[geo]||(ppool[geo]=[]);let m=p.pop();if(!m){m=new THREE.Mesh(PGEO[geo],PMAT[geo]);}scene.add(m);m.visible=true;return m;}
+function pmesh(geo){const p=ppool[geo]||(ppool[geo]=[]);let m=p.pop();if(!m){if(geo==='grenade'&&A.props&&A.props.Grenade){m=A.props.Grenade.clone();m.scale.setScalar(2.2);m.rotation.set(rr(0,TAU),rr(0,TAU),0);} /* the real thing is 6.5 cm; it reads at 2x in flight */ else if(geo==='bomb'&&A.props&&A.props.Bomb){m=A.props.Bomb.clone();} else m=new THREE.Mesh(PGEO[geo==='bomb'?'grenade':geo],PMAT[geo==='bomb'?'grenade':geo]);}scene.add(m);m.visible=true;return m;}
 function freeMesh(geo,m){scene.remove(m);(ppool[geo]||(ppool[geo]=[])).push(m);}
 function fire(kind,team,x,y,z,dx,dy,dz,opts={}){
   const k=PK[kind];const l=Math.hypot(dx,dy,dz)||1;const sp=opts.speed||k.speed||0;
@@ -2978,8 +3029,8 @@ function destroyStatic(s,byTeam){
 }
 
 // ============================================================ mines
-function layMine(v){const bx=v.x-fwdX(v.heading)*4.5,bz=v.z-fwdZ(v.heading)*4.5;const m=new THREE.Mesh(new THREE.CylinderGeometry(.75,.85,.3,10),new THREE.MeshStandardMaterial({color:0x2a2c22,roughness:.7}));
-  const dot=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.34,8),new THREE.MeshBasicMaterial({color:TEAMS[v.team].color}));m.add(dot);
+function layMine(v){const bx=v.x-fwdX(v.heading)*4.5,bz=v.z-fwdZ(v.heading)*4.5;let m;if(A.props&&A.props.Mine){m=A.props.Mine.clone();m.scale.setScalar(2.4);m.rotation.y=rr(0,TAU);const dot=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.02,8),new THREE.MeshBasicMaterial({color:TEAMS[v.team].color}));dot.position.set(-.12,.14,0);m.add(dot);} /* the Blender M15 (33 cm) at 2.4x so it reads from the overhead camera; a team-colour tell-tale */
+  else{m=new THREE.Mesh(new THREE.CylinderGeometry(.75,.85,.3,10),new THREE.MeshStandardMaterial({color:0x2a2c22,roughness:.7}));const dot=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.34,8),new THREE.MeshBasicMaterial({color:TEAMS[v.team].color}));m.add(dot);}
   m.position.set(bx,groundAt(bx,bz)+.12,bz);world.add(m);G.mines.push({x:bx,z:bz,team:v.team,arm:1.5,mesh:m,boom:false});sfx('click',bx,bz);}
 function updateMines(dt){for(let i=G.mines.length-1;i>=0;i--){const m=G.mines[i];m.arm-=dt;
   if(m.arm<=0)for(const v of G.vehicles){if(v.team!==m.team&&!v.def.air&&v.state==='active'&&Math.hypot(v.x-m.x,v.z-m.z)<v.r+.9){m.boom=true;}}
@@ -3076,7 +3127,7 @@ function updateVehicle(v,inp,dt){
       v.speed*=-.25;}}
     v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;
     // separate overlapping vehicles
-    for(const o of G.vehicles){if(o===v||o.def.air||o.state!=='active')continue;const dx=v.x-o.x,dz=v.z-o.z,d=Math.hypot(dx,dz),r=v.r+o.r*.9;if(d<r&&d>.01){const push=(r-d)*.5;v.x+=dx/d*push;v.z+=dz/d*push;}}
+    for(const o of G.vehicles){if(o===v||o.def.air||o.state!=='active'||o.type==='foot')continue;const dx=v.x-o.x,dz=v.z-o.z,d=Math.hypot(dx,dz),r=v.r+o.r*.9;if(d<r&&d>.01){const push=(r-d)*.5;v.x+=dx/d*push;v.z+=dz/d*push;}} // (a man on foot never pushes a vehicle: he is stopped by it instead)
     v.y=lerp(v.y,v.floats&&shallow?Math.max(vehGround(v.x,v.z),-.35+Math.sin(G.time*3+v.x)*.12):vehGround(v.x,v.z),1-Math.exp(-dt*14));
     if(Math.abs(v.speed)>3){v.dustT-=dt;if(v.dustT<0){v.dustT=v.type==='jeep'||v.type==='truck'?.05:.08;const g=groundAt(v.x,v.z);
       if(shallow)SMOKE.spawn(v.x+rr(-1,1),.2,v.z+rr(-1,1),rr(-2,2),3,rr(-2,2),.6,.8,2,C_WATER,C_WATER,.6,8,1);
@@ -3185,13 +3236,13 @@ function updateAir(dt){
     if(Math.random()<dt*40)FIRE.spawn(j.x-j.dx*5.8,j.y+.2,j.z-j.dz*5.8,-j.vx*.05,0,-j.vz*.05,.18,1.2,.3,C_FIRE0,C_FIRE1,.8);
     if(!j.roared&&j.s>-110){j.roared=true;sfx('jet',j.tx,j.tz);}
     for(const p of j.pts){if(p.dropped||j.s<p.s-JET.lead)continue;p.dropped=true;
-      const mesh=pmesh('grenade');mesh.scale.setScalar(1.8);mesh.position.set(j.x,j.y-1,j.z);
+      const mesh=pmesh('bomb');if(!(A.props&&A.props.Bomb))mesh.scale.setScalar(1.8);mesh.position.set(j.x,j.y-1,j.z);
       G.bombs.push({x0:j.x,y0:j.y-1,z0:j.z,x:p.x,z:p.z,t:0,mesh,ring:p.ring,team:j.team});sfx('whistle',p.x,p.z);}
     for(const p of j.pts)if(!p.dropped)p.ring.material.opacity=.45+.4*Math.abs(Math.sin(G.time*6));
     if(j.s>JET.approach+60){j.alive=false;world.remove(j.obj);G.jets.splice(i,1);}}
   for(let i=G.bombs.length-1;i>=0;i--){const b=G.bombs[i];b.t+=dt;const k=Math.min(1,b.t/JET.fall);
-    const gy=Math.max(groundAt(b.x,b.z),0);b.mesh.position.set(lerp(b.x0,b.x,k),lerp(b.y0,gy,k*k),lerp(b.z0,b.z,k));
-    if(k<1)continue;G.bombs.splice(i,1);b.mesh.scale.setScalar(1);freeMesh('grenade',b.mesh);world.remove(b.ring);
+    const gy=Math.max(groundAt(b.x,b.z),0);b.mesh.position.set(lerp(b.x0,b.x,k),lerp(b.y0,gy,k*k),lerp(b.z0,b.z,k));if(A.props&&A.props.Bomb){const vx=b.x-b.x0,vz=b.z-b.z0;b.mesh.rotation.set(0,Math.atan2(vx,vz),0);b.mesh.rotateX(-Math.atan2(Math.hypot(vx,vz),2*k*(b.y0-gy)+.01));} // the bomb's nose follows its fall
+    if(k<1)continue;G.bombs.splice(i,1);if(!(A.props&&A.props.Bomb))b.mesh.scale.setScalar(1);freeMesh('bomb',b.mesh);world.remove(b.ring);
     const water=groundAt(b.x,b.z)<0;explosion(b.x,water?0:gy,b.z,1.7,water);sfx(water?'waterboom':'bigboom',b.x,b.z);if(!water)debris(b.x,gy,b.z,5,9);
     splashDamage(b.x,gy+1,b.z,JET.bombR,JET.bombDmg,b.team,null);}
 }
@@ -3351,12 +3402,30 @@ function spawnSoldier(T,x,z,mode){
   const head=o.getObjectByName('mixamorigHead');if(head&&!A.troop){const hp=new THREE.Mesh(HELMET_GEO,HELMET_MAT[T]);hp.position.set(0,21,0);head.add(hp);}
   const mx=new THREE.AnimationMixer(o);const idle=mx.clipAction(A.soldier.idle),run=mx.clipAction(A.soldier.run);idle.play();run.play();run.setEffectiveWeight(0);idle.time=RND();run.time=RND()*.6;
   const m={};if(A.soldier.m)for(const k of ['aim','walkF','runF'])if(A.soldier.m[k]){m[k]=mx.clipAction(A.soldier.m[k]);m[k].play();m[k].setEffectiveWeight(0);m[k].time=RND()*.5;}
+  if(mode==='parade'&&A.soldier.m&&A.soldier.m.salute){m.salute=mx.clipAction(A.soldier.m.salute);m.salute.setLoop(THREE.LoopOnce,1);m.salute.clampWhenFinished=false;}
   o.position.set(x,groundAt(x,z),z);world.add(o);
+  if(G.hazmat===T)hazmatDress(o,false);
   const sd={soldier:true,team:T,x,z,y:o.position.y,heading:RND()*TAU,hp:8,alive:true,mode,obj:o,mx,idle,run,gun:chest?gun:null,arms:arms.R.every(Boolean)&&arms.L.every(Boolean)?arms:null,moving:0,wp:null,cd:rr(.5,2),think:RND()*.4,target:null,deadT:0,
     fleeT:mode==='flee'?3:0,wpT:0,m,mw:{}};
   if(mode==='flee'){const a=RND()*TAU;sd.wp=[x+Math.cos(a)*22,z+Math.sin(a)*22];}
   sd.netId=++G.netSeq;G.soldiers.push(sd);return sd;
 }
+// ---- the parade (Matt, 29 Oct 2026): a squad stands in two ranks in your base listening to an officer, saluting him (Salute.fbx);
+// they fall out and fight like anyone else once an enemy comes within range
+function paradeSetup(T){
+  if(!A.troop||!A.soldier||!A.soldier.m||!A.soldier.m.salute)return;const b=G.bases[T],eb=G.bases[1-T];const ax=b.x-eb.x,az=b.z-eb.z,al=Math.hypot(ax,az)||1,ux=ax/al,uz=az/al,rx=-uz,rz=ux; // away from the enemy, inside the walls
+  let best=null;for(const d of [26,32,20,38]){for(const sgn of [1,-1]){const cx=b.x+ux*d*.6+rx*sgn*d*.8,cz=b.z+uz*d*.6+rz*sgn*d*.8;let ok=H(cx,cz)>1.2;if(ok)for(let i=-1;i<=1&&ok;i++)for(let j=0;j<=1&&ok;j++)if(soldierBlocked(cx+rx*i*2.2+ux*j*2.2,cz+rz*i*2.2+uz*j*2.2,T)||!passable(cx+rx*i*2.2+ux*j*2.2,cz+rz*i*2.2+uz*j*2.2))ok=false;if(ok&&!soldierBlocked(cx+ux*4.5,cz+uz*4.5,T)){best={cx,cz};break;}}if(best)break;}
+  if(!best)return;const {cx,cz}=best;const faceTo=Math.atan2(ux,uz);
+  const squad=[];for(let j=0;j<2;j++)for(let i=-1;i<=1;i++){const x=cx+rx*i*2.2-ux*j*2.2,z=cz+rz*i*2.2-uz*j*2.2;const sd=spawnSoldier(T,x,z,'parade');if(!sd)continue;sd.parade=true;sd.heading=faceTo;sd.obj.rotation.y=faceTo;sd.wp=null;sd.saluteT=rr(2,6)+j*.3;squad.push(sd);}
+  // the officer: the trooper himself, facing the ranks
+  const ox=cx+ux*4.5,oz=cz+uz*4.5;let officer=null;if(A.trooper){const {g,parts}=buildTrooperObj(T,false);g.position.set(ox,groundAt(ox,oz),oz);g.rotation.y=faceTo+Math.PI;world.add(g);const sd=parts.sd;for(const k in sd.acts)sd.acts[k].setEffectiveWeight(0);sd.acts.idle.setEffectiveWeight(1);officer={obj:g,sd,x:ox,z:oz,t:0,speakT:rr(5,9)};}
+  G.parade={squad,officer,T};}
+function updateParade(dt){const P=G&&G.parade;if(!P)return;
+  if(P.officer){const o=P.officer;o.t+=dt;o.speakT-=dt;const sd=o.sd;
+    if(o.speakT<=0){o.speakT=rr(7,12);trooperOneShot(sd,Math.random()<.5?'salute':'relax',1);}
+    if(sd.shot){const a=sd.acts[sd.shot.k];const k=a.time/Math.max(.01,a.getClip().duration);if(!a.isRunning()||k>=.98){sd.shot=null;sd.acts[sd.shot?sd.shot.k:'idle'].setEffectiveWeight(1);}else{const w=3*Math.min(1,k*9,(1-k)*5);a.setEffectiveWeight(w);}}
+    sd.mx.update(dt);const near=G.views.some(v=>Math.hypot(v.focus.x-o.x,v.focus.z-o.z)<140);if(!near)return;}
+  }
 function soldierActs(sd){const a=[sd.idle,sd.run];if(sd.m)for(const k in sd.m)a.push(sd.m[k]);return a;}
 function soldierMoves(sd,moving,dt){ // walk on patrol, run to attack, rifle up when there's something to shoot at
   const m=sd.m;if(!m||!m.walkF){sd.moving=lerp(sd.moving,moving?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(sd.moving);sd.idle.setEffectiveWeight(1-sd.moving);sd.run.timeScale=moving>3?1.15:.75;return;}
@@ -3471,9 +3540,10 @@ function updateCrew(sd,dt,near){
     FIRE.spawn(mx,my,mz,0,0,0,.05,.8,.3,C_FIRE0,C_FIRE1);}
 }
 function updateSoldiers(dt){
+  updateParade(dt);
   // reinforcements walk out of surviving buildings
   for(const T of [0,1]){G.soldierT[T]-=dt;if(G.soldierT[T]>0)continue;G.soldierT[T]=14;
-    const alive=G.soldiers.filter(s=>s.alive&&s.team===T).length;const blds=G.bases[T].buildings.filter(b=>b.alive);
+    const alive=G.soldiers.filter(s=>s.alive&&s.team===T&&!s.parade).length;const blds=G.bases[T].buildings.filter(b=>b.alive);
     if(alive<G.cfg[T].soldierCap&&blds.length){const b=blds[(RND()*blds.length)|0];const B=G.bases[T];const dx=B.x-b.x,dz=B.z-b.z,l=Math.hypot(dx,dz)||1;spawnSoldier(T,b.x+dx/l*9,b.z+dz/l*9,'patrol');}}
   const near=(sd,R)=>{for(const v of G.views)if(Math.hypot(v.focus.x-sd.x,v.focus.z-sd.z)<R)return true;return false;};
   for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];
@@ -3492,7 +3562,8 @@ function updateSoldiers(dt){
       sd.target=sd.goHome?null:best;if(best&&!sd.goHome&&sd.mode!=='flee')sd.mode='attack';else if(!best&&sd.mode==='attack')sd.mode='patrol';
       if(sd.mode==='attack'){const d=bd,ang=Math.atan2(sd.x-best.x,sd.z-best.z);
         if(d<13){sd.wp=[sd.x+Math.sin(ang)*8,sd.z+Math.cos(ang)*8];}else if(d>26){sd.wp=[best.x+Math.sin(ang)*20,best.z+Math.cos(ang)*20];}else sd.wp=null;}
-      else if(sd.mode==='patrol'&&(!sd.wp||sd.wpT>14)){if(!sd.wp&&RND()<.35){sd.idleT=rr(1,4);}else{sd.wp=patrolPoint(G.bases[sd.team]);sd.wpT=0;}}}
+      else if(sd.mode==='patrol'&&(!sd.wp||sd.wpT>14)){if(!sd.wp&&RND()<.35){sd.idleT=rr(1,4);}else{sd.wp=patrolPoint(G.bases[sd.team]);sd.wpT=0;}}
+      if(sd.mode==='parade'){sd.wp=null;sd.idleT=0;if(G.parade&&G.parade.officer)sd.heading=Math.atan2(G.parade.officer.x-sd.x,G.parade.officer.z-sd.z);}}
     sd.fleeT-=dt;if(sd.mode==='flee'&&sd.fleeT<=0)sd.mode='patrol';
     if(sd.goHome&&Math.hypot(sd.x-G.bases[sd.team].x,sd.z-G.bases[sd.team].z)<11){world.remove(sd.obj);G.soldiers.splice(i,1);continue;}
     if(sd.goHome&&!sd.wp)sd.wp=[G.bases[sd.team].x,G.bases[sd.team].z];
@@ -3520,7 +3591,8 @@ function updateSoldiers(dt){
       else sd.gcd=.5;}
     sd.y=groundAt(sd.x,sd.z);const o=sd.obj;o.position.set(sd.x,sd.y,sd.z);o.rotation.y=lerpAngle(o.rotation.y,sd.heading,1-Math.exp(-dt*10));
     soldierMoves(sd,moving,dt);
-    if(near(sd,140)){sd.mx.update(dt);soldierArms(sd);}
+    if(sd.parade&&sd.mode==='parade'&&sd.m&&sd.m.salute){sd.saluteT-=dt;if(sd.saluteT<=0){sd.saluteT=rr(9,16);sd.m.salute.reset().play();sd.saluting=1;}const a=sd.m.salute;if(sd.saluting){const k=a.time/Math.max(.01,a.getClip().duration);if(!a.isRunning()||k>=.98){sd.saluting=0;a.setEffectiveWeight(0);}else a.setEffectiveWeight(3*Math.min(1,k*9,(1-k)*5));}} // ranks: salute the officer now and then
+    if(near(sd,140)){sd.mx.update(dt);if(!(sd.parade&&sd.saluting))soldierArms(sd);}
   }
 }
 function lerpAngle(a,b,t){return a+angDiff(a,b)*t;}
@@ -3823,6 +3895,7 @@ const opts={diff:1,shadows:true,mouse:true,touch:false};
 const TOUCH={ax:0,ay:0,active:false,fire:false,special:false,id:null,ox:0,oy:0};
 function newGame(mode,seed,demo=false){
   endGame();
+  scene.fog.color.set(FOG);scene.background.set(FOG);hemi.intensity=1.15;sun.intensity=2.5; // (ash rain from a nuke in the last match darkened these)
   world=new THREE.Group();scene.add(world);FIRE.clear();SMOKE.clear();for(const p of DEB.p)p.life=0;for(const p of BLD.p)p.life=0;
   G={mode,seed,demo,time:0,statics:[],hash:new Map(),vehicles:[],proj:[],mines:[],smokers:[],views:[],batches:{},soldiers:[],soldierT:[0,0],drones:[],droneT:[40,40],sub:{mesh:null,cool:0},over:false,netSeq:0,net:mode==='online'?NET:null,jets:[],bombs:[],air:null};
   const SK={buildings:6,turrets:['gun','cannon','gun','cannon'],outposts:['gun'],soldiers:7,soldierCap:9,drones:0,gates:true};
@@ -3847,6 +3920,7 @@ function newGame(mode,seed,demo=false){
   scatterNature();
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}
+  if(!demo&&mode!=='online')try{paradeSetup(0);}catch(e){console.warn('parade',e);}
   for(const b of bases)for(let i=0;i<G.cfg[b.team].drones;i++)spawnDrone(b.team);
   const humans=demo?[]:mode==='2p'||mode==='online'?[0,1]:[0];
   const d=opts.diff;

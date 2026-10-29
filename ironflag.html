@@ -2508,7 +2508,7 @@ function trooperSetup(tg){
     TROOP.gun=local;TROOP.handSpan=palmR.distanceTo(palmL);console.log('trooper rifle fit: hands',TROOP.handSpan.toFixed(2),'m apart');}catch(e){console.warn('trooper rifle fit',e);}
   // the enemy infantry share the moves (their CC3 rig has the same Mixamo joint frames; adaptClip drops the per-bone translations)
   if(A.troop&&A.soldier){try{const th=A.troop.getObjectByName('mixamorigHips'),ch=root.getObjectByName('mixamorig:Hips')||root.getObjectByName('mixamorigHips');
-      const Rfix=th.parent.quaternion.clone().invert().multiply(ch.parent.quaternion); // the two rigs' root frames differ by a fixed turn: hips keys go through it
+      const Rfix=th.parent.quaternion.clone().premultiply(new THREE.Quaternion().setFromAxisAngle(UP,Math.PI)).invert().multiply(ch.parent.quaternion); // the two rigs' root frames differ by a fixed turn (and the troop root gets spun 180 deg at load, below): hips keys go through both
       const hk=th.position.length()/Math.max(.01,ch.position.length()*ch.parent.scale.x); // and the troop's legs are longer: hips height scales with them
       const fix=c=>{const k=adaptClip(c);const q=new THREE.Quaternion(),v=new V3();for(const t of k.tracks){if(t.name==='mixamorigHips.quaternion'){for(let i=0;i<t.values.length;i+=4){q.fromArray(t.values,i).premultiply(Rfix);q.toArray(t.values,i);}}
         else if(t.name==='mixamorigHips.position'){for(let i=0;i<t.values.length;i+=3){v.fromArray(t.values,i).applyQuaternion(Rfix).multiplyScalar(hk);v.toArray(t.values,i);}}}return k;};
@@ -2544,6 +2544,7 @@ function trooperAnim(v,sd,dt,inp){ // weights for the player's body from what he
   sd.mx.update(dt);
   // the torso follows the aim (the camera is in the head, so this is what bends the rifle up and down)
   if(!v.air){_bax.set(-Math.cos(v.heading),0,Math.sin(v.heading));const a=v.pitch*TROOP.spineK*(v.crouch?.6:1);bendBone(sd.bones.spine1,_bax,a*.45);bendBone(sd.bones.spine2,_bax,a*.55);}
+  if(sd.gun&&sd.bones.L.every(Boolean)&&!sd.shot){sd.obj.updateMatrixWorld(true);sd.obj.getWorldQuaternion(_sq);_sf.set(0,0,1).applyQuaternion(_sq);_sr.set(1,0,0).applyQuaternion(_sq);const L=sd.bones.L;L[0].getWorldPosition(_pl);_pl.addScaledVector(UP,-1).addScaledVector(_sr,-.6).addScaledVector(_sf,-.1);ik2(L[0],L[1],L[2],sd.gun.localToWorld(_tg.copy(RIFLE.fore)),_pl);} // left hand on the handguard
   if(sd.flash){FP.flashT-=dt;const fo=FP.flashT>0;sd.flash.visible=fo;sd.flashLight.intensity=fo?4:0;if(fo){sd.flash.material.rotation=Math.random()*TAU;sd.flash.scale.setScalar(rr(.14,.22));}}
 }
 // ============================================================ ON FOOT
@@ -2590,7 +2591,7 @@ function buildHeroObj(T){
 }
 function buildTrooperObj(T,firstPerson=true){
   const g=new THREE.Group();const o=SkeletonUtils.clone(A.trooper.body);g.add(o);o.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});
-  const bn=n=>o.getObjectByName('mixamorig'+n),bones={head:bn('Head'),neck:bn('Neck'),spine1:bn('Spine1'),spine2:bn('Spine2'),rhand:bn('RightHand')};
+  const bn=n=>o.getObjectByName('mixamorig'+n),bones={head:bn('Head'),neck:bn('Neck'),spine1:bn('Spine1'),spine2:bn('Spine2'),rhand:bn('RightHand'),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   if(firstPerson)trooperHideHead(o); // the camera lives in the head: helmet and mask would sit over the lens
   let gun=null,flash=null,flashLight=null;
   if(bones.rhand&&TROOP.gun){gun=rifleModel().clone();bones.rhand.add(gun);TROOP.gun.decompose(gun.position,gun.quaternion,gun.scale);

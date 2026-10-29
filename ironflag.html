@@ -3224,7 +3224,7 @@ function makeJetObj(T){
 const CVN={S:10.5,water:1.15,deck:2.55,bowX:15.6,catZ:-.9,spd:112};
 function placeCarrier(){
   if(!A.carrier||!G)return;const b=G.bases[0],e=G.bases[1];const dx=b.x-e.x,dz=b.z-e.z,l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l; // away from the enemy
-  let x=b.x,z=b.z,d=0;for(d=20;d<900;d+=10){x=b.x+ux*d;z=b.z+uz*d;if(H(x,z)<-3&&H(x+ux*60,z+uz*60)<-3&&H(x-ux*60,z-uz*60)<-3)break;}x+=ux*150;z+=uz*150; // 150 m past the last shallow water
+  let x=b.x,z=b.z,d=0;for(d=20;d<900;d+=10){x=b.x+ux*d;z=b.z+uz*d;if(H(x,z)<-3&&H(x+ux*60,z+uz*60)<-3&&H(x-ux*60,z-uz*60)<-3)break;}x+=ux*95;z+=uz*95; // 95 m past the last shallow water: visible from the beach, bow just off the map edge
   const hd=Math.atan2(-ux,-uz); // bow faces back toward the island (the enemy's side)
   const o=A.carrier.clone(true);const S=CVN.S;o.scale.setScalar(S);o.position.set(x,-CVN.water*S,z);o.rotation.y=hd-Math.PI/2; /* the model's bow is +X; the game's heading is +Z */world.add(o);
   const bx=x+Math.sin(hd)*CVN.bowX*S,bz=z+Math.cos(hd)*CVN.bowX*S;
@@ -3864,6 +3864,8 @@ function drawMini(view){
   x.setLineDash([]);
   for(const b of G.bases){const [px,py]=P(b.x,b.z);x.strokeStyle=TEAMS[b.team].css;x.lineWidth=1.5;x.strokeRect(px-3,py-3,6,6);
     for(const g of b.gates){const [gx,gy]=P(g.x,g.z);x.fillStyle=g.alive?TEAMS[b.team].css:'#555';x.fillRect(gx-2,gy-1,4,2);}}
+  if(G.carrier){const C=G.carrier;let [cx,cy]=P(C.x,C.z);cx=clamp(cx,8,104);cy=clamp(cy,10,178);const a=Math.atan2(Math.sin(C.hd)*188/L*0+Math.sin(C.hd),Math.cos(C.hd)); // the carrier: a grey hull with a deck stripe, clamped to the map edge when it lies outside
+    x.save();x.translate(cx,cy);x.rotate(-C.hd+Math.PI/2);x.fillStyle='#9aa0a4';x.beginPath();x.moveTo(-13,-3.4);x.lineTo(10,-3.4);x.lineTo(14,0);x.lineTo(10,3.4);x.lineTo(-13,3.4);x.closePath();x.fill();x.strokeStyle='#1c1e20';x.lineWidth=.8;x.stroke();x.fillStyle='#e8e8e0';x.fillRect(-11,-.7,22,1.4);x.fillStyle='#2a2d30';x.fillRect(-2,1.4,4,2);x.restore();}
   for(const dr of G.drones){if(!dr.alive)continue;const [px,py]=P(dr.x,dr.z);x.fillStyle='#f2b632';x.fillRect(px-1.5,py-1.5,3,3);}
   for(const j of G.jets){if(!j.alive)continue;const col=j.team===T?'#7fb0ff':'#ff5a4a';x.strokeStyle=col;x.lineWidth=1;
     for(const p of j.pts){if(p.dropped)continue;const [rx,ry]=P(p.x,p.z);x.beginPath();x.arc(rx,ry,1.8,0,TAU);x.stroke();}

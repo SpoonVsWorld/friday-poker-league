@@ -417,7 +417,7 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='9';
+const DATA='sp-data/',DATA_V='10';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death']; // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -1851,6 +1851,7 @@ function mslGo(){
   closeStrikeMap(false);if(!G.launcher||G.strike||mslCount()<=0)return;
   const ty=s?s.y0+Math.min(s.h*.45,5):Math.max(groundAt(MM.tx,MM.tz),0);
   G.strike={phase:'raise',t:0,tx:MM.tx,tz:MM.tz,ty,tgt:s,name:s?mslTargetName(s):null,view:MM.view||G.views[0],cine:true};
+  try{mslOperator(G.strike);}catch(e){console.warn('operator',e);}
   if(AU.ctx&&AU.buf.s_nuke){const c=AU.ctx,src=c.createBufferSource(),g=c.createGain();src.buffer=AU.buf.s_nuke;src.connect(g);g.connect(AU.sfx);src.start(); // Matt's nuclear-launch sound while the erector raises the missile
     G.strike.raiseSnd={stop(fade=.5){const n=c.currentTime;g.gain.cancelScheduledValues(n);g.gain.setValueAtTime(g.gain.value,n);g.gain.linearRampToValueAtTime(.0001,n+fade);try{src.stop(n+fade+.05);}catch(e){}}};}
   note(0,'Missile armed — erector raising','info',true);sfx('click');
@@ -1875,6 +1876,27 @@ function rocketSound(){
   s.connect(lp);lp.connect(g);s.connect(bp);bp.connect(g2);g2.connect(g);o.connect(og);og.connect(g);g.connect(AU.sfx);s.start(t);o.start(t);
   return {set(v){g.gain.setTargetAtTime(Math.max(.0001,v),c.currentTime,.15);},stop(){const n=c.currentTime;g.gain.cancelScheduledValues(n);g.gain.setTargetAtTime(.0001,n,.07);try{s.stop(n+.6);o.stop(n+.6);}catch(e){}}};
 }
+// ---- (Matt, 29 Oct 2026) a trooper at a keypad on the trailer's side punches in the launch code while the erector rises (Typing.fbx)
+function mslOperator(S){
+  if(!A.trooper||!A.trooper.clips.typing||!G.launcher)return;const o=G.launcher.obj,hd=o.rotation.y,b=G.bases[0];const rx=Math.cos(hd),rz=-Math.sin(hd);
+  const side=Math.sign(rx*(o.position.x-b.x)+rz*(o.position.z-b.z))||1; // the open side, where the camera is
+  const panel=new THREE.Group();const cv=document.createElement('canvas');cv.width=128;cv.height=160;const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;
+  const box=new THREE.Mesh(new THREE.BoxGeometry(.36,.46,.07),[new THREE.MeshStandardMaterial({color:0x2b2e2a,roughness:.6,metalness:.4}),new THREE.MeshStandardMaterial({color:0x2b2e2a,roughness:.6,metalness:.4}),new THREE.MeshStandardMaterial({color:0x2b2e2a,roughness:.6,metalness:.4}),new THREE.MeshStandardMaterial({color:0x2b2e2a,roughness:.6,metalness:.4}),new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:.55,roughness:.5}),new THREE.MeshStandardMaterial({color:0x2b2e2a,roughness:.6,metalness:.4})]);
+  box.castShadow=true;panel.add(box);const lid=new THREE.Mesh(new THREE.BoxGeometry(.4,.5,.02),new THREE.MeshStandardMaterial({color:0x3a3e38,roughness:.7,metalness:.3}));lid.position.set(0,.27,-.1);lid.rotation.x=-1.2;panel.add(lid); // flipped-open cover
+  panel.position.set(side*1.68,1.12,-6);panel.rotation.y=side>0?Math.PI/2:-Math.PI/2;o.add(panel);
+  const {g,parts}=buildTrooperObj(0,false,false);const px=o.position.x+Math.sin(hd)*-6+rx*side*2.35,pz=o.position.z+Math.cos(hd)*-6+rz*side*2.35;g.position.set(px,groundAt(px,pz),pz);g.rotation.y=Math.atan2(-rx*side,-rz*side);world.add(g);
+  const sd=parts.sd;for(const k in sd.acts)sd.acts[k].setEffectiveWeight(0);sd.acts.typing.setEffectiveWeight(1);sd.acts.typing.timeScale=1.15;
+  S.op={obj:g,sd,panel,cv,tex,code:'',acc:0,t:0,done:false};mslOpDraw(S.op);}
+function mslOpDraw(op){const c=op.cv.getContext('2d');c.fillStyle='#1a1d1b';c.fillRect(0,0,128,160);
+  c.fillStyle=op.done?'#1f5a2a':'#0d2a14';c.fillRect(8,8,112,34);c.font='bold 11px monospace';c.fillStyle=op.done?'#9fffb0':'#6fe28a';c.fillText(op.done?'CODE ACCEPTED':'LAUNCH CODE',12,22);c.font='bold 13px monospace';c.fillText(op.code+(op.done?'':(Math.floor(op.t*4)%2?'_':' ')),12,37);
+  const keys=['1','2','3','4','5','6','7','8','9','*','0','#'];for(let i=0;i<12;i++){const x=12+(i%3)*36,y=52+Math.floor(i/3)*26;const hot=!op.done&&op.flash===i;c.fillStyle=hot?'#e8d070':'#3b3f3a';c.fillRect(x,y,30,20);c.fillStyle=hot?'#000':'#cfd3c8';c.font='bold 12px monospace';c.fillText(keys[i],x+11,y+14);}
+  c.fillStyle=op.done?'#d0342c':'#4a1a16';c.fillRect(12,146,104,10);op.tex.needsUpdate=true;}
+function mslOpTick(S,dt){const op=S.op;if(!op)return;op.t+=dt;
+  if(S.phase==='raise'&&!op.done){op.acc+=dt;if(op.acc>.26&&op.code.length<8){op.acc=0;op.code+=String((Math.random()*10)|0)+(op.code.length%2?' ':'');op.flash=(Math.random()*12)|0;mslOpDraw(op);if(AU.ctx)tone(.08,.03,1800+Math.random()*600,1800,'square');}
+    else if(op.acc>.13&&op.flash!==undefined){op.flash=undefined;mslOpDraw(op);}}
+  else if(!op.done){op.done=true;op.flash=undefined;mslOpDraw(op);const sd=op.sd;sd.acts.typing.setEffectiveWeight(0);sd.acts.aim.setEffectiveWeight(1);op.obj.rotation.y+=Math.PI*.5;} // code in: he steps back and watches it go
+  op.sd.mx.update(dt);}
+function mslOpEnd(S){const op=S&&S.op;if(!op)return;world.remove(op.obj);if(op.panel.parent)op.panel.parent.remove(op.panel);S.op=null;}
 function mslLaunch(S){
   const Ln=G.launcher;Ln.msl.updateWorldMatrix(true,true);
   const m=Ln.msl.clone();m.visible=true;Ln.msl.matrixWorld.decompose(m.position,m.quaternion,m.scale);world.add(m);Ln.msl.visible=false;
@@ -2046,6 +2068,7 @@ function mslImpact(S){
 function updateStrike(dt){
   const S=G.strike;if(!S)return;S.t+=dt;if(S.nuke){updateNuke(S,dt);return;}const Ln=G.launcher;
   if(!Ln||!Ln.er){G.strike=null;return;}
+  mslOpTick(S,dt);
   switch(S.phase){
     case 'raise':{const k=smooth(0,1,S.t/MSL.raise);Ln.er.rotation.x=-Math.PI/2*k;
       if(Math.random()<dt*8){const o=Ln.obj,hd=o.rotation.y;puff(o.position.x+Math.sin(hd)*2.4+Math.cos(hd)*1.3,o.position.y+4.2,o.position.z+Math.cos(hd)*2.4-Math.sin(hd)*1.3,C_SMK0,1.2,1.2,.4);}
@@ -2069,7 +2092,7 @@ function updateStrike(dt){
       for(const q of S.sec)if(q.t>=0&&S.t>=q.t){q.t=-1;explosion(q.x,0,q.z,q.s,true);}
       if(S.t>=(S.water?4.8:MSL.impactT)){blastEnd(S);S.phase='lower';S.t=0;S.cine=false;mslCineEnd();if(AU.ctx){tone(.1,MSL.lower,96,62,'sawtooth');noiseHit(.1,MSL.lower,700,260,'bandpass',3);}}break;}
     case 'lower':{const k=smooth(0,1,S.t/MSL.lower);Ln.er.rotation.x=-Math.PI/2*(1-k);
-      if(S.t>=MSL.lower){Ln.er.rotation.x=0;mslSetLoaded();G.strike=null;const n=mslCount();note(0,n>0?`Launcher reloaded — ${n} strike${n>1?'s':''} left`:'Launcher empty — finish an operation without losing a vehicle for another','info');if(AU.ctx){noiseHit(.4,.22,900,120);tone(.3,.2,120,50,'sine');}}break;}
+      if(S.t>=MSL.lower){Ln.er.rotation.x=0;mslSetLoaded();mslOpEnd(S);G.strike=null;const n=mslCount();note(0,n>0?`Launcher reloaded — ${n} strike${n>1?'s':''} left`:'Launcher empty — finish an operation without losing a vehicle for another','info');if(AU.ctx){noiseHit(.4,.22,900,120);tone(.3,.2,120,50,'sine');}}break;}
   }
 }
 const MSL_FOG={on:false,near:0,far:0};
@@ -2639,13 +2662,13 @@ function buildHeroObj(T){
   const ring=new THREE.Mesh(new THREE.RingGeometry(.75,1.05,28),new THREE.MeshBasicMaterial({color:TEAMS[T].color,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=1;
   return {g,parts:{sd,ring}};
 }
-function buildTrooperObj(T,firstPerson=true){
+function buildTrooperObj(T,firstPerson=true,withGun=true){
   const g=new THREE.Group();const o=SkeletonUtils.clone(A.trooper.body);g.add(o);o.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});
   const bn=n=>o.getObjectByName('mixamorig'+n),bones={head:bn('Head'),neck:bn('Neck'),spine1:bn('Spine1'),spine2:bn('Spine2'),rhand:bn('RightHand'),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   if(firstPerson)trooperHideHead(o); // the camera lives in the head: helmet and mask would sit over the lens
   if(G&&G.hazmat===T)hazmatDress(o,firstPerson);
   let gun=null,flash=null,flashLight=null;
-  if(bones.rhand&&TROOP.gun){gun=rifleModel().clone();bones.rhand.add(gun);TROOP.gun.decompose(gun.position,gun.quaternion,gun.scale);
+  if(withGun&&bones.rhand&&TROOP.gun){gun=rifleModel().clone();bones.rhand.add(gun);TROOP.gun.decompose(gun.position,gun.quaternion,gun.scale);
     const cv=document.createElement('canvas');cv.width=cv.height=64;const x=cv.getContext('2d');const gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,250,220,1)');gr.addColorStop(.25,'rgba(255,200,90,.9)');gr.addColorStop(1,'rgba(255,120,20,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);
     flash=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));flash.position.set(0,.005,.7);flash.scale.setScalar(.18);flash.visible=false;gun.add(flash);
     flashLight=new THREE.PointLight(0xffc070,0,2.2,2);flashLight.position.set(0,.02,.6);gun.add(flashLight);}

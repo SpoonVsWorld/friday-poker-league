@@ -417,7 +417,7 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='11';
+const DATA='sp-data/',DATA_V='12';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death']; // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -440,6 +440,7 @@ PRE.items=['items1.glb','items2.glb','items3.glb','items4.glb'].map(f=>fetchBin(
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.sub=fetchBin('sub.glb').catch(e=>{console.warn('sub',e);return null;}); // NUCLEAR STRIKE: the player's ballistic-missile submarine (Blender, scratch-built 28 Oct 2026: Hull/Sail/Hatch pivot/Mount)
+PRE.carrier=fetchBin('carrier.glb').catch(e=>{console.warn('carrier',e);return null;}); // (Matt, 29 Oct 2026) his aircraft carrier (cn 004 assault, a Wings 3D file decoded + decimated in Blender): sits off your end of the island, your air strikes launch from it
 PRE.m4=fetchBin('m4.glb').catch(e=>{console.warn('m4',e);return null;}); // (Matt, 29 Oct 2026) the M4 carbine, scratch-built in Blender: 14.5 in barrel, quad rail, FSB, A2 hider, flat-top + red dot, 6-position stock, STANAG mag
 PRE.props=fetchBin('props.glb').catch(e=>{console.warn('props',e);return null;}); // Blender ordnance (29 Oct 2026): M67 grenade, M15 anti-tank mine, Mk 82 bomb
 PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
@@ -488,6 +489,7 @@ async function loadAssets(){
     const wrap=new THREE.Group();wrap.add(hs);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(hs,true);wrap.scale.setScalar(HERO_H/Math.max(.5,bb.max.y-bb.min.y));
     const strip=c=>{const k=c.clone();k.tracks=k.tracks.filter(t=>!t.name.endsWith('.position')&&!t.name.startsWith('mixamorigHips.')&&hs.getObjectByName(t.name.split('.')[0])); /* the troop clips' hip rotation is in a different armature frame: keep this rig's own upright hips */return k;};
     A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
+  try{const cb=await PRE.carrier;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(cb,'',res,rej));const cr=cg.scene.getObjectByName('Carrier')||cg.scene;cr.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.4;o.material.flatShading=false;}}});A.carrier=cr;}}catch(e){console.warn('carrier model',e);}
   try{const mb=await PRE.m4;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const m4=mg.scene.getObjectByName('M4')||mg.scene;m4.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;if(o.material){o.material.envMapIntensity=.7;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}}});A.m4=m4;RIFLE.tpl=null;RIFLE.grip.copy(RIFLE.m4.grip);RIFLE.fore.copy(RIFLE.m4.fore);}}catch(e){console.warn('m4 model',e);}
   try{const pb=await PRE.props;if(pb){const pg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(pb,'',res,rej));A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
   try{const tb=await PRE.trooper;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
@@ -1987,7 +1989,7 @@ function updateCraters(dt){if(!G||!G.craters)return;for(const c of G.craters){if
 // burning grass patches
 function addBurn(x,z,life,size,k=1){if(!G)return;const h=H(x,z);if(h<1.1||onBridge(x,z))return;(G.burns=G.burns||[]).push({x,z,life,max:life,size,k,t:0,acc:0,sacc:0,ph:Math.random()*9});} // k: particle budget of this fire (grass and tree fires are many, so they each spawn less)
 function updateBurns(dt){
-  updateFelled(dt);updateRad(dt);updateClouds(dt);updateAsh(dt);
+  updateFelled(dt);updateRad(dt);updateClouds(dt);updateAsh(dt);updateCarrier(dt);
   if(!G||!G.burns||!G.burns.length){return;}
   let glow=0,gx=0,gz=0,gw=0;
   for(let i=G.burns.length-1;i>=0;i--){const b=G.burns[i];b.t+=dt;const left=b.max-b.t;if(left<=-8){G.burns.splice(i,1);continue;}
@@ -3218,6 +3220,16 @@ function makeJetObj(T){
   else{const b=new THREE.Mesh(new THREE.ConeGeometry(2.2,11,4).rotateX(Math.PI/2),M.body);b.scale.y=.25;g.add(b);} // fallback dart
   const glow=new THREE.Mesh(new THREE.SphereGeometry(.55,8,6),new THREE.MeshBasicMaterial({color:0xffa040}));glow.position.set(0,.2,-5.6);g.add(glow);
   return g;}
+// ---- the carrier: 280 m long, anchored 170 m off your end of the island, bow toward the enemy; your jets catapult off it
+const CVN={S:10.5,water:1.15,deck:2.55,bowX:15.6,catZ:-.9,spd:112};
+function placeCarrier(){
+  if(!A.carrier||!G)return;const b=G.bases[0],e=G.bases[1];const dx=b.x-e.x,dz=b.z-e.z,l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l; // away from the enemy
+  let x=b.x,z=b.z,d=0;for(d=20;d<900;d+=10){x=b.x+ux*d;z=b.z+uz*d;if(H(x,z)<-3&&H(x+ux*60,z+uz*60)<-3&&H(x-ux*60,z-uz*60)<-3)break;}x+=ux*150;z+=uz*150; // 150 m past the last shallow water
+  const hd=Math.atan2(-ux,-uz); // bow faces back toward the island (the enemy's side)
+  const o=A.carrier.clone(true);const S=CVN.S;o.scale.setScalar(S);o.position.set(x,-CVN.water*S,z);o.rotation.y=hd-Math.PI/2; /* the model's bow is +X; the game's heading is +Z */world.add(o);
+  const bx=x+Math.sin(hd)*CVN.bowX*S,bz=z+Math.cos(hd)*CVN.bowX*S;
+  G.carrier={obj:o,x,z,hd,bowX:bx,bowZ:bz,deckY:(CVN.deck-CVN.water)*S,t:0};}
+function updateCarrier(dt){const C=G&&G.carrier;if(!C)return;C.t+=dt;C.obj.rotation.x=Math.sin(C.t*.35)*.004;C.obj.rotation.z=Math.sin(C.t*.22+1)*.006;C.obj.position.y=-CVN.water*CVN.S+Math.sin(C.t*.3)*.25;}
 const _ringGeo=new THREE.RingGeometry(1.9,2.6,24).rotateX(-Math.PI/2);
 function launchStrike(T,tx,tz){
   const b=G.bases[T];let dx=tx-b.x,dz=tz-b.z,l=Math.hypot(dx,dz);if(l<10){dx=0;dz=T===0?-1:1;l=1;}dx/=l;dz/=l;
@@ -3226,6 +3238,9 @@ function launchStrike(T,tx,tz){
     ring.position.set(px,Math.max(groundAt(px,pz),0)+.15,pz);ring.renderOrder=2;world.add(ring);pts.push({x:px,z:pz,s:(k-2)*JET.spacing,ring,dropped:false});}
   const ty=Math.max(groundAt(tx,tz),0)+JET.alt;
   const j={jet:true,team:T,alive:true,hp:JET.hp,tx,tz,dx,dz,s:-JET.approach,x:tx-dx*JET.approach,z:tz-dz*JET.approach,y:ty,vx:dx*JET.speed,vz:dz*JET.speed,pts,obj:makeJetObj(T),roared:false};
+  if(T===0&&G.carrier){const C=G.carrier;let cx=tx-C.bowX,cz=tz-C.bowZ;const L=Math.hypot(cx,cz)||1;cx/=L;cz/=L;j.dx=cx;j.dz=cz;j.s=-L;j.L=L;j.x=C.bowX;j.z=C.bowZ;j.y0=C.deckY+1.5;j.ty=ty;j.y=j.y0;j.spd=CVN.spd;j.vx=cx*j.spd;j.vz=cz*j.spd; // off the catapult: from the bow, straight at the target, climbing to bombing height
+    for(const p of pts){p.x=tx+cx*(p.s);p.z=tz+cz*(p.s);p.ring.position.set(p.x,Math.max(groundAt(p.x,p.z),0)+.15,p.z);}
+    for(let i=0;i<30;i++)SMOKE.spawn(C.bowX-cx*rr(0,30),j.y0-.5,C.bowZ-cz*rr(0,30),rr(-2,2),rr(1,4),rr(-2,2),rr(1.5,3),3,9,[.85,.85,.85],[.7,.7,.7],.5,0,.6);}
   j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.y=Math.atan2(dx,dz);world.add(j.obj);G.jets.push(j);
   if(T===1){sfx('alarm');note(0,'ENEMY AIR STRIKE INBOUND — get off the red markers!','bad',true);note(1,'Air strike launched','info');}
   else{sfx('click');sample('s_radio',.9,1,.25);note(0,`Air strike inbound — ${airLeft()} left${onFoot()?' on foot':''}`,'good');}
@@ -3257,7 +3272,9 @@ function updateAir(dt){
         const eta=JET.approach/JET.speed,tx=clamp(pv.x+(pv.vx||0)*eta,X0+20,-X0-20),tz=clamp(pv.z+(pv.vz||0)*eta,Z0+20,-Z0-20);launchStrike(1,tx,tz);}}}
   for(let i=G.jets.length-1;i>=0;i--){const j=G.jets[i];
     if(!j.alive){G.jets.splice(i,1);continue;}
-    j.s+=JET.speed*dt;j.x=j.tx+j.dx*j.s;j.z=j.tz+j.dz*j.s;j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.z=Math.sin(G.time*3)*.04;
+    j.s+=(j.spd||JET.speed)*dt;j.x=j.tx+j.dx*j.s;j.z=j.tz+j.dz*j.s;
+    if(j.y0!=null){const k=smooth(-j.L+10,-j.L+220,j.s);j.y=lerp(j.y0,j.ty,k);j.obj.rotation.x=-(1-smooth(-j.L+150,-j.L+260,j.s))*.28*(j.s>-j.L+10?1:0);} // climbing out off the deck
+    j.obj.position.set(j.x,j.y,j.z);j.obj.rotation.z=Math.sin(G.time*3)*.04;
     if(Math.random()<dt*40)FIRE.spawn(j.x-j.dx*5.8,j.y+.2,j.z-j.dz*5.8,-j.vx*.05,0,-j.vz*.05,.18,1.2,.3,C_FIRE0,C_FIRE1,.8);
     if(!j.roared&&j.s>-110){j.roared=true;sfx('jet',j.tx,j.tz);}
     for(const p of j.pts){if(p.dropped||j.s<p.s-JET.lead)continue;p.dropped=true;
@@ -3945,6 +3962,7 @@ function newGame(mode,seed,demo=false){
   scatterNature();
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}
+  try{placeCarrier();}catch(e){console.warn('carrier',e);}
   if(!demo&&mode!=='online')try{paradeSetup(0);}catch(e){console.warn('parade',e);}
   for(const b of bases)for(let i=0;i<G.cfg[b.team].drones;i++)spawnDrone(b.team);
   const humans=demo?[]:mode==='2p'||mode==='online'?[0,1]:[0];
@@ -4486,7 +4504,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

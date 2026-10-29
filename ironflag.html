@@ -1750,6 +1750,7 @@ function mslToScreen(wx,wz){const s=mslScale();return [MM.w/2+(wx-MM.cx)*s,MM.my
 function mslAim(wx,wz){
   MM.fx=clamp(wx,X0+8,-X0-8);MM.fz=clamp(wz,Z0+8,-Z0-8);const s=mslSnap(MM.fx,MM.fz,Math.max(3,16/mslScale()));
   if(s!==MM.snap&&s)sfx('click');MM.snap=s;if(s){MM.tx=s.x;MM.tz=s.z;}else{MM.tx=MM.fx;MM.tz=MM.fz;}
+  if(MM.nuke&&!MM.orb){const st=nukeSite(MM.tx,MM.tz);if(st)MM.site=st;} // the sub picks the open-water spot farthest from the target (and clear of the carrier)
 }
 function mslAimScreen(sx,sy){const [wx,wz]=mslToWorld(sx,sy);mslAim(wx,wz);}
 function mslCycle(d){const list=mslTargets();if(!list.length)return;let i=list.indexOf(MM.snap);
@@ -2160,13 +2161,13 @@ function nukeCount(){if(devActive())return 99;return Math.floor(mslCount()/NUKE.
 function nukeShown(){return !!(A.sub&&G&&(G.op||devActive())&&!G.net&&!G.demo);}
 function nukeReady(){return !!(nukeShown()&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&nukeCount()>0);}
 function nukeTooClose(x,z){if(MM.orb)return false;const b=G.bases[0];return Math.hypot(x-b.x,z-b.z)<NUKE.R+NUKE.keep;}
-function nukeSite(){ // open water off the coast nearest your bunker, the sub lying broadside to the shore
-  const b=G.bases[0];const a0=Math.atan2(b.x,b.z);const inside=(x,z)=>x>X0-160&&x<-X0+160&&z>Z0-160&&z<-Z0+160; // the sea runs well past the island's own rectangle
+function nukeSite(tx,tz){ // open water off your coast, the sub lying broadside to the shore; (Matt, 29 Oct) never within 180 m of the carrier, and of the spots left, the one farthest from the target
+  const b=G.bases[0],C=G.carrier,cands=[];const a0=Math.atan2(b.x,b.z);const inside=(x,z)=>x>X0-160&&x<-X0+160&&z>Z0-160&&z<-Z0+160; // the sea runs well past the island's own rectangle
   for(let k=0;k<24;k++){const a=a0+(k%2?1:-1)*Math.ceil(k/2)*(TAU/24),dx=Math.sin(a),dz=Math.cos(a);let shore=null;
     for(let r=6;r<460;r+=2){const x=b.x+dx*r,z=b.z+dz*r;if(!inside(x,z))break;if(H(x,z)<-2){shore=r;break;}}
     if(shore==null)continue;const r=shore+NUKE.siteOff,x=b.x+dx*r,z=b.z+dz*r;if(!inside(x,z))continue;const eb=G.bases[1];if(Math.hypot(x-eb.x,z-eb.z)<Math.hypot(x-b.x,z-b.z)+120)continue;let ok=true; // and never on the enemy's side of the islandfor(const q of [-44,-22,0,22,44]){const px=x+dz*q,pz=z-dx*q;if(!inside(px,pz)||H(px,pz)>-2){ok=false;break;}}
-    if(ok)return {x,z,hd:Math.atan2(dz,-dx),ix:-dx,iz:-dz,shore:{x:b.x+dx*shore,z:b.z+dz*shore}};}
-  return null;}
+    if(ok)cands.push({x,z,hd:Math.atan2(dz,-dx),ix:-dx,iz:-dz,shore:{x:b.x+dx*shore,z:b.z+dz*shore},cd:C?Math.hypot(x-C.x,z-C.z):1e9});}
+  if(!cands.length)return null;const far=cands.filter(c=>c.cd>180),pool=far.length?far:cands;const score=c=>tx!=null?Math.hypot(c.x-tx,c.z-tz)+Math.min(c.cd,300)*.3:c.cd;pool.sort((p,q)=>score(q)-score(p));return pool[0];}
 function nukeGo(){
   if(!G||!G.mslMap)return;if(MM.orb)return orbGo();sample('s_switch',1,.75);if(nukeTooClose(MM.tx,MM.tz)){note(0,'Too close to your own bunker','warn');sfx('click');return;}
   const s=MM.snap&&MM.snap.alive?MM.snap:null;MM.lastN={x:MM.tx,z:MM.tz,seed:G.seed};const site=MM.site;closeStrikeMap(false);if(!site||G.strike||nukeCount()<=0)return;

@@ -417,7 +417,7 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='10';
+const DATA='sp-data/',DATA_V='11';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death']; // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -440,6 +440,7 @@ PRE.items=['items1.glb','items2.glb','items3.glb','items4.glb'].map(f=>fetchBin(
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.sub=fetchBin('sub.glb').catch(e=>{console.warn('sub',e);return null;}); // NUCLEAR STRIKE: the player's ballistic-missile submarine (Blender, scratch-built 28 Oct 2026: Hull/Sail/Hatch pivot/Mount)
+PRE.m4=fetchBin('m4.glb').catch(e=>{console.warn('m4',e);return null;}); // (Matt, 29 Oct 2026) the M4 carbine, scratch-built in Blender: 14.5 in barrel, quad rail, FSB, A2 hider, flat-top + red dot, 6-position stock, STANAG mag
 PRE.props=fetchBin('props.glb').catch(e=>{console.warn('props',e);return null;}); // Blender ordnance (29 Oct 2026): M67 grenade, M15 anti-tank mine, Mk 82 bomb
 PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
 PRE.hero=fetchBin('hero.glb').catch(e=>{console.warn('hero',e);return null;}); // ON FOOT: Matt's own soldier (Male Military Soldier, Mixamo) + first-person arms/carbine posed from it (FPView)
@@ -487,6 +488,7 @@ async function loadAssets(){
     const wrap=new THREE.Group();wrap.add(hs);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(hs,true);wrap.scale.setScalar(HERO_H/Math.max(.5,bb.max.y-bb.min.y));
     const strip=c=>{const k=c.clone();k.tracks=k.tracks.filter(t=>!t.name.endsWith('.position')&&!t.name.startsWith('mixamorigHips.')&&hs.getObjectByName(t.name.split('.')[0])); /* the troop clips' hip rotation is in a different armature frame: keep this rig's own upright hips */return k;};
     A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
+  try{const mb=await PRE.m4;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const m4=mg.scene.getObjectByName('M4')||mg.scene;m4.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;if(o.material){o.material.envMapIntensity=.7;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}}});A.m4=m4;RIFLE.tpl=null;RIFLE.grip.copy(RIFLE.m4.grip);RIFLE.fore.copy(RIFLE.m4.fore);}}catch(e){console.warn('m4 model',e);}
   try{const pb=await PRE.props;if(pb){const pg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(pb,'',res,rej));A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
   try{const tb=await PRE.trooper;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
@@ -557,9 +559,9 @@ async function loadAssets(){
 }
 const SOLDIER_MAT=[],HELMET_MAT=[],GUN_MOUNT={pos:null,quat:null,scale:1},HEAD_REF={up:null,fwd:null};
 // assault rifle built from primitives, metres, muzzle along +Z; grip = right-hand point, fore = left-hand point on the handguard
-const RIFLE={grip:new V3(0,-.06,-.1),fore:new V3(0,-.045,.26),rightSign:1,tpl:null};
+const RIFLE={grip:new V3(0,-.06,-.1),fore:new V3(0,-.045,.26),rightSign:1,tpl:null,m4:{grip:new V3(0,-.075,-.052),fore:new V3(0,-.014,.21),muzzle:new V3(0,.03,.535)}}; // .m4: the same hand points on the Blender M4 (RIFLE.grip/fore are switched to these once it loads)
 function rifleModel(){
-  if(RIFLE.tpl)return RIFLE.tpl;const g=new THREE.Group();
+  if(RIFLE.tpl)return RIFLE.tpl;if(A.m4)return RIFLE.tpl=A.m4;const g=new THREE.Group();
   const metal=new THREE.MeshStandardMaterial({color:0x1d1f1c,roughness:.45,metalness:.55}),poly=new THREE.MeshStandardMaterial({color:0x2c2f27,roughness:.8});
   const box=(w,h,d,x,y,z,m,rx=0)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);b.rotation.x=rx;b.castShadow=true;g.add(b);};
   box(.05,.1,.26,0,-.01,-.42,poly);box(.045,.06,.14,0,.02,-.26,poly);  // stock + buffer tube
@@ -2670,8 +2672,8 @@ function buildTrooperObj(T,firstPerson=true,withGun=true){
   let gun=null,flash=null,flashLight=null;
   if(withGun&&bones.rhand&&TROOP.gun){gun=rifleModel().clone();bones.rhand.add(gun);TROOP.gun.decompose(gun.position,gun.quaternion,gun.scale);
     const cv=document.createElement('canvas');cv.width=cv.height=64;const x=cv.getContext('2d');const gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,250,220,1)');gr.addColorStop(.25,'rgba(255,200,90,.9)');gr.addColorStop(1,'rgba(255,120,20,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);
-    flash=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));flash.position.set(0,.005,.7);flash.scale.setScalar(.18);flash.visible=false;gun.add(flash);
-    flashLight=new THREE.PointLight(0xffc070,0,2.2,2);flashLight.position.set(0,.02,.6);gun.add(flashLight);}
+    flash=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));flash.position.copy(A.m4?RIFLE.m4.muzzle:new V3(0,.005,.7));flash.scale.setScalar(.18);flash.visible=false;gun.add(flash);
+    flashLight=new THREE.PointLight(0xffc070,0,2.2,2);flashLight.position.copy(A.m4?RIFLE.m4.muzzle:new V3(0,.02,.6));flashLight.position.z-=.05;gun.add(flashLight);}
   const mx=new THREE.AnimationMixer(o);const acts=trooperActs(o,mx);acts.idle.setEffectiveWeight(1);
   const sd={obj:g,mx,acts,w:{idle:1},gun,bones,flash,flashLight,trooper:true,arms:null,idle:acts.idle,run:acts.runF};
   const ring=new THREE.Mesh(new THREE.RingGeometry(.75,1.05,28),new THREE.MeshBasicMaterial({color:TEAMS[T].color,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=1;

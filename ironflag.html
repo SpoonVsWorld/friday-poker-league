@@ -434,6 +434,7 @@ PRE.items=['items1.glb','items2.glb','items3.glb','items4.glb'].map(f=>fetchBin(
 PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);return null;}); // 18-wheeler missile launcher truck (Blender, SpoonPlatoon_Launcher.blend): parked at the player's base in the campaign for now
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.sub=fetchBin('sub.glb').catch(e=>{console.warn('sub',e);return null;}); // NUCLEAR STRIKE: the player's ballistic-missile submarine (Blender, scratch-built 28 Oct 2026: Hull/Sail/Hatch pivot/Mount)
+PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
 PRE.hero=fetchBin('hero.glb').catch(e=>{console.warn('hero',e);return null;}); // ON FOOT: Matt's own soldier (Male Military Soldier, Mixamo) + first-person arms/carbine posed from it (FPView)
 PRE.truck=fetchBin('truck.glb').catch(e=>{console.warn('truck',e);return null;}); // six-wheeler (Matt's 6x6, Kenney\blend.blend, reduced to ~31k tris: TruckBody, TruckGun on the roof ring, Wheel_F/M/B L/R)
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
@@ -479,6 +480,7 @@ async function loadAssets(){
     const wrap=new THREE.Group();wrap.add(hs);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(hs,true);wrap.scale.setScalar(HERO_H/Math.max(.5,bb.max.y-bb.min.y));
     const strip=c=>{const k=c.clone();k.tracks=k.tracks.filter(t=>!t.name.endsWith('.position')&&!t.name.startsWith('mixamorigHips.')&&hs.getObjectByName(t.name.split('.')[0])); /* the troop clips' hip rotation is in a different armature frame: keep this rig's own upright hips */return k;};
     A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
+  try{const tb=await PRE.trooper;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
   try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
@@ -2478,6 +2480,72 @@ function truckTarget(v){ // roof gunner: nearest threat all round within MG rang
   for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr.x,dr.z,dr.y,.6);
   for(const st of G.statics)if(st.alive&&st.team===1-v.team&&(st.kind==='turret'||st.kind==='gate'||st.kind==='building'))consider(st.x,st.z,null,st.kind==='turret'?.75:st.kind==='gate'?1.1:1.5);
   return best;}
+// ============================================================ THE TROOPER (Matt, 28 Oct 2026)
+// Mixamo's armoured trooper (Ch15) is the man you play as. sp-data/trooper.glb carries him and 25 of the rifle moves from the six
+// packs (idle / aim, 4-way walk and run, sprint, crouch, fire, reload, grenade, hit, jump, four deaths, turns), root motion stripped
+// in Blender. First person is his real body: the camera sits in his (hidden) head, so the arms, the rifle and the legs you see are
+// the animation itself, the way Call of Duty does it — walk/run/strafe blend from the velocity, sprint lowers the rifle, crouch
+// (hold C) and jump (F) are real moves, firing/grenades/hits are upper-body layers over the legs, the torso bends with your aim.
+// The enemy infantry use the same moves (walk on patrol, run to attack, aim when shooting, proper death falls).
+const TROOP={upperRe:/Spine|Neck|Head|Shoulder|Arm|Hand/,walkV:1.45,runV:4.9,sprintV:6.8,crouchV:1.2,spineK:.42};
+function trooperSetup(tg){
+  const sc=tg.scene,root=sc.getObjectByName('Trooper')||sc.children[0];
+  sc.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;const m=o.material;if(m){m.transparent=false;m.alphaTest=0;m.side=THREE.FrontSide;m.roughness=Math.max(m.roughness??.5,.5);m.metalness=Math.min(m.metalness??0,.25);m.envMapIntensity=.45;if(m.map)m.map.anisotropy=4;}}});
+  const clips={};for(const c of tg.animations){clips[c.name]=c;}
+  const upper={};for(const k of ['fire','reload','grenade','hit'])if(clips[k]){const c=clips[k].clone();c.tracks=c.tracks.filter(t=>TROOP.upperRe.test(t.name)&&!/Hips/.test(t.name));upper[k]=c;}
+  const wrap=new THREE.Group();wrap.add(root);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(root,true);const scale=HERO_H/Math.max(.5,bb.max.y-bb.min.y);wrap.scale.setScalar(scale);
+  const mats=new Map();sc.traverse(o=>{if(o.isMesh)mats.set(o.name,o.material);});A.trooper={body:wrap,clips,upper,scale,mats};
+  // the rifle sits in his right hand: pose him in 'aim', then fit the rifle's grip to the right palm and its fore-end to the left palm
+  try{const o=SkeletonUtils.clone(wrap);const mx=new THREE.AnimationMixer(o);const a=mx.clipAction(clips.aim);a.play();mx.update(.4);o.updateMatrixWorld(true);
+    const R=o.getObjectByName('mixamorigRightHand'),L=o.getObjectByName('mixamorigLeftHand'),RF=o.getObjectByName('mixamorigRightHandMiddle1'),LF=o.getObjectByName('mixamorigLeftHandMiddle1');
+    const pR=new V3(),pL=new V3(),fR=new V3(),fL=new V3();R.getWorldPosition(pR);L.getWorldPosition(pL);(RF||R).getWorldPosition(fR);(LF||L).getWorldPosition(fL);
+    const palmR=pR.clone().lerp(fR,.45),palmL=pL.clone().lerp(fL,.45); // the palm centre is part-way down the hand bone
+    const HD=o.getObjectByName('mixamorigHead'),eye=new V3();HD.getWorldPosition(eye);eye.y+=.08;eye.z+=.1;const aimAt=eye.clone().add(new V3(0,0,12));
+    const fwd=aimAt.sub(palmR).normalize();let up=new V3(0,1,0);up.addScaledVector(fwd,-up.dot(fwd)).normalize();const right=new V3().crossVectors(up,fwd).normalize(); /* the barrel sits on his eye line: from the right palm toward the point 12 m ahead of the eyes */
+    const M=new THREE.Matrix4().makeBasis(right,up,fwd);const q=new THREE.Quaternion().setFromRotationMatrix(M);
+    const grip=RIFLE.grip.clone().applyQuaternion(q),pos=palmR.clone().sub(grip).addScaledVector(up,.015);
+    const gw=new THREE.Matrix4().compose(pos,q,new V3(1,1,1));const hw=R.matrixWorld.clone().invert();const local=hw.multiply(gw);
+    TROOP.gun=local;TROOP.handSpan=palmR.distanceTo(palmL);console.log('trooper rifle fit: hands',TROOP.handSpan.toFixed(2),'m apart');}catch(e){console.warn('trooper rifle fit',e);}
+  // the enemy infantry share the moves (their CC3 rig has the same Mixamo joint frames; adaptClip drops the per-bone translations)
+  if(A.troop&&A.soldier){try{const th=A.troop.getObjectByName('mixamorigHips'),ch=root.getObjectByName('mixamorig:Hips')||root.getObjectByName('mixamorigHips');
+      const Rfix=th.parent.quaternion.clone().invert().multiply(ch.parent.quaternion); // the two rigs' root frames differ by a fixed turn: hips keys go through it
+      const hk=th.position.length()/Math.max(.01,ch.position.length()*ch.parent.scale.x); // and the troop's legs are longer: hips height scales with them
+      const fix=c=>{const k=adaptClip(c);const q=new THREE.Quaternion(),v=new V3();for(const t of k.tracks){if(t.name==='mixamorigHips.quaternion'){for(let i=0;i<t.values.length;i+=4){q.fromArray(t.values,i).premultiply(Rfix);q.toArray(t.values,i);}}
+        else if(t.name==='mixamorigHips.position'){for(let i=0;i<t.values.length;i+=3){v.fromArray(t.values,i).applyQuaternion(Rfix).multiplyScalar(hk);v.toArray(t.values,i);}}}return k;};
+      A.soldier.m={};for(const k of ['idle','aim','walkF','runF','dieF','dieB','dieR','hit'])if(clips[k])A.soldier.m[k]=fix(clips[k]);}catch(e){console.warn('soldier moves',e);}}
+}
+function trooperHideHead(o){ // first person: discard every fragment the head or neck joints own (scaling the bone leaves neck spikes)
+  o.traverse(m=>{if(!m.isSkinnedMesh)return;const idx=[];m.skeleton.bones.forEach((b,i)=>{if(/mixamorig(Head|HeadTop_End|Neck)$/.test(b.name))idx.push(i);});if(!idx.length)return;
+    const mat=m.material.clone();mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vHd;').replace('#include <skinbase_vertex>',`#include <skinbase_vertex>
+{vHd=0.;${idx.map(i=>`vHd+=(abs(skinIndex.x-${i}.)<.5?skinWeight.x:0.)+(abs(skinIndex.y-${i}.)<.5?skinWeight.y:0.)+(abs(skinIndex.z-${i}.)<.5?skinWeight.z:0.)+(abs(skinIndex.w-${i}.)<.5?skinWeight.w:0.);`).join('')}}`);
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vHd;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vHd>.3)discard;');};
+    mat.customProgramCacheKey=()=>'hidehead'+idx.join('_');m.material=mat;m.userData.hideHead=mat;m.userData.showMat=null;});}
+function trooperActs(o,mx){const acts={};for(const k in A.trooper.clips){const c=A.trooper.upper[k]||A.trooper.clips[k];const a=mx.clipAction(c);a.enabled=true;a.setEffectiveWeight(0);a.play();if(/^(die|jump|grenade|hit|reload|turn)/.test(k)){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true;a.stop();}acts[k]=a;}return acts;}
+const _bq=new THREE.Quaternion(),_bq2=new THREE.Quaternion(),_bax=new V3();
+function bendBone(bone,axis,ang){ // rotate a bone about a WORLD axis, after the mixer has posed it
+  if(!bone||!ang)return;_bq.setFromAxisAngle(axis,ang);bone.parent.getWorldQuaternion(_bq2);_bq2.invert();bone.quaternion.premultiply(_bq2.clone().multiply(_bq).multiply(_bq2.clone().invert()));}
+function trooperOneShot(sd,k,ts=1,hold=false){const a=sd.acts[k];if(!a)return;a.reset();a.timeScale=ts;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=hold;a.play();sd.shot={k,t:0};}
+function trooperAnim(v,sd,dt,inp){ // weights for the player's body from what he is doing
+  const acts=sd.acts,W=sd.w;const fx=Math.sin(v.heading),fz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
+  const sp=v.speed,f=sp>.01?(v.vx*fx+v.vz*fz)/sp:0,st=sp>.01?(v.vx*rx+v.vz*rz)/sp:0;
+  const T={};for(const k in acts)T[k]=0;
+  v.aimT=(v.aimT??0)+dt;const aimK=v.aimT<14?1:0;
+  if(v.air){T.jump=1;}
+  else if(sp<.35){if(v.crouch)T.crouch=1;else{T.idle=1-aimK;T.aim=aimK;}}
+  else{const d={F:Math.max(0,f),B:Math.max(0,-f),L:Math.max(0,-st),R:Math.max(0,st)};const sum=d.F+d.B+d.L+d.R||1;
+    if(v.crouch){T.crouchF=1;acts.crouchF.timeScale=clamp(sp/TROOP.crouchV,.7,1.5);}
+    else if(v.sprint&&f>.3){T.sprint=1;acts.sprint.timeScale=clamp(sp/TROOP.sprintV,.8,1.4);}
+    else{const set=sp>3.1?'run':'walk',nom=set==='run'?TROOP.runV:TROOP.walkV;for(const k of ['F','B','L','R']){T[set+k]=d[k]/sum;acts[set+k].timeScale=clamp(sp/nom,.75,1.5);}}}
+  // upper-body layers: firing, a one-shot (grenade / hit / reload)
+  const firing=inp&&inp.fire&&v.cd>-.05&&v.ammo>0&&!v.sprint;T.fire=firing?2.6:0;acts.fire.timeScale=2.2;
+  if(sd.shot){const a=acts[sd.shot.k];sd.shot.t+=dt;const k=a.time/Math.max(.01,a.getClip().duration);if(!a.isRunning()||k>=.98)sd.shot=null;else T[sd.shot.k]=3*Math.min(1,k*9,(1-k)*5);}
+  // one-shots of the legs (jump) are full-body: nothing else while they run
+  for(const k in acts){W[k]=lerp(W[k]??0,T[k],1-Math.exp(-dt*(T[k]>W[k]?16:10)));acts[k].setEffectiveWeight(W[k]);}
+  sd.mx.update(dt);
+  // the torso follows the aim (the camera is in the head, so this is what bends the rifle up and down)
+  if(!v.air){_bax.set(-Math.cos(v.heading),0,Math.sin(v.heading));const a=v.pitch*TROOP.spineK*(v.crouch?.6:1);bendBone(sd.bones.spine1,_bax,a*.45);bendBone(sd.bones.spine2,_bax,a*.55);}
+  if(sd.flash){FP.flashT-=dt;const fo=FP.flashT>0;sd.flash.visible=fo;sd.flashLight.intensity=fo?4:0;if(fo){sd.flash.material.rotation=Math.random()*TAU;sd.flash.scale.setScalar(rr(.14,.22));}}
+}
 // ============================================================ ON FOOT
 // (Matt, 27 Oct 2026) Press G (gamepad X, touch OUT) in a stopped ground vehicle to climb out and fight on foot as Matt's own soldier
 // (Kenney\SpoonPlatoon_Buildings\review\Male Military Soldier -> sp-data/hero.glb). First-person only: his bare forearms and an
@@ -2511,11 +2579,26 @@ function fpSetup(){
   Object.assign(FP,{scene:sc,cam,rig,sun,flash:fl,flashLight:fll});
 }
 function buildHeroObj(T){
+  if(A.trooper)return buildTrooperObj(T);
   const g=new THREE.Group();const o=SkeletonUtils.clone(A.hero.body);g.add(o);o.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});
   const gun=rifleModel().clone();g.add(gun);gun.position.set(-.12,1.2,.42);gun.rotation.x=.22; // low ready in front of the chest; soldierArms pulls both hands onto it
   const bn=n=>o.getObjectByName('mixamorig'+n),arms={R:['RightArm','RightForeArm','RightHand'].map(bn),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   const mx=new THREE.AnimationMixer(o);const idle=mx.clipAction(A.hero.idle),run=mx.clipAction(A.hero.run);idle.play();run.play();run.setEffectiveWeight(0);
   const sd={obj:g,mx,idle,run,gun,arms:arms.R.every(Boolean)&&arms.L.every(Boolean)?arms:null};
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.75,1.05,28),new THREE.MeshBasicMaterial({color:TEAMS[T].color,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=1;
+  return {g,parts:{sd,ring}};
+}
+function buildTrooperObj(T,firstPerson=true){
+  const g=new THREE.Group();const o=SkeletonUtils.clone(A.trooper.body);g.add(o);o.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});
+  const bn=n=>o.getObjectByName('mixamorig'+n),bones={head:bn('Head'),neck:bn('Neck'),spine1:bn('Spine1'),spine2:bn('Spine2'),rhand:bn('RightHand')};
+  if(firstPerson)trooperHideHead(o); // the camera lives in the head: helmet and mask would sit over the lens
+  let gun=null,flash=null,flashLight=null;
+  if(bones.rhand&&TROOP.gun){gun=rifleModel().clone();bones.rhand.add(gun);TROOP.gun.decompose(gun.position,gun.quaternion,gun.scale);
+    const cv=document.createElement('canvas');cv.width=cv.height=64;const x=cv.getContext('2d');const gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,250,220,1)');gr.addColorStop(.25,'rgba(255,200,90,.9)');gr.addColorStop(1,'rgba(255,120,20,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);
+    flash=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));flash.position.set(0,.005,.7);flash.scale.setScalar(.18);flash.visible=false;gun.add(flash);
+    flashLight=new THREE.PointLight(0xffc070,0,2.2,2);flashLight.position.set(0,.02,.6);gun.add(flashLight);}
+  const mx=new THREE.AnimationMixer(o);const acts=trooperActs(o,mx);acts.idle.setEffectiveWeight(1);
+  const sd={obj:g,mx,acts,w:{idle:1},gun,bones,flash,flashLight,trooper:true,arms:null,idle:acts.idle,run:acts.runF};
   const ring=new THREE.Mesh(new THREE.RingGeometry(.75,1.05,28),new THREE.MeshBasicMaterial({color:TEAMS[T].color,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=1;
   return {g,parts:{sd,ring}};
 }
@@ -2543,7 +2626,7 @@ function toggleFoot(view){
     if(!spot){note(T,'No room to get out here','warn');return;}
     v.speed=0;v.strafe=0;const h=spawnHero(T,spot.x,spot.z,v.heading);t.parked=v;t.vehicle=h;view.cy=null;view.cpos=null;FP.prevH=null;
     if(view.index===0)musicStop();sfx('click',v.x,v.z);
-    note(T,opts.touch?'On foot: SPECIAL throws a grenade · tap IN beside a vehicle to get back in':'On foot: click to aim · right-click (or X) throws a grenade · G beside a vehicle to get in','info');
+    note(T,opts.touch?'On foot: SPECIAL throws a grenade · tap IN beside a vehicle to get back in':'On foot: click to aim · right-click (or X) grenade · Shift sprint · C crouch · F jump · G beside a vehicle to get in','info');
   }else{
     let best=null,bd=1e9;for(const o of G.vehicles){if(o===v||o.team!==T||o.type==='foot'||o.state!=='active')continue;const d=Math.hypot(o.x-v.x,o.z-v.z)-o.r;if(d<2.4&&d<bd){bd=d;best=o;}}
     if(!best){note(T,'Walk up to one of your vehicles to get in','warn');return;}
@@ -2557,12 +2640,12 @@ function heroShoot(v){
   const cp=Math.cos(v.pitch),dx=Math.sin(v.heading)*cp,dy=Math.sin(v.pitch),dz=Math.cos(v.heading)*cp,s=.01+(Math.hypot(v.vx,v.vz)>1?.018:0);
   const ex=dx+rr(-s,s),ey=dy+rr(-s,s),ez=dz+rr(-s,s),y0=v.y+1.6;
   fire('pbullet',v.team,v.x+ex*1.6,y0+ey*1.6-.06,v.z+ez*1.6,ex,ey,ez,{mul:G.vehMul[v.team]});
-  v.ammo--;v.cd=.105;sfx('rifle',v.x,v.z);FP.recoil=Math.min(1.8,FP.recoil+1);FP.flashT=.055;v.pitch=Math.min(1.25,v.pitch+.005);v.heading+=rr(-.002,.002);
+  v.ammo--;v.cd=.105;v.aimT=0;sfx('rifle',v.x,v.z);FP.recoil=Math.min(1.8,FP.recoil+1);FP.flashT=.055;v.pitch=Math.min(1.25,v.pitch+.005);v.heading+=rr(-.002,.002);
 }
 function heroThrow(v){ // lobbed along the look direction (aim higher to throw further); bursts where it lands
   const p=clamp(v.pitch+.34,-.3,1.1),sp=23,hs=Math.cos(p)*sp,vy=Math.sin(p)*sp,sx=Math.sin(v.heading),sz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
   const x=v.x+sx*.6+rx*.25,y=v.y+1.45,z=v.z+sz*.6+rz*.25;
-  fire('grenade',v.team,x,y,z,sx,0,sz,{mul:G.vehMul[v.team],vel:{vx:sx*hs+v.vx*.5,vy,vz:sz*hs+v.vz*.5}});
+  fire('grenade',v.team,x,y,z,sx,0,sz,{mul:G.vehMul[v.team],vel:{vx:sx*hs+v.vx*.5,vy,vz:sz*hs+v.vz*.5}});if(v.parts&&v.parts.sd.trooper)trooperOneShot(v.parts.sd,'grenade',1.7);
   v.ammo2--;v.gcd=.75;sfx('gthrow',v.x,v.z);FP.throwT=.45;
 }
 function aimAssist(v,dt,firing){ // touch only: nearest enemy within ~10 deg of the crosshair and 45 m
@@ -2577,15 +2660,17 @@ function aimAssist(v,dt,firing){ // touch only: nearest enemy within ~10 deg of 
 function updateFoot(v,inp,dt){
   const def=v.def,T=v.team;if(v.hitFlash>0)v.hitFlash-=dt;if(opts.touch&&G.teams[T].human)aimAssist(v,dt,!!inp.fire);
   v.heading-=(inp.turn||0)*def.turn*dt;if(inp.look){v.heading-=inp.look.x*2.6*dt;v.pitch=clamp(v.pitch-inp.look.y*1.8*dt,-1.25,1.25);}
-  const mzi=inp.thr||0,mxi=inp.strafe||0;const sprint=!!inp.special&&mzi>.3&&!v.carrying;v.sprint=sprint;
+  const mzi=inp.thr||0,mxi=inp.strafe||0;v.crouch=!!inp.crouch&&!v.air;const sprint=!!inp.special&&mzi>.3&&!v.carrying&&!v.crouch;v.sprint=sprint;
   let mz=mzi,mx=mxi;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l;}
-  const sp=def.speed*(sprint?1.6:1)*(v.carrying?.6:1)*(mz<0?.7:1);
+  const sp=def.speed*(sprint?1.6:1)*(v.carrying?.6:1)*(mz<0?.7:1)*(v.crouch?.42:1);
   const fx=Math.sin(v.heading),fz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
   const k=1-Math.exp(-dt*10);v.vx=lerp(v.vx,(fx*mz+rx*mx)*sp,k);v.vz=lerp(v.vz,(fz*mz+rz*mx)*sp,k);
   let nx=v.x+v.vx*dt,nz=v.z+v.vz*dt;
   if(footBlocked(nx,nz,T,v)){if(!footBlocked(nx,v.z,T,v))nz=v.z;else if(!footBlocked(v.x,nz,T,v))nx=v.x;else{nx=v.x;nz=v.z;}}
   v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;v.speed=Math.hypot(v.vx,v.vz);
-  v.y=lerp(v.y,vehGround(v.x,v.z),1-Math.exp(-dt*16));
+  {const g0=vehGround(v.x,v.z);const sd0=v.parts.sd;
+    if(inp.jump&&!v.prevJump&&!v.air&&v.y<=g0+.08&&!v.carrying&&!v.crouch){v.air=true;v.vy=4.9;if(sd0.trooper)trooperOneShot(sd0,'jump',1.05,true);sfx('throw',v.x,v.z);}v.prevJump=!!inp.jump;
+    if(v.air){v.vy-=13.5*dt;v.y+=v.vy*dt;if(v.y<=g0){v.y=g0;v.air=false;v.vy=0;puff(v.x,v.y+.1,v.z,C_DUST,1,.6,.4);}}else v.y=lerp(v.y,g0,1-Math.exp(-dt*16));}
   v.cd-=dt;if(inp.fire&&v.cd<=0&&v.ammo>0&&!sprint)heroShoot(v);
   v.gcd-=dt;if(inp.grenade&&!v.prevGren&&v.gcd<=0&&v.ammo2>0)heroThrow(v);v.prevGren=!!inp.grenade;
   // field supply: any hospital heals, your ammo tents and any ammo depot refill the rifle
@@ -2594,14 +2679,16 @@ function updateFoot(v,inp,dt){
       if(((st.kind==='tent'&&st.team===T)||st.kind==='depot')&&(v.ammo<def.ammo||v.ammo2<def.ammo2)){v.ammoAcc=(v.ammoAcc||0)+dt;if(v.ammoAcc>.05){v.ammoAcc=0;v.ammo=Math.min(def.ammo,v.ammo+3);v.gAcc=(v.gAcc||0)+1;if(v.gAcc>=6){v.gAcc=0;v.ammo2=Math.min(def.ammo2,v.ammo2+1);}}what=what?what+' · REARMING':'REARMING';}}v.supplyMsg=what;}else v.supplyMsg='';
   // third-person body (other cameras, the shadow, the death fall)
   const P=v.parts,sd=P.sd,o=v.obj;o.position.set(v.x,v.y,v.z);o.rotation.set(0,v.heading,0);
-  const mv=clamp(v.speed/def.speed,0,1.6);v.moving=lerp(v.moving,mv>.15?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(v.moving);sd.idle.setEffectiveWeight(1-v.moving);sd.run.timeScale=sprint?1.35:.95;
-  sd.mx.update(dt);soldierArms(sd);
+  if(sd.trooper)trooperAnim(v,sd,dt,inp);
+  else{const mv=clamp(v.speed/def.speed,0,1.6);v.moving=lerp(v.moving,mv>.15?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(v.moving);sd.idle.setEffectiveWeight(1-v.moving);sd.run.timeScale=sprint?1.35:.95;
+  sd.mx.update(dt);soldierArms(sd);}
   P.ring.position.set(v.x,v.y+.12,v.z);P.ring.material.opacity=v.hitFlash>0?.95:.5;
 }
 function heroDie(v,by){
   const team=G.teams[v.team];if(v.carrying)dropFlag(v.carrying,v.x,v.z);
   world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);
-  G.soldiers.push({soldier:true,team:v.team,x:v.x,z:v.z,y:v.y,alive:false,deadT:0,fallDir:RND()<.5?1:-1,crushed:false,obj:v.obj,hp:0,mode:'dead'}); // the body falls like any soldier's
+  const dsd={soldier:true,team:v.team,x:v.x,z:v.z,y:v.y,alive:false,deadT:0,fallDir:RND()<.5?1:-1,crushed:false,obj:v.obj,hp:0,mode:'dead'};G.soldiers.push(dsd); // the body falls like any soldier's
+  if(v.parts.sd.trooper){const sd=v.parts.sd;v.obj.traverse(m=>{if(m.isSkinnedMesh&&m.userData.hideHead){m.material=A.trooper.mats.get(m.name)||m.material;}});for(const k in sd.acts)sd.acts[k].setEffectiveWeight(0);const k=['dieF','dieB','dieR'][(RND()*3)|0];sd.acts[k].reset().setEffectiveWeight(1).play();sd.acts[k].clampWhenFinished=true;dsd.mx=sd.mx;dsd.dieAct=sd.acts[k];}
   gore(v.x,v.y,v.z,'hit');sfx('splat',v.x,v.z);sfx('scream',v.x,v.z);
   team.vehicle=null;team.respawnT=2.5;team.hero=null;if(document.pointerLockElement)document.exitPointerLock();
   if(team.view&&!G.demo)skullFor(team.view);note(v.team,'You were killed','bad',true);if(by!==undefined&&by!==v.team)note(by,'Enemy soldier down','good');
@@ -2611,7 +2698,10 @@ function fpCamera(view,v,dt){
   const cam=view.cam;if(view.fpFov==null)view.fpFov=cam.fov;const asp=cam.aspect,want=asp<1?VMP.world:asp<1.3?78:70;
   if(cam.fov!==want){cam.fov=want;cam.updateProjectionMatrix();}
   const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);const by=Math.abs(Math.sin(FP.bob))*.035*mv;
-  cam.position.set(v.x,v.y+1.6+by,v.z);cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,0);
+  const sd=v.parts&&v.parts.sd;
+  if(sd&&sd.trooper&&sd.bones.head){v.obj.updateMatrixWorld(true);sd.bones.head.getWorldPosition(cam.position);cam.position.y+=.08;cam.position.x+=Math.sin(v.heading)*.1;cam.position.z+=Math.cos(v.heading)*.1;if(cam.near!==.08){cam.near=.08;cam.updateProjectionMatrix();}}
+  else cam.position.set(v.x,v.y+1.6+by,v.z);
+  cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,0);
   if(view.shake>0){cam.rotation.x+=rr(-.01,.01)*view.shake;cam.rotation.y+=rr(-.01,.01)*view.shake;view.shake=Math.max(0,view.shake-dt*3);}
   view.focus.set(v.x+Math.sin(v.heading)*14,v.y,v.z+Math.cos(v.heading)*14);
 }
@@ -2862,7 +2952,7 @@ function damage(e,amount,byTeam){
   if(e.drone){e.hp-=amount;e.hitT=.12;if(e.hp<=0)killDrone(e,byTeam);return;}
   if(e.soldier){e.hp-=amount;if(e.hp<=0)killSoldier(e,byTeam);return;}
   if(e.state!==undefined){ // vehicle
-    if(e.state!=='active')return;if(e.crew)crewHit(e,byTeam);e.hp-=amount*(G.dmgMul[e.team]||1);e.hitFlash=.15;if(e.hp<=0)destroyVehicle(e,byTeam);return;}
+    if(e.state!=='active')return;if(e.crew)crewHit(e,byTeam);e.hp-=amount*(G.dmgMul[e.team]||1);e.hitFlash=.15;if(e.type==='foot'&&e.parts&&e.parts.sd.trooper&&!e.parts.sd.shot&&e.hp>0)trooperOneShot(e.parts.sd,'hit',1.4);if(e.hp<=0)destroyVehicle(e,byTeam);return;}
   if(!e.alive||e.hp===Infinity)return;e.hp-=amount;if(G.net&&G.net.host&&e.netIdx!==undefined)G.net.dirty.add(e.netIdx);if(e.hp<=0)destroyStatic(e,byTeam);
 }
 function collapseSafe(s){try{return collapseBuilding(s);}catch(e){console.warn('collapse',e);return false;}}
@@ -3259,14 +3349,22 @@ function spawnSoldier(T,x,z,mode){
   const bn=n=>o.getObjectByName('mixamorig'+n),arms={R:['RightArm','RightForeArm','RightHand'].map(bn),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   const head=o.getObjectByName('mixamorigHead');if(head&&!A.troop){const hp=new THREE.Mesh(HELMET_GEO,HELMET_MAT[T]);hp.position.set(0,21,0);head.add(hp);}
   const mx=new THREE.AnimationMixer(o);const idle=mx.clipAction(A.soldier.idle),run=mx.clipAction(A.soldier.run);idle.play();run.play();run.setEffectiveWeight(0);idle.time=RND();run.time=RND()*.6;
+  const m={};if(A.soldier.m)for(const k of ['aim','walkF','runF'])if(A.soldier.m[k]){m[k]=mx.clipAction(A.soldier.m[k]);m[k].play();m[k].setEffectiveWeight(0);m[k].time=RND()*.5;}
   o.position.set(x,groundAt(x,z),z);world.add(o);
   const sd={soldier:true,team:T,x,z,y:o.position.y,heading:RND()*TAU,hp:8,alive:true,mode,obj:o,mx,idle,run,gun:chest?gun:null,arms:arms.R.every(Boolean)&&arms.L.every(Boolean)?arms:null,moving:0,wp:null,cd:rr(.5,2),think:RND()*.4,target:null,deadT:0,
-    fleeT:mode==='flee'?3:0,wpT:0};
+    fleeT:mode==='flee'?3:0,wpT:0,m,mw:{}};
   if(mode==='flee'){const a=RND()*TAU;sd.wp=[x+Math.cos(a)*22,z+Math.sin(a)*22];}
   sd.netId=++G.netSeq;G.soldiers.push(sd);return sd;
 }
+function soldierActs(sd){const a=[sd.idle,sd.run];if(sd.m)for(const k in sd.m)a.push(sd.m[k]);return a;}
+function soldierMoves(sd,moving,dt){ // walk on patrol, run to attack, rifle up when there's something to shoot at
+  const m=sd.m;if(!m||!m.walkF){sd.moving=lerp(sd.moving,moving?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(sd.moving);sd.idle.setEffectiveWeight(1-sd.moving);sd.run.timeScale=moving>3?1.15:.75;return;}
+  const T={idle:0,aim:0,walkF:0,runF:0};if(moving>3)T.runF=1;else if(moving)T.walkF=1;else if(sd.target&&sd.mode==='attack')T.aim=1;else T.idle=1;
+  m.runF.timeScale=clamp(moving/TROOP.runV,.8,1.3);m.walkF.timeScale=clamp(moving/TROOP.walkV,.8,1.6);
+  for(const k in T){sd.mw[k]=lerp(sd.mw[k]??0,T[k],1-Math.exp(-dt*10));(k==='idle'?sd.idle:m[k]).setEffectiveWeight(sd.mw[k]);}sd.run.setEffectiveWeight(0);}
 function killSoldier(sd,byTeam,how='shot'){
   if(!sd.alive)return;sd.alive=false;sd.deadT=0;sd.fallDir=RND()<.5?1:-1;sd.crushed=how==='crush';if(G.bodies)G.bodies[sd.team]++;
+  if(!sd.crushed&&!sd.ride&&sd.mx&&A.soldier&&A.soldier.m&&A.soldier.m.dieF){try{for(const a of soldierActs(sd))a.setEffectiveWeight(0);const k=['dieF','dieB','dieR'][(RND()*3)|0];const d=sd.mx.clipAction(A.soldier.m[k]);d.setLoop(THREE.LoopOnce,1);d.clampWhenFinished=true;d.reset().setEffectiveWeight(1).play();sd.dieAct=d;sd.gun&&(sd.gun.visible=true);}catch(e){}}
   puff(sd.x,sd.y+.8,sd.z,C_DUST,1.4,.8,.6);
   if(how==='fall')return; // went into the water with a bridge - no gore
   gore(sd.x,sd.y,sd.z,how);
@@ -3286,12 +3384,12 @@ function crewCount(v){return v.crew?v.crew.filter(Boolean).length:0;}
 function boardJeep(v,sd,i){
   if(!A.crew||!v.obj)return;if(!v.crew)v.crew=[null,null,null];const S=CREW_SEATS[i];
   v.crew[i]=sd;sd.ride=v;sd.seat=i;sd.wp=null;sd.target=null;sd.mode='ride';sd.aimOff=sd.aimOff||0;sd.aimPitch=0;sd.cd=rr(.3,.9);sd.think=0;sd.idleT=0;
-  sd.idle.stop();sd.run.stop();if(sd.crewAct)sd.crewAct.stop();sd.crewAct=sd.mx.clipAction(A.crew[S.s]);sd.crewAct.reset().play();
+  for(const a of soldierActs(sd))a.stop();if(sd.crewAct)sd.crewAct.stop();sd.crewAct=sd.mx.clipAction(A.crew[S.s]);sd.crewAct.reset().play();
   v.obj.add(sd.obj);sd.obj.position.set(S.x,S.y,S.z);sd.obj.rotation.set(0,0,0);sd.obj.scale.setScalar(SOLDIER_SCALE);
 }
 function crewLeave(sd,x,z,heading){ // back on foot (alive, or about to play its death) at x,z
   const v=sd.ride;if(v&&v.crew&&v.crew[sd.seat]===sd)v.crew[sd.seat]=null;sd.ride=null;
-  if(sd.crewAct){sd.crewAct.stop();sd.crewAct=null;}sd.idle.reset().play();sd.run.reset().play();sd.run.setEffectiveWeight(0);
+  if(sd.crewAct){sd.crewAct.stop();sd.crewAct=null;}sd.idle.reset().play();sd.run.reset().play();sd.run.setEffectiveWeight(0);if(sd.m)for(const k in sd.m){sd.m[k].reset().play();sd.m[k].setEffectiveWeight(0);}sd.mw={};
   if(sd.gun&&GUN_MOUNT.pos){sd.gun.position.copy(GUN_MOUNT.pos);sd.gun.quaternion.copy(GUN_MOUNT.quat);sd.gun.scale.setScalar(GUN_MOUNT.scale);}
   world.add(sd.obj);sd.x=x;sd.z=z;sd.y=groundAt(x,z);sd.heading=heading;sd.obj.position.set(x,sd.y,z);sd.obj.rotation.set(0,heading,0);
   sd.mode='patrol';sd.wp=null;sd.target=null;sd.moving=0;
@@ -3379,7 +3477,8 @@ function updateSoldiers(dt){
   const near=(sd,R)=>{for(const v of G.views)if(Math.hypot(v.focus.x-sd.x,v.focus.z-sd.z)<R)return true;return false;};
   for(let i=G.soldiers.length-1;i>=0;i--){const sd=G.soldiers[i];
     if(!sd.alive){sd.deadT+=dt;const o=sd.obj;
-      if(sd.crushed){const k=1-Math.exp(-dt*16);o.scale.y=lerp(o.scale.y,SOLDIER_SCALE*.07,k);o.scale.x=lerp(o.scale.x,SOLDIER_SCALE*1.6,k);o.scale.z=lerp(o.scale.z,SOLDIER_SCALE*1.6,k);} // flattened into the dirt
+      if(sd.dieAct){if(sd.deadT<4)sd.mx.update(dt);}
+      else if(sd.crushed){const k=1-Math.exp(-dt*16);o.scale.y=lerp(o.scale.y,SOLDIER_SCALE*.07,k);o.scale.x=lerp(o.scale.x,SOLDIER_SCALE*1.6,k);o.scale.z=lerp(o.scale.z,SOLDIER_SCALE*1.6,k);} // flattened into the dirt
       else{o.rotation.order='YXZ';o.rotation.x=lerp(o.rotation.x,-sd.fallDir*Math.PI/2,1-Math.exp(-dt*9));}
       if(sd.deadT>3.5)o.position.y-=dt*.6;if(sd.deadT>5.5){world.remove(o);G.soldiers.splice(i,1);}continue;}
     if(sd.ride){updateCrew(sd,dt,near(sd,140));continue;} // riding in a jeep (JEEP CREW)
@@ -3419,7 +3518,7 @@ function updateSoldiers(dt){
         fire('sgrenade',sd.team,sd.x+Math.sin(a)*.9,sd.y+1.5,sd.z+Math.cos(a)*.9,ddx,0,ddz,{mul:G.infMul[sd.team],vel:{vx:Math.sin(a)*hs,vy,vz:Math.cos(a)*hs}});sfx('gthrow',sd.x,sd.z);}
       else sd.gcd=.5;}
     sd.y=groundAt(sd.x,sd.z);const o=sd.obj;o.position.set(sd.x,sd.y,sd.z);o.rotation.y=lerpAngle(o.rotation.y,sd.heading,1-Math.exp(-dt*10));
-    sd.moving=lerp(sd.moving,moving?1:0,1-Math.exp(-dt*8));sd.run.setEffectiveWeight(sd.moving);sd.idle.setEffectiveWeight(1-sd.moving);sd.run.timeScale=moving>3?1.15:.75;
+    soldierMoves(sd,moving,dt);
     if(near(sd,140)){sd.mx.update(dt);soldierArms(sd);}
   }
 }
@@ -3587,7 +3686,8 @@ function readHuman(view,inp){
     if(pad){const ax=pad.axes,d2=x=>Math.abs(x)>.18?x:0;if(d2(ax[1]))mz=-ax[1];if(d2(ax[0])){mx=ax[0];tn=0;}if(d2(ax[2]||0)||d2(ax[3]||0))look={x:d2(ax[2]||0),y:d2(ax[3]||0)};if(pad.buttons[12]?.pressed)mz=1;if(pad.buttons[13]?.pressed)mz=-1;}
     if(locked){v.heading-=FP.look.dx*FP.sens;v.pitch=clamp(v.pitch-FP.look.dy*FP.sens,-1.25,1.25);}FP.look.dx=FP.look.dy=0;
     const sprint=any(km.special)||!!(pad&&(pad.buttons[10]?.pressed||pad.buttons[6]?.pressed)),gren=!!(mouse.r&&opts.mouse)||keys.has('KeyX')||!!(pad&&(pad.buttons[1]?.pressed||pad.buttons[5]?.pressed));
-    Object.assign(inp,{thr:mz,turn:tn,tur:0,strafe:clamp(mx,-1,1),fire,special:sprint,grenade:gren,abandon:false,aimYaw:null,look});}
+    const jump=keys.has('KeyF')||!!(pad&&pad.buttons[0]?.pressed),crouch=keys.has('KeyC')||keys.has('ControlLeft')||!!(pad&&pad.buttons[11]?.pressed);
+    Object.assign(inp,{thr:mz,turn:tn,tur:0,strafe:clamp(mx,-1,1),fire,special:sprint,grenade:gren,abandon:false,aimYaw:null,look,jump,crouch});}
   else Object.assign(inp,{thr,turn,tur,strafe:v?.type==='heli'?tur:0,fire,special,abandon,aimYaw});
   // menu edges
   const mk={l:any(km.left)||view.padMenu?.l,r:any(km.right)||view.padMenu?.r,ok:any(km.fire)||(view.ctrl===0&&keys.has('Enter')&&solo)||view.padMenu?.ok};
@@ -3952,12 +4052,12 @@ function render(dt){
     if(CHASE.on&&v&&!G.demo&&v.state!=='dead'&&v.type!=='foot')chaseCam(view,v,dt);else{view.cy=null;view.cpos=null;}
     if(G.strike&&G.strike.cine&&view===G.strike.view)strikeCam(view,paused?0:dt); // missile strike cinematic: truck, then riding the missile, then the blast
     const fpOn=!!(v&&v.type==='foot'&&v.state==='active'&&!G.demo&&!(G.strike&&G.strike.cine&&view===G.strike.view)&&!G.debugCam);
-    if(fpOn)fpCamera(view,v,dt);else if(view.fpFov!=null){view.fpFov=null;layoutViews();}
+    if(fpOn)fpCamera(view,v,dt);else if(view.fpFov!=null){view.fpFov=null;if(view.cam.near!==1){view.cam.near=1;view.cam.updateProjectionMatrix();}layoutViews();}
     if(G.debugCam){const d=G.debugCam;view.cam.position.set(d.x,d.h,d.z+(d.back??d.h*.35));view.cam.lookAt(d.x,d.y||0,d.z);view.focus.set(d.x,0,d.z);}
     sun.position.copy(view.focus).addScaledVector(SUN_DIR,140);sun.target.position.copy(view.focus);sun.target.updateMatrixWorld();
     const r=view.rect;renderer.setViewport(r.x,0,r.w,h);renderer.setScissor(r.x,0,r.w,h);
     const sc=r.h/(2*Math.tan(THREE.MathUtils.degToRad(view.cam.fov/2)))*renderer.getPixelRatio()*.02;FIRE.mat.uniforms.scale.value=SMOKE.mat.uniforms.scale.value=sc*50;
-    if(fpOn)v.obj.visible=false;renderer.render(scene,view.cam);if(fpOn){v.obj.visible=true;fpRender(view,v,paused?0:dt,r,h);}
+    const tp=fpOn&&v.parts&&v.parts.sd.trooper;if(fpOn&&!tp)v.obj.visible=false;renderer.render(scene,view.cam);if(fpOn&&!tp){v.obj.visible=true;fpRender(view,v,paused?0:dt,r,h);}
     if(!G.demo){updateHud(view);if(((G.time*10)|0)%2===0)drawMini(view);if(view.engine)updateEngine(view);}
   }
 }

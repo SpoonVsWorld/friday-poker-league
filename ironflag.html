@@ -1689,13 +1689,15 @@ function setStrikes(n){const d=loadOps();d.strikes=Math.max(0,n|0);try{localStor
 // The password is stored only as a SHA-256 hash.
 const DEV={on:false,hash:'ca663719c84fda897cfe8d4e4fdef714b1f9100e12c0b43ae0ba5bd5e61cdb93'};try{DEV.on=localStorage.getItem('ironflag.dev')==='1';}catch(e){}
 function devActive(){return !!(DEV.on&&G&&!G.net&&!G.demo);}
+// (Matt, 31 Oct 2026) online too, for Matt's team only: whichever side he plays, the device with dev mode on tells the host (join / start payload) and the host
+// runs his vehicle invincible with unlimited ammo and fuel. Strikes and air strikes stay single-player.
+function devFor(T){if(!G||G.demo)return false;if(!G.net)return T===0&&DEV.on;return !!(G.devTeams&&G.devTeams[T]);}
 async function devCheck(pw){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')===DEV.hash;}catch(e){return false;}}
 function devSet(on){DEV.on=on;try{if(on){localStorage.setItem('ironflag.dev','1');localStorage.setItem('ironflag.nocount','1');}else localStorage.removeItem('ironflag.dev');}catch(e){}devLabel();}
 function devLabel(){const b=document.getElementById('devBtn');if(b){b.textContent=DEV.on?'dev ●':'dev';b.classList.toggle('on',DEV.on);}}
 function devTick(){ // every sim step: keep the player's vehicle topped up, strikes unlimited
-  if(!devActive())return;const t=G.teams[0],v=t.vehicle;
-  if(v&&v.state==='active'){const d=v.def;v.hp=d.hp;v.fuel=d.fuel;v.ammo=d.ammo;if(d.ammo2!=null)v.ammo2=d.ammo2;}
-  if(!G.air)G.air={total:99,left:[99,0],enemyT:1e9};G.air.left[0]=99;G.footAir=99;
+  if(!G||G.demo)return;for(const T of [0,1]){if(!devFor(T))continue;const v=G.teams[T].vehicle;if(v&&v.state==='active'){const d=v.def;v.hp=d.hp;v.fuel=d.fuel;v.ammo=d.ammo;if(d.ammo2!=null)v.ammo2=d.ammo2;}}
+  if(!devActive())return;if(!G.air)G.air={total:99,left:[99,0],enemyT:1e9};G.air.left[0]=99;G.footAir=99;
 }
 function mslCount(){if(devActive())return 99;return G&&G.strikes!=null?G.strikes:strikesBanked();}
 function mslReady(){return !!(G&&(G.op||devActive())&&G.launcher&&G.launcher.er&&G.launcher.msl&&!G.net&&!G.demo&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&mslCount()>0);}
@@ -3020,7 +3022,7 @@ function bailOut(v){
   if(team.view&&team.view.index===0)musicStop();
 }
 function destroyVehicle(v,by){
-  if(v.state==='dead')return;if(v.team===0&&devActive()&&!v.devDie)return; // dev mode: the player's vehicles can't be destroyed (scuttle still works, see devDie)
+  if(v.state==='dead')return;if(devFor(v.team)&&!v.devDie)return; // dev mode: the player's vehicles can't be destroyed (scuttle still works, see devDie)
   v.state='dead';const team=G.teams[v.team];if(team.human)G.lost++;
   if(v.type==='foot'){heroDie(v,by);return;}
   const driven=team.vehicle===v;if(team.parked===v)team.parked=null; // a parked vehicle (you are on foot) can be lost too, but it doesn't end your turn
@@ -3182,7 +3184,7 @@ function collapseSpan(sp,byTeam){
   for(const T of [0,1])note(T,'A bridge has been destroyed','warn');
 }
 function damage(e,amount,byTeam){
-  if(e.state!==undefined&&e.team===0&&devActive())return; // dev mode: player vehicles take no damage
+  if(e.state!==undefined&&devFor(e.team))return; // dev mode: player vehicles take no damage
   if(e.jet){e.hp-=amount;if(e.hp<=0)killJet(e,byTeam);return;}
   if(e.drone){e.hp-=amount;e.hitT=.12;if(e.hp<=0)killDrone(e,byTeam);return;}
   if(e.soldier){e.hp-=amount;if(e.hp<=0)killSoldier(e,byTeam);return;}
@@ -4065,7 +4067,7 @@ function updateHud(view){
   if(lastHud.get(q.stock)!==st){q.stock.innerHTML=st;lastHud.set(q.stock,st);}
   const bc=String(G.bodies?G.bodies.reduce((a,n,i)=>a+(i===t.team?0:n),0):0);if(lastHud.get(q.bodies)!==bc){q.bodies.textContent=bc;lastHud.set(q.bodies,bc);}
   const lab={hidden:'HIDDEN',exposed:'EXPOSED',carried:'TAKEN',captured:'CAPTURED'};const ef=G.flags[1-t.team],mf=G.flags[t.team];
-  const dv=devActive()&&t.team===0;const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air||(t.team===0&&onFoot())?`<div>AIR STRIKES <b style="color:${(t.team===0?airLeft():G.air.left[t.team])?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':t.team===0?airLeft():G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
+  const dv=devFor(t.team);const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air||(t.team===0&&onFoot())?`<div>AIR STRIKES <b style="color:${(t.team===0?airLeft():G.air.left[t.team])?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':t.team===0?airLeft():G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
   if(lastHud.get(q.flag)!==fl){q.flag.innerHTML=fl;lastHud.set(q.flag,fl);}
 }
 function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat in front
@@ -4137,7 +4139,7 @@ function newGame(mode,seed,demo=false){
   // the host, but fed by network input instead of readHuman()/AI - see the
   // t.net branch in step(). Only meaningful on the host (the only side that
   // ever calls step() for an online match); harmless to set on the guest too.
-  if(G.net)G.teams[1-G.net.myTeam].net=true;
+  if(G.net){G.teams[1-G.net.myTeam].net=true;G.devTeams=G.net.host?[DEV.on,!!NET.guestDev]:[!!NET.hostDev,DEV.on];}
   for(const T of [0,1])if(!G.teams[T].human){G.aiErr[T]=[.14,.07,.03][d];G.dmgMul[T]=[1.25,1,.85][d];G.turMul[T]=[.8,1,1.15][d];if(mode==='1p'&&!demo)G.turMul[1-T]=[1.15,1,.9][d];}
   if(demo){G.aiErr=[.06,.06];}
   if(G.op){G.turMul=[1,G.op.turMul*[.5,.65,1][dd]];G.aiErr=[0,G.op.aim+[.09,.04,0][dd]];G.slow=[1,[1.6,1.4,1][dd]];G.infMul=[1,[.4,.7,1][dd]];G.dmgMul=[[.7,.85,1][dd],1];G.teams[1].passive=true;}
@@ -4418,9 +4420,9 @@ function netHostMatch(){
   const mch=sb.channel('ironflag-match-'+matchId);
   NET.matchCh=mch;
   mch.on('broadcast',{event:'join'},({payload})=>{
-    if(NET.started)return;NET.started=true;
+    if(NET.started)return;NET.started=true;NET.guestDev=!!(payload&&payload.dev);
     try{NET.lobbyCh.untrack();}catch(e){}
-    mch.send({type:'broadcast',event:'start',payload:{seed}});
+    mch.send({type:'broadcast',event:'start',payload:{seed,dev:DEV.on}});
     netBeginHost();
   });
   mch.subscribe(status=>{if(status==='SUBSCRIBED')NET.lobbyCh.track({name,matchId,seed,hosting:true,ts:Date.now()});});
@@ -4439,10 +4441,10 @@ function netJoin(m){
   const mch=sb.channel('ironflag-match-'+m.matchId);
   NET.matchCh=mch;
   mch.on('broadcast',{event:'start'},({payload})=>{
-    if(NET.started)return;NET.started=true;NET.seed=payload.seed;
+    if(NET.started)return;NET.started=true;NET.seed=payload.seed;NET.hostDev=!!payload.dev;
     netLeaveLobby();netBeginGuest();
   });
-  mch.subscribe(status=>{if(status==='SUBSCRIBED')mch.send({type:'broadcast',event:'join',payload:{name:NET.name}});});
+  mch.subscribe(status=>{if(status==='SUBSCRIBED')mch.send({type:'broadcast',event:'join',payload:{name:NET.name,dev:DEV.on}});});
 }
 function netBeginHost(){
   NET.matchCh.on('broadcast',{event:'input'},({payload})=>{Object.assign(NET.remoteInp,payload);NET.lastRecv=performance.now();});

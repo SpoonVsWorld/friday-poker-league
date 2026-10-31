@@ -4139,7 +4139,7 @@ function newGame(mode,seed,demo=false){
   // the host, but fed by network input instead of readHuman()/AI - see the
   // t.net branch in step(). Only meaningful on the host (the only side that
   // ever calls step() for an online match); harmless to set on the guest too.
-  if(G.net){G.teams[1-G.net.myTeam].net=true;G.devTeams=G.net.host?[DEV.on,!!NET.guestDev]:[!!NET.hostDev,DEV.on];}
+  if(G.net){G.teams[1-G.net.myTeam].net=true;G.devTeams=G.net.host?[DEV.on,!!NET.guestDev]:[false,DEV.on];}
   for(const T of [0,1])if(!G.teams[T].human){G.aiErr[T]=[.14,.07,.03][d];G.dmgMul[T]=[1.25,1,.85][d];G.turMul[T]=[.8,1,1.15][d];if(mode==='1p'&&!demo)G.turMul[1-T]=[1.15,1,.9][d];}
   if(demo){G.aiErr=[.06,.06];}
   if(G.op){G.turMul=[1,G.op.turMul*[.5,.65,1][dd]];G.aiErr=[0,G.op.aim+[.09,.04,0][dd]];G.slow=[1,[1.6,1.4,1][dd]];G.infMul=[1,[.4,.7,1][dd]];G.dmgMul=[[.7,.85,1][dd],1];G.teams[1].passive=true;}
@@ -4422,7 +4422,7 @@ function netHostMatch(){
   mch.on('broadcast',{event:'join'},({payload})=>{
     if(NET.started)return;NET.started=true;NET.guestDev=!!(payload&&payload.dev);
     try{NET.lobbyCh.untrack();}catch(e){}
-    mch.send({type:'broadcast',event:'start',payload:{seed,dev:DEV.on}});
+    mch.send({type:'broadcast',event:'start',payload:{seed}}); // the other player is never told who has dev mode: the guest's flag goes only to the host, which has to apply it, and nothing of it is shown or sent back
     netBeginHost();
   });
   mch.subscribe(status=>{if(status==='SUBSCRIBED')NET.lobbyCh.track({name,matchId,seed,hosting:true,ts:Date.now()});});
@@ -4441,7 +4441,7 @@ function netJoin(m){
   const mch=sb.channel('ironflag-match-'+m.matchId);
   NET.matchCh=mch;
   mch.on('broadcast',{event:'start'},({payload})=>{
-    if(NET.started)return;NET.started=true;NET.seed=payload.seed;NET.hostDev=!!payload.dev;
+    if(NET.started)return;NET.started=true;NET.seed=payload.seed;
     netLeaveLobby();netBeginGuest();
   });
   mch.subscribe(status=>{if(status==='SUBSCRIBED')mch.send({type:'broadcast',event:'join',payload:{name:NET.name,dev:DEV.on}});});

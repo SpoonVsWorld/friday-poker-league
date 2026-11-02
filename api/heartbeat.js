@@ -2,10 +2,11 @@
 // Spoon Platoon "playing now" heartbeat. Runs on Vercel's servers.
 // ironflag.html POSTs here every 30 s while the game is open:
 //   { sid, name, mode, detail, started, self }
-// and this upserts one game_presence row per session (see
-// supabase_game_presence.sql). Like api/log-view.js, the IP and the
-// approximate city come from the request itself (Vercel's headers), not
-// from the browser, so they can't be made up by the player.
+// and this upserts one game_presence row per session through the
+// game_heartbeat() database function (see supabase_game_presence.sql).
+// Like api/log-view.js, the IP and the approximate city come from the
+// request itself (Vercel's headers), not from the browser, so they
+// can't be made up by the player.
 //
 // Fails silently: a lost heartbeat just means that player shows as
 // "last seen" a little earlier on the Admin screen.
@@ -51,30 +52,30 @@ export default async function handler(req, res) {
       if (!isNaN(d) && Date.now() - d.getTime() < 2 * 24 * 3600 * 1000) started = d.toISOString();
     }
 
-    const row = {
-      session_id: sid,
-      name: str(raw.name, 24),
-      mode: str(raw.mode, 60),
-      detail: str(raw.detail, 80),
-      self: raw.self === true,
-      ip_address: ip || null,
-      city: decode(req.headers["x-vercel-ip-city"]),
-      region: decode(req.headers["x-vercel-ip-country-region"]),
-      country: decode(req.headers["x-vercel-ip-country"]),
-      user_agent: req.headers["user-agent"] || null,
-      last_seen: new Date().toISOString(),
+    const params = {
+      p_sid: sid,
+      p_name: str(raw.name, 24),
+      p_mode: str(raw.mode, 60),
+      p_detail: str(raw.detail, 80),
+      p_self: raw.self === true,
+      p_ip: ip || null,
+      p_city: decode(req.headers["x-vercel-ip-city"]),
+      p_region: decode(req.headers["x-vercel-ip-country-region"]),
+      p_country: decode(req.headers["x-vercel-ip-country"]),
+      p_ua: req.headers["user-agent"] || null,
+      p_started: started,
     };
-    if (started) row.started_at = started;
 
-    await fetch(`${SUPABASE_URL}/rest/v1/game_presence?on_conflict=session_id`, {
+    // game_heartbeat() is a security-definer function: it does the upsert itself, so the anon key
+    // never needs read/write access to the table.
+    await fetch(SUPABASE_URL + "/rest/v1/rpc/game_heartbeat", {
       method: "POST",
       headers: {
         apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
         "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
       },
-      body: JSON.stringify(row),
+      body: JSON.stringify(params),
     });
   } catch {
     // swallow - presence is best-effort

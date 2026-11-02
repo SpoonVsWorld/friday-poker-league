@@ -10,9 +10,8 @@
 -- itself every 15 s. Rows older than two days are cleaned up by the Admin
 -- screen when it loads.
 --
--- Same trust model as page_views: the anon key (via the Vercel function)
--- can insert/update presence rows; only a logged-in admin can read or
--- delete them.
+-- Heartbeats arrive through the game_heartbeat() function below (anon key,
+-- via the Vercel function); only a logged-in admin can read or delete rows.
 
 create table if not exists game_presence (
   session_id text primary key,
@@ -37,7 +36,23 @@ drop policy if exists "game_presence_anon_insert" on game_presence;
 drop policy if exists "game_presence_anon_update" on game_presence;
 drop policy if exists "game_presence_admin_select" on game_presence;
 drop policy if exists "game_presence_admin_delete" on game_presence;
-create policy "game_presence_anon_insert" on game_presence for insert with check (true);
-create policy "game_presence_anon_update" on game_presence for update using (true) with check (true);
 create policy "game_presence_admin_select" on game_presence for select using (auth.role() = 'authenticated');
 create policy "game_presence_admin_delete" on game_presence for delete using (auth.role() = 'authenticated');
+
+-- The heartbeat itself goes through this function (called by api/heartbeat.js
+-- with the anon key). It runs as the table owner, so the anon role needs no
+-- insert/update/select policies on the table at all - it can only call this.
+create or replace function game_heartbeat(
+  p_sid text, p_name text, p_mode text, p_detail text, p_self boolean,
+  p_ip text, p_city text, p_region text, p_country text, p_ua text, p_started timestamptz
+) returns void
+language sql security definer set search_path = public as $$
+  insert into game_presence (session_id, name, mode, detail, self, ip_address, city, region, country, user_agent, started_at, last_seen)
+  values (p_sid, p_name, p_mode, p_detail, coalesce(p_self, false), p_ip, p_city, p_region, p_country, p_ua, coalesce(p_started, now()), now())
+  on conflict (session_id) do update set
+    name = excluded.name, mode = excluded.mode, detail = excluded.detail, self = excluded.self,
+    ip_address = excluded.ip_address, city = excluded.city, region = excluded.region, country = excluded.country,
+    user_agent = excluded.user_agent, last_seen = now();
+$$;
+revoke all on function game_heartbeat(text, text, text, text, boolean, text, text, text, text, text, timestamptz) from public;
+grant execute on function game_heartbeat(text, text, text, text, boolean, text, text, text, text, text, timestamptz) to anon, authenticated, service_role;

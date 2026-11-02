@@ -199,7 +199,7 @@
       adminLogin.hidden = true;
       adminDashboard.hidden = false;
       adminEmailEl.textContent = session.user.email;
-      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin(), loadAnnouncementAdmin(), loadTabVisibilityAdmin()]);
+      await Promise.all([loadPlayers(), loadSeasons(), loadPlayersForHighHand(), loadHighHandsAdmin(), loadSiteStats(), loadFeedbackAdmin(), loadAnnouncementAdmin(), loadTabVisibilityAdmin(), startPlayingNow()]);
     }
 
     function showLoggedOut() {
@@ -1725,6 +1725,77 @@
         return;
       }
       renderRecentVisits(recentVisits || []);
+    }
+
+    // ------------------------------------------------------------------
+    // "Playing now": game_presence rows (see supabase_game_presence.sql and
+    // api/heartbeat.js) whose heartbeat is under a minute old. Polled every
+    // 15 s while the dashboard is showing; rows older than two days are
+    // cleaned out on load so the table never grows.
+    // ------------------------------------------------------------------
+    const playingNowList = document.getElementById("playing-now-list");
+    const playingNowCount = document.getElementById("playing-now-count");
+    let playingNowTimer = null;
+
+    function formatDuration(ms) {
+      const m = Math.max(0, Math.round(ms / 60000));
+      if (m < 1) return "just started";
+      if (m < 60) return `${m} min`;
+      const h = Math.floor(m / 60);
+      return `${h} h ${m % 60} min`;
+    }
+
+    async function loadPlayingNow() {
+      if (adminDashboard.hidden) return;
+      const since = new Date(Date.now() - 65 * 1000).toISOString();
+      const { data, error } = await supabaseClient
+        .from("game_presence")
+        .select("session_id, name, mode, detail, self, ip_address, city, region, country, user_agent, started_at, last_seen")
+        .gte("last_seen", since)
+        .order("last_seen", { ascending: false });
+      if (error) {
+        playingNowCount.textContent = "—";
+        playingNowCount.classList.remove("live");
+        playingNowList.innerHTML = `<p class="error">Could not load who's playing: ${escapeHtml(error.message)}${/game_presence/.test(error.message) ? " (run supabase_game_presence.sql in the Supabase SQL editor once)" : ""}</p>`;
+        return;
+      }
+      const rows = data || [];
+      playingNowCount.textContent = String(rows.length);
+      playingNowCount.classList.toggle("live", rows.length > 0);
+      if (!rows.length) {
+        playingNowList.innerHTML = '<p class="muted">Nobody has the game open right now.</p>';
+        return;
+      }
+      const now = Date.now();
+      playingNowList.innerHTML = rows
+        .map((r) => {
+          const ago = Math.max(0, Math.round((now - new Date(r.last_seen).getTime()) / 1000));
+          const who = r.name ? escapeHtml(r.name) : '<span class="muted">No lobby name</span>';
+          return `
+        <div class="visit-row playing${r.self ? " self" : ""}">
+          <div class="visit-info">
+            <span class="visit-name">${who}${r.self ? ' <span class="muted">(you / dev device)</span>' : ""}</span>
+            <span class="visit-mode">${escapeHtml(r.mode || "In the game")}${r.detail ? " · " + escapeHtml(r.detail) : ""}</span>
+            <span class="visit-location">${escapeHtml(formatVisitLocation(r))}</span>
+            <span class="visit-ip">${escapeHtml(r.ip_address || "Unknown IP")}</span>
+          </div>
+          <div class="visit-meta">
+            <span class="visit-time">Open for ${formatDuration(now - new Date(r.started_at).getTime())}</span>
+            <span class="visit-device">${escapeHtml(summarizeUserAgent(r.user_agent))} · seen ${ago}s ago</span>
+          </div>
+        </div>`;
+        })
+        .join("");
+    }
+
+    async function startPlayingNow() {
+      // tidy old rows (authenticated delete policy), then poll
+      try {
+        const old = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+        await supabaseClient.from("game_presence").delete().lt("last_seen", old);
+      } catch {}
+      await loadPlayingNow();
+      if (!playingNowTimer) playingNowTimer = setInterval(loadPlayingNow, 15000);
     }
 
     // Approximate city/state from Vercel's geo headers - "Unknown" only

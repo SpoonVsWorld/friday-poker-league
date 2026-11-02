@@ -4345,6 +4345,19 @@ function render(dt){
     if(!G.demo){updateHud(view);if(((G.time*10)|0)%2===0)drawMini(view);if(view.engine)updateEngine(view);}
   }
 }
+// ---- (Matt, 2 Nov 2026) "playing now": while the game is open and on screen, a heartbeat every 30 s to /api/heartbeat (the poker site's
+// Admin screen lists whoever has pinged in the last minute: lobby name if they set one, what they're playing, how long, city, device)
+const HB={sid:null,t0:new Date().toISOString()};
+function hbTick(){
+  if(document.visibilityState!=='visible')return;
+  try{if(!HB.sid){HB.sid=sessionStorage.getItem('ironflag.sid');if(!HB.sid){HB.sid='s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);sessionStorage.setItem('ironflag.sid',HB.sid);}}}catch(e){HB.sid=HB.sid||'s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);}
+  let name=null;try{name=localStorage.getItem('ironflag.name')||null;}catch(e){}
+  let mode='In the menus',detail=null;
+  if(G&&!G.demo&&(state==='play'||state==='over')){mode=G.op?`Operation ${opIndex+1} · ${G.op.name}`:G.net?'Online match':G.views&&G.views.length>1?'2-player skirmish':'Skirmish';detail=(state==='over'?'finished · ':'')+fmtTime(Math.floor(G.time))+' in'+(G.bodies?` · body count ${G.bodies[1]}`:'')+(devFor(0)||devFor(1)?' · dev mode':'');}
+  else if(state==='online')mode='Online lobby';else if(state==='ops')mode='Choosing an operation';else if(state==='loading')mode='Loading';
+  try{fetch('/api/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:HB.sid,name,mode,detail,started:HB.t0,self:!!window.__noCount}),keepalive:true}).catch(()=>{});}catch(e){}
+}
+setInterval(hbTick,30000);setTimeout(hbTick,4000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')hbTick();});
 function loop(now){
   requestAnimationFrame(loop);let dt=Math.min(.05,(now-last)/1000);last=now;
   if(!G)return;

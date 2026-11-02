@@ -441,6 +441,10 @@
         <button id="reset-game-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Spoon Platoon Counter</button>
         <p id="stats-error" class="error"></p>
 
+        <h3 class="playing-now-title">🎮 Playing Spoon Platoon now <span id="playing-now-count" class="playing-now-count">—</span></h3>
+        <p class="muted" style="margin:0 0 8px;">Everyone with the game open on screen in the last minute (it checks in every 30 s). The name is what they typed in the game's online lobby, if they ever did; otherwise go by the location, IP and device. Refreshes itself every 15 s while this page is open.</p>
+        <div id="playing-now-list" class="visit-log-wrap"></div>
+
         <details id="visit-log-details" class="visit-log-details">
           <summary>Recent Visits <span class="muted">— last 50</span></summary>
           <div class="visit-log-body">

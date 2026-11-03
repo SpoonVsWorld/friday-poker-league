@@ -76,6 +76,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline
 .brand h1 span{color:var(--signal)}
 .brand p{margin:10px 0 0;color:var(--khaki);font-size:15px;letter-spacing:.04em;max-width:34ch}
 .brand .made{display:flex;align-items:center;gap:8px;margin-top:10px;max-width:none;white-space:nowrap;font:600 11px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--sand);opacity:.9}
+/* (Matt, 3 Nov 2026) "Campaign conquered by": the public roll of call signs that have beaten all 20 operations (api/campaign-win) */
+#hall{margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:4px;background:rgba(0,0,0,.28);max-width:34ch}
+#hall .ht{font:400 15px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--signal);margin:0 0 6px}
+#hall ol{margin:0;padding:0 0 0 22px;font:600 12px var(--ui);color:var(--sand);letter-spacing:.03em;max-height:120px;overflow:auto}
+#hall li{margin:2px 0}#hall li span{color:var(--khaki);font-weight:500}#hall li.first{color:#f2b632}#hall li.first span{color:#d8b25a}
+#hall .more{margin:4px 0 0;font:500 11px var(--ui);color:var(--khaki)}
+.csneed{margin:-6px 0 0;font:600 12px var(--ui);color:#ff9a8c;letter-spacing:.03em}
+#callSign.need{border-color:#e5544a;box-shadow:0 0 0 2px rgba(229,84,74,.35);animation:csshake .4s}
+@keyframes csshake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .brand .made img{width:26px;height:26px;border-radius:50%;box-shadow:0 0 0 1px rgba(80,170,255,.35),0 0 12px rgba(70,160,255,.35)}
 .modes{display:grid;gap:10px}
 .mode{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;background:rgba(239,226,184,.06);border:1px solid var(--line);color:var(--sand);padding:14px 16px;border-radius:3px;font-size:17px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;transition:background .15s,border-color .15s}
@@ -326,6 +335,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
       <h1>SPOON<br><span>PLATOON</span></h1>
       <p>Find the enemy flag, blast it out of its bunker, and run it home in a jeep.</p>
       <p class="made"><img src="icons/spoonlab-logo.png" alt="Spoon Lab Creations logo">Created by: Spoon Lab Creations</p>
+      <div id="hall" hidden><p class="ht">Campaign conquered by</p><ol id="hallList"></ol><p class="more" id="hallMore" hidden></p></div>
     </div>
     <div class="modes">
       <button class="mode" id="bOps"><div>Campaign<small>20 operations against fortified island bases</small></div><span class="k">OPS</span></button>
@@ -334,6 +344,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
     </div>
     <div class="opts">
       <div class="row"><span class="lbl">Call sign</span><input id="callSign" type="text" maxlength="16" placeholder="Commander" aria-label="Call sign" autocomplete="off"></div>
+      <p class="csneed" id="csNeed" hidden>Enter a call sign to play the campaign — it goes on the board when you beat it.</p>
       <div class="row"><span class="lbl">Map</span>
         <div class="mapno"><input id="seed" type="number" min="1" max="99999" value="1" aria-label="Map number"><button id="dice" title="Random map">Random</button></div></div>
       <div class="row"><span class="lbl">Difficulty</span>
@@ -4226,7 +4237,7 @@ function gameOver(winner,how){
     const human=G.views.map(v=>v.team.team);let title,text;
     $('#oNext').hidden=true;$('#oOps').hidden=!G.op;$('#oNew').hidden=!!G.op||!!G.net;$('#oAgain').textContent=G.op?'Replay operation':G.net?'Back to lobby':'Rematch';
     if(G.op){const won=winner===0;title=won?'Operation complete':'Operation failed';
-      if(won){const secs=Math.round(G.time);const newTruck=opIndex===9&&!truckUnlocked();text=`${G.op.name} taken in ${fmtTime(secs)}. Body count ${G.bodies?G.bodies[1]:0}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(newTruck&&truckUnlocked())text+=' NEW VEHICLE UNLOCKED: the Six-Wheeler, an armored 6×6 jeep with a roof gun, is in your bunker from now on.';if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else title=STORY.endTitle;confetti();}
+      if(won){const secs=Math.round(G.time);const newTruck=opIndex===9&&!truckUnlocked();text=`${G.op.name} taken in ${fmtTime(secs)}. Body count ${G.bodies?G.bodies[1]:0}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(opIndex===OPS.length-1)campaignWon();if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(newTruck&&truckUnlocked())text+=' NEW VEHICLE UNLOCKED: the Six-Wheeler, an armored 6×6 jeep with a roof gun, is in your bunker from now on.';if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else title=STORY.endTitle;confetti();}
       else text=(how==='nojeep'?`No jeeps left to carry the ${objName(G.flags[1]).toLowerCase()}.`:'You ran out of vehicles.')+` Body count ${G.bodies?G.bodies[1]:0}.`;}
     else if(G.views.length===1){const won=winner===human[0];title=won?'Victory':'Defeat';
       text=how==='flag'?(won?'You brought their flag home.':'The enemy ran your flag home.'):(won?'The enemy ran out of vehicles.':'You ran out of vehicles.');}
@@ -4456,7 +4467,26 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 function netSupa(){if(!NET.client){if(!window.supabase)return null;NET.client=window.supabase.createClient(NET_URL,NET_KEY);}return NET.client;}
 function netMyId(){if(!NET.clientId)NET.clientId='p'+Math.random().toString(36).slice(2,10)+Date.now().toString(36);return NET.clientId;}
 // (Matt, 3 Nov 2026) call sign on the title screen: saved as typed (ironflag.name), shown in the Admin 'playing now' list and the visit log, and it prefills the online lobby's name box
-{const cs=$('#callSign');if(cs){try{cs.value=localStorage.getItem('ironflag.name')||'';}catch(e){}cs.addEventListener('input',()=>{const n=cs.value.trim().slice(0,16);try{if(n)localStorage.setItem('ironflag.name',n);else localStorage.removeItem('ironflag.name');}catch(e){}const nn=$('#netName');if(nn)nn.value=n;});}}
+{const cs=$('#callSign');if(cs){try{cs.value=localStorage.getItem('ironflag.name')||'';}catch(e){}cs.addEventListener('input',()=>{const n=cs.value.trim().slice(0,16);if(n){$('#csNeed').hidden=true;cs.classList.remove('need');}try{if(n)localStorage.setItem('ironflag.name',n);else localStorage.removeItem('ironflag.name');}catch(e){}const nn=$('#netName');if(nn)nn.value=n;});}}
+function callSign(){try{return (localStorage.getItem('ironflag.name')||'').trim().slice(0,16);}catch(e){return '';}}
+function needCallSign(){const cs=$('#callSign');if(!cs)return;$('#csNeed').hidden=false;cs.classList.remove('need');void cs.offsetWidth;cs.classList.add('need');cs.focus();sfx('click');}
+// (Matt, 3 Nov 2026) "Campaign conquered by": beating Operation 20 posts the call sign to /api/campaign-win (never in dev mode, which unlocks
+// every op); the title screen shows the public roll in the order they first did it, with each one's best total time across the 20 ops
+function campaignWon(){
+  if(DEV.on)return;const name=callSign();if(!name)return;const best=loadOps().best||{};if(Object.keys(best).length<OPS.length)return;
+  let secs=0;for(let i=0;i<OPS.length;i++)secs+=best[i]||0;
+  try{fetch('/api/campaign-win',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,secs,diff:['easy','normal','hard'][opts.diff]||null,sid:HB.sid,self:!!window.__noCount}),keepalive:true}).then(()=>setTimeout(loadHall,1500)).catch(()=>{});}catch(e){}
+}
+async function loadHall(){
+  const h=$('#hall'),ol=$('#hallList'),more=$('#hallMore');if(!h)return;
+  let rows=[];try{const r=await fetch('/api/campaign-win?t='+Date.now(),{cache:'no-store'});if(r.ok)rows=await r.json();}catch(e){}
+  if(!Array.isArray(rows)||!rows.length){h.hidden=true;return;}
+  const MAX=8,fmt=s=>{s=Math.round(s||0);const hh=Math.floor(s/3600),m=Math.floor(s%3600/60);return hh?`${hh}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(s%60).padStart(2,'0')}s`;},
+  date=d=>{try{return new Date(d).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});}catch(e){return '';}},esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  ol.innerHTML=rows.slice(0,MAX).map((r,i)=>`<li${i===0?' class="first"':''}>${esc(r.name)} <span>· ${esc(date(r.first_won))}${r.best_secs?' · '+fmt(r.best_secs):''}${i===0?' · FIRST':''}</span></li>`).join('');
+  more.hidden=rows.length<=MAX;if(rows.length>MAX)more.textContent=`and ${rows.length-MAX} more`;h.hidden=false;
+}
+setTimeout(loadHall,2500);
 function netName(){const n=(($('#netName').value||'').trim().slice(0,16))||'Commander';try{localStorage.setItem('ironflag.name',n);}catch(e){}return n;}
 function showOnline(){
   $('#title').hidden=true;$('#online').hidden=false;state='online';
@@ -4650,7 +4680,7 @@ function netApplySnapshot(snap){
 // ============================================================ UI wiring
 function seedVal(){return clamp(parseInt($('#seed').value)||1,1,99999);}
 $('#b1p').onclick=()=>startMatch('1p',seedVal());
-$('#bOps').onclick=()=>showOps();
+$('#bOps').onclick=()=>{if(!callSign()){needCallSign();return;}showOps();};
 $('#opsStory').onclick=()=>showIntro(showOps);$('#stGo').onclick=()=>storyGo();$('#stBack').onclick=()=>storyBack();
 $('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state='title';};
 $('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
@@ -4743,7 +4773,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

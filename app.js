@@ -1788,6 +1788,55 @@
         .join("");
     }
 
+    // ------------------------------------------------------------------
+    // (Matt, 3 Nov 2026) "Campaign conquered": every campaign_wins row
+    // (the game posts one through api/campaign-win.js when Operation 20
+    // is won). Newest first.
+    const campaignWinsList = document.getElementById("campaign-wins-list");
+    const campaignWinsCount = document.getElementById("campaign-wins-count");
+    function formatSecs(s) {
+      s = Math.round(s || 0);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min ${String(s % 60).padStart(2, "0")} s`;
+    }
+    async function loadCampaignWins() {
+      if (!campaignWinsList) return;
+      const { data, error } = await supabaseClient
+        .from("campaign_wins")
+        .select("id, name, total_secs, difficulty, self, ip_address, city, region, country, user_agent, won_at")
+        .order("won_at", { ascending: false })
+        .limit(200);
+      if (error) {
+        campaignWinsList.innerHTML = `<p class="error">Could not load campaign wins: ${escapeHtml(error.message)}${/campaign_wins/.test(error.message) ? " (run supabase_campaign_wins.sql in the Supabase SQL editor once)" : ""}</p>`;
+        return;
+      }
+      const rows = data || [];
+      const names = new Set(rows.map((r) => (r.name || "").toLowerCase()));
+      if (campaignWinsCount) campaignWinsCount.textContent = rows.length ? `— ${names.size} commander${names.size === 1 ? "" : "s"}, ${rows.length} win${rows.length === 1 ? "" : "s"}` : "— nobody yet";
+      if (!rows.length) {
+        campaignWinsList.innerHTML = '<p class="muted">Nobody has beaten the campaign yet.</p>';
+        return;
+      }
+      const firstId = rows[rows.length - 1].id;
+      campaignWinsList.innerHTML = rows
+        .map((r) => `
+        <div class="visit-row${r.self ? " self" : ""}">
+          <div class="visit-info">
+            <span class="visit-name">🏆 ${escapeHtml(r.name)}${r.id === firstId ? ' <span class="muted">(first ever)</span>' : ""}${r.self ? ' <span class="muted">(you / dev device)</span>' : ""}</span>
+            <span class="visit-mode">${r.total_secs ? "Total time " + escapeHtml(formatSecs(r.total_secs)) : "Total time unknown"}${r.difficulty ? " · " + escapeHtml(r.difficulty) : ""}</span>
+            <span class="visit-location">${escapeHtml(formatVisitLocation(r))}</span>
+            <span class="visit-ip">${escapeHtml(r.ip_address || "Unknown IP")}</span>
+          </div>
+          <div class="visit-meta">
+            <span class="visit-time">${escapeHtml(new Date(r.won_at).toLocaleString())}</span>
+            <span class="visit-device">${escapeHtml(summarizeUserAgent(r.user_agent))}</span>
+          </div>
+        </div>`)
+        .join("");
+    }
+    const campaignWinsDetails = document.getElementById("campaign-wins-details");
+    if (campaignWinsDetails) campaignWinsDetails.addEventListener("toggle", () => { if (campaignWinsDetails.open) loadCampaignWins().catch((e) => console.warn("campaign wins", e)); });
+
     async function startPlayingNow() {
       // tidy old rows (authenticated delete policy), then poll
       try {
@@ -1795,6 +1844,7 @@
         await supabaseClient.from("game_presence").delete().lt("last_seen", old);
       } catch {}
       await loadPlayingNow();
+      loadCampaignWins().catch((e) => console.warn("campaign wins", e));
       if (!playingNowTimer) playingNowTimer = setInterval(loadPlayingNow, 15000);
     }
 

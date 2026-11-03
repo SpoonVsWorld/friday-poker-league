@@ -50,7 +50,8 @@
 <style>
 /* Layout: full-bleed WebGL stage; per-player HUD layers pinned over each viewport; title menu as a left rail over a live AI-vs-AI demo battle. Single dark military look by design. */
 :root{
-  --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px); /* phone notch / status bar / home indicator */
+  --bt:0px;--bb:0px;--bl:0px;--br:0px; /* (Matt, 3 Nov 2026) bumpers: on the touch UI every edge gets a margin on top of the phone's own safe-area insets, which Android and some browsers report as 0 even with the clock / status bar drawn over the page */
+  --sat:calc(env(safe-area-inset-top,0px) + var(--bt));--sab:calc(env(safe-area-inset-bottom,0px) + var(--bb));--sal:calc(env(safe-area-inset-left,0px) + var(--bl));--sar:calc(env(safe-area-inset-right,0px) + var(--br)); /* phone notch / status bar / home indicator + bumper */
   --ink:#0d120e; --panel:rgba(14,19,14,.84); --line:rgba(201,185,138,.28);
   --khaki:#c9b98a; --sand:#efe2b8; --olive:#6f7f3c; --signal:#f2b632;
   --blue:#4d8ae6; --red:#e5544a; --ok:#7bc96b; --warn:#f2b632; --bad:#e5544a;
@@ -63,6 +64,8 @@ html,body{height:100%;margin:0;background:var(--ink);color:var(--sand);font-fami
 #stage{position:fixed;inset:0}
 #stage canvas{display:block;width:100%;height:100%}
 .screen{position:fixed;inset:0;z-index:20;display:flex}
+body.touchui{--bt:22px;--bb:14px;--bl:18px;--br:18px}
+@media (max-height:480px){body.touchui{--bt:14px;--bb:10px;--bl:26px;--br:26px}} /* phone held sideways: the clock and camera sit in the side insets */
 button{font-family:var(--ui);cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
 
@@ -89,7 +92,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline
 .mapno input{width:72px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--sand);font:600 14px var(--ui);padding:5px 8px;border-radius:3px;font-variant-numeric:tabular-nums}
 .mapno button,.tog{background:rgba(239,226,184,.06);border:1px solid var(--line);color:var(--sand);padding:5px 10px;border-radius:3px;font-size:13px;font-weight:600}
 .tog[aria-pressed="false"]{color:var(--khaki);opacity:.7}
-.help{position:absolute;right:24px;bottom:24px;width:min(560px,calc(100% - 48px));background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:14px 18px;font-size:12.5px;box-sizing:border-box}
+.help{position:absolute;right:calc(24px + var(--sar));bottom:calc(24px + var(--sab));width:min(560px,calc(100% - 48px));background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:14px 18px;font-size:12.5px;box-sizing:border-box}
 .help h3{margin:0 0 8px;font:400 15px var(--display);letter-spacing:.06em;color:var(--signal)}
 .help .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px}
 .help b{color:var(--sand);font-weight:600}
@@ -131,11 +134,12 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 .hud .bodies{position:absolute;left:calc(14px + var(--sal));bottom:calc(44px + var(--sab));background:var(--panel);border:1px solid var(--line);border-left:3px solid #c43;padding:4px 9px;font-size:12px;font-weight:700;letter-spacing:.12em;font-variant-numeric:tabular-nums;border-radius:2px;color:#f3d9d2}.hud .bodies b{color:#fff;font-size:14px}body.touchui .hud .bodies{bottom:auto;top:calc(182px + var(--sat));font-size:10px;padding:3px 6px}
 .flagbox{position:absolute;right:calc(12px + var(--sar));bottom:calc(12px + var(--sab));background:var(--panel);border:1px solid var(--line);padding:6px 10px;font-size:11px;letter-spacing:.08em;display:grid;gap:2px;text-align:right;border-radius:2px}
 .flagbox b{font-weight:700}
-.msgs{position:absolute;left:50%;top:22%;transform:translateX(-50%);display:grid;gap:6px;justify-items:center;width:90%}
+.msgs{position:absolute;left:50%;top:max(22%,calc(60px + var(--sat)));transform:translateX(-50%);display:grid;gap:6px;justify-items:center;width:90%}
 .msg{font:400 clamp(15px,2.2vw,22px) var(--display);letter-spacing:.04em;text-shadow:0 2px 0 #000,0 0 14px rgba(0,0,0,.7);text-align:center;animation:fadeout 3.6s forwards}
 @keyframes fadeout{0%{opacity:0;transform:translateY(6px)}8%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0}}
 .hud .warn{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);font:600 13px var(--ui);letter-spacing:.2em;color:var(--bad);text-shadow:0 1px 0 #000}
-.sel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,11,8,.55);pointer-events:auto}
+.sel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:14px;background:rgba(8,11,8,.55);pointer-events:auto;overflow:auto;box-sizing:border-box;padding:calc(8px + var(--sat)) calc(8px + var(--sar)) calc(8px + var(--sab)) calc(8px + var(--sal))}
+body.touchui .sel{gap:9px}body.touchui .sel h2{font-size:clamp(16px,2.6vw,24px)}body.touchui .cards{gap:7px}body.touchui .card{padding:5px;gap:2px}body.touchui .card .ds{display:none}body.touchui .mslbtn{padding:5px 10px 5px 8px}
 .sel h2{margin:0;font:400 clamp(20px,3vw,30px) var(--display);letter-spacing:.06em}
 .sel h2 span{color:var(--tc)}
 .cards{display:grid;grid-template-columns:repeat(4,minmax(0,150px));gap:10px;padding:0 12px;max-width:100%;box-sizing:border-box}
@@ -202,7 +206,7 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
   #msl.nukemap .mcancel{margin-left:0}#msl.nukemap .nkcon{margin-left:auto}}
 @media (max-height:480px){#msl .mhelp{display:none}}
 #mslCine{position:fixed;inset:0;pointer-events:none;z-index:11}
-#mslCine .cbar{position:absolute;left:0;right:0;height:9vh;background:#000}
+#mslCine .cbar{position:absolute;left:0;right:0;height:max(9vh,calc(var(--sat) + 10px));background:#000}#mslCine .b{height:max(9vh,calc(var(--sab) + 28px))}
 #mslCine .t{top:0}#mslCine .b{bottom:0;display:flex;align-items:center;justify-content:center}
 #mslCine span{font:400 clamp(15px,2.4vw,24px) var(--display);letter-spacing:.14em;color:var(--signal)}
 .sel .hint{font-size:12px;color:var(--khaki);letter-spacing:.06em}
@@ -283,7 +287,7 @@ body.onfoot #tLook{pointer-events:auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 #confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #over .box{position:relative;margin:auto;max-width:min(640px,100%);box-sizing:border-box}
-#over{overflow:auto;align-items:flex-start;justify-content:flex-start;padding:16px;box-sizing:border-box}
+#over{overflow:auto;align-items:flex-start;justify-content:flex-start;padding:calc(16px + var(--sat)) calc(16px + var(--sar)) calc(16px + var(--sab)) calc(16px + var(--sal));box-sizing:border-box}
 .skull{position:absolute;left:50%;top:42%;width:min(26vw,190px);transform:translate(-50%,-50%);animation:skull 2.2s ease-out forwards;pointer-events:none;filter:drop-shadow(0 4px 0 #000)}
 @keyframes skull{0%{transform:translate(-50%,-50%) scale(.2) rotate(-20deg);opacity:0}12%{transform:translate(-50%,-50%) scale(1.1) rotate(6deg);opacity:1}20%,28%,36%,44%{transform:translate(-50%,-52%) scale(1) rotate(-5deg)}24%,32%,40%,48%{transform:translate(-50%,-48%) scale(1) rotate(5deg)}80%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.9)}}
 .optag{font:600 11px var(--ui);letter-spacing:.14em;color:var(--signal);margin-top:6px}
@@ -305,7 +309,7 @@ body.touchui .hud canvas.mini{width:76px;height:auto}
 body.touchui .hud .warn{bottom:auto;top:46%}
 @media (max-width:600px){.hud .status{min-width:150px;padding:6px 9px}.vname{font-size:15px}.hud .msgs{top:30%}}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:400 22px var(--display);letter-spacing:.1em;color:var(--khaki);z-index:30;background:var(--ink)}
-#topbtn{position:fixed;right:12px;top:50%;z-index:12;display:none}
+#topbtn{position:fixed;right:calc(12px + var(--sar));top:50%;z-index:12;display:none}
 @media (prefers-reduced-motion:reduce){.msg{animation:none}}
 </style>
 

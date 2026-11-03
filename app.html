@@ -445,6 +445,15 @@
         <p class="muted" style="margin:0 0 8px;">Everyone with the game open on screen in the last minute (it checks in every 30 s). The name is what they typed in the game's online lobby, if they ever did; otherwise go by the location, IP and device. Refreshes itself every 15 s while this page is open.</p>
         <div id="playing-now-list" class="visit-log-wrap"></div>
 
+        <details id="game-map-details" class="visit-log-details">
+          <summary>🗺 Where Spoon Platoon is played <span class="muted">— map of every visit and player</span></summary>
+          <div class="visit-log-body">
+            <p class="muted" style="margin:0 0 10px;">One dot per place (bigger = more visits), from the approximate location of each visitor's internet provider. Green dots are playing right now. Visits before 3 Nov 2026 had no coordinates recorded, so they only appear in the list below. Click a dot for the call signs seen there.</p>
+            <div id="game-map" class="game-map"></div>
+            <p id="game-map-stats" class="muted" style="margin:8px 0 0;"></p>
+          </div>
+        </details>
+
         <details id="visit-log-details" class="visit-log-details">
           <summary>Recent Visits <span class="muted">— last 50</span></summary>
           <div class="visit-log-body">

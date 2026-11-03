@@ -998,6 +998,10 @@ ul#player-list, ul#season-list {
 
 .visit-row:last-child { margin-bottom: 0; }
 
+.game-map { width: 100%; height: 420px; border-radius: 10px; border: 1px solid var(--border); background: #1a2430; overflow: hidden; }
+.game-map .leaflet-popup-content { font: 13px/1.4 inherit; }
+.visit-name-tag { font-weight: 700; color: var(--text); margin-right: 6px; }
+
 .playing-now-title { margin: 22px 0 4px; display: flex; align-items: center; gap: 10px; }
 .playing-now-count { font-size: 0.85em; background: var(--card-bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
 .playing-now-count.live { border-color: #3fbf6f; color: #3fbf6f; }

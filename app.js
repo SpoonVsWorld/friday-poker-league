@@ -1716,7 +1716,7 @@
 
       const { data: recentVisits, error: recentErr } = await supabaseClient
         .from("page_views")
-        .select("viewed_at, ip_address, city, region, country, user_agent, page")
+        .select("viewed_at, ip_address, city, region, country, user_agent, page, name")
         .order("viewed_at", { ascending: false })
         .limit(50);
 
@@ -1798,6 +1798,68 @@
       if (!playingNowTimer) playingNowTimer = setInterval(loadPlayingNow, 15000);
     }
 
+    // ------------------------------------------------------------------
+    // "Where Spoon Platoon is played": a Leaflet/OpenStreetMap map of every
+    // game visit (page_views, page = spoonplatoon) and live session that has
+    // coordinates (Vercel's x-vercel-ip-latitude/longitude headers, stored
+    // since 3 Nov 2026). Leaflet loads from cdnjs the first time the panel
+    // is opened. Dots are grouped by rounded coordinates; size = visits.
+    // ------------------------------------------------------------------
+    const gameMapDetails = document.getElementById("game-map-details");
+    let gameMap = null, gameMapLayer = null, leafletLoading = null;
+    function loadLeaflet() {
+      if (window.L) return Promise.resolve();
+      if (leafletLoading) return leafletLoading;
+      leafletLoading = new Promise((resolve, reject) => {
+        const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+        const js = document.createElement("script"); js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; js.onload = resolve; js.onerror = () => reject(new Error("Leaflet did not load")); document.head.appendChild(js);
+      });
+      return leafletLoading;
+    }
+    async function loadGameMap() {
+      const el = document.getElementById("game-map"), stats = document.getElementById("game-map-stats");
+      try { await loadLeaflet(); } catch (e) { el.innerHTML = `<p class="error" style="padding:12px">${escapeHtml(e.message)}</p>`; return; }
+      if (!gameMap) {
+        gameMap = L.map(el, { worldCopyJump: true }).setView([39, -92], 4);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OpenStreetMap contributors" }).addTo(gameMap);
+        gameMapLayer = L.layerGroup().addTo(gameMap);
+      }
+      const [{ data: visits, error: e1 }, { data: live, error: e2 }] = await Promise.all([
+        supabaseClient.from("page_views").select("viewed_at, city, region, country, name, latitude, longitude").eq("page", "spoonplatoon").not("latitude", "is", null).order("viewed_at", { ascending: false }).limit(5000),
+        supabaseClient.from("game_presence").select("name, city, region, country, latitude, longitude, last_seen").gte("last_seen", new Date(Date.now() - 65 * 1000).toISOString()),
+      ]);
+      if (e1) { stats.textContent = "Could not load visits: " + e1.message + (/latitude/.test(e1.message) ? " (run the 3 Nov part of supabase_game_presence.sql)" : ""); return; }
+      const groups = new Map();
+      const keyOf = (la, lo) => la.toFixed(1) + "," + lo.toFixed(1);
+      for (const r of visits || []) {
+        if (r.latitude == null || r.longitude == null) continue;
+        const k = keyOf(r.latitude, r.longitude);
+        let g = groups.get(k); if (!g) { g = { lat: r.latitude, lon: r.longitude, n: 0, names: new Set(), place: formatVisitLocation(r), last: r.viewed_at, live: 0 }; groups.set(k, g); }
+        g.n++; if (r.name) g.names.add(r.name); if (r.viewed_at > g.last) g.last = r.viewed_at;
+      }
+      for (const r of (e2 ? [] : live || [])) {
+        if (r.latitude == null || r.longitude == null) continue;
+        const k = keyOf(r.latitude, r.longitude);
+        let g = groups.get(k); if (!g) { g = { lat: r.latitude, lon: r.longitude, n: 0, names: new Set(), place: formatVisitLocation(r), last: r.last_seen, live: 0 }; groups.set(k, g); }
+        g.live++; if (r.name) g.names.add(r.name);
+      }
+      gameMapLayer.clearLayers();
+      const pts = [];
+      let total = 0;
+      for (const g of groups.values()) {
+        total += g.n; pts.push([g.lat, g.lon]);
+        const r = 6 + Math.min(26, Math.sqrt(g.n) * 4);
+        const m = L.circleMarker([g.lat, g.lon], { radius: r, color: g.live ? "#2ecc71" : "#e5544a", weight: 2, fillColor: g.live ? "#2ecc71" : "#e5544a", fillOpacity: 0.45 });
+        const names = [...g.names];
+        m.bindPopup(`<b>${escapeHtml(g.place)}</b><br>${g.n} visit${g.n === 1 ? "" : "s"}${g.live ? ` · <span style="color:#2ecc71">${g.live} playing now</span>` : ""}<br>${names.length ? "👤 " + names.map(escapeHtml).join(", ") : '<span style="opacity:.7">no call signs yet</span>'}<br><span style="opacity:.7">last ${escapeHtml(formatVisitTime(g.last))}</span>`);
+        m.addTo(gameMapLayer);
+      }
+      if (pts.length) gameMap.fitBounds(L.latLngBounds(pts).pad(0.4), { maxZoom: 7 });
+      stats.textContent = `${groups.size} place${groups.size === 1 ? "" : "s"} · ${total} visit${total === 1 ? "" : "s"} with coordinates` + (e2 ? "" : ` · ${(live || []).length} playing now`);
+      setTimeout(() => gameMap.invalidateSize(), 50);
+    }
+    if (gameMapDetails) gameMapDetails.addEventListener("toggle", () => { if (gameMapDetails.open) loadGameMap().catch((e) => console.warn("game map", e)); });
+
     // Approximate city/state from Vercel's geo headers - "Unknown" only
     // when we truly have nothing (e.g. rows logged before this feature,
     // or a visit where Vercel couldn't determine a location).
@@ -1854,7 +1916,7 @@
           (r) => `
         <div class="visit-row">
           <div class="visit-info">
-            <span class="visit-location">${escapeHtml(formatVisitLocation(r))}</span>
+            <span class="visit-location">${r.name ? `<span class="visit-name-tag">👤 ${escapeHtml(r.name)}</span>` : ""}${escapeHtml(formatVisitLocation(r))}</span>
             <span class="visit-ip">${escapeHtml(r.ip_address || "Unknown IP")}</span>
           </div>
           <div class="visit-meta">

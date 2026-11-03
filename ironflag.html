@@ -37,7 +37,7 @@
     noCount=localStorage.getItem('ironflag.nocount')==='1'||!!localStorage.getItem('sb-kvdsmrlzsjzovbegdalq-auth-token');
   }catch(e){}
   window.__noCount=noCount;
-  if(!noCount)try{fetch('/api/log-view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:'spoonplatoon'}),keepalive:true}).catch(function(){});}catch(e){}
+  if(!noCount)try{fetch('/api/log-view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:'spoonplatoon',name:(function(){try{return localStorage.getItem('ironflag.name')||null;}catch(e){return null;}})()}),keepalive:true}).catch(function(){});}catch(e){}
 })();
 </script>
 <meta name="theme-color" content="#0d120e">
@@ -276,7 +276,7 @@ body.onfoot #tLook{pointer-events:auto}
 #online{background:rgba(8,11,8,.9);padding:calc(24px + var(--sat)) calc(24px + var(--sar)) calc(24px + var(--sab)) calc(24px + var(--sal));box-sizing:border-box;overflow:auto}
 .lobbybox{width:min(680px,100%);display:grid;gap:16px;margin:auto}
 .lobbybox h3{margin:10px 0 0;font:700 15px var(--ui);letter-spacing:.06em;text-transform:uppercase;color:var(--khaki)}
-#netName{width:200px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--sand);font:600 14px var(--ui);padding:7px 10px;border-radius:3px}
+#callSign,#netName{width:200px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--sand);font:600 14px var(--ui);padding:7px 10px;border-radius:3px}
 #netWaiting,#netConnecting{text-align:center;padding:20px;color:var(--khaki)}
 #netWaiting button,#netCancel{margin-top:10px;background:rgba(239,226,184,.06);border:1px solid var(--line);color:var(--sand);padding:8px 14px;border-radius:3px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--khaki);border-top-color:var(--signal);animation:spin 1s linear infinite;vertical-align:-2px;margin-right:6px}
@@ -327,6 +327,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
       <button class="mode" id="b2p"><div>Online<small>Open lobby — play a real opponent on the app</small></div><span class="k">NET</span></button>
     </div>
     <div class="opts">
+      <div class="row"><span class="lbl">Call sign</span><input id="callSign" type="text" maxlength="16" placeholder="Commander" aria-label="Call sign" autocomplete="off"></div>
       <div class="row"><span class="lbl">Map</span>
         <div class="mapno"><input id="seed" type="number" min="1" max="99999" value="1" aria-label="Map number"><button id="dice" title="Random map">Random</button></div></div>
       <div class="row"><span class="lbl">Difficulty</span>
@@ -4448,6 +4449,8 @@ const NET={
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function netSupa(){if(!NET.client){if(!window.supabase)return null;NET.client=window.supabase.createClient(NET_URL,NET_KEY);}return NET.client;}
 function netMyId(){if(!NET.clientId)NET.clientId='p'+Math.random().toString(36).slice(2,10)+Date.now().toString(36);return NET.clientId;}
+// (Matt, 3 Nov 2026) call sign on the title screen: saved as typed (ironflag.name), shown in the Admin 'playing now' list and the visit log, and it prefills the online lobby's name box
+{const cs=$('#callSign');if(cs){try{cs.value=localStorage.getItem('ironflag.name')||'';}catch(e){}cs.addEventListener('input',()=>{const n=cs.value.trim().slice(0,16);try{if(n)localStorage.setItem('ironflag.name',n);else localStorage.removeItem('ironflag.name');}catch(e){}const nn=$('#netName');if(nn)nn.value=n;});}}
 function netName(){const n=(($('#netName').value||'').trim().slice(0,16))||'Commander';try{localStorage.setItem('ironflag.name',n);}catch(e){}return n;}
 function showOnline(){
   $('#title').hidden=true;$('#online').hidden=false;state='online';

@@ -451,6 +451,7 @@ PRE.sub=fetchBin('sub.glb').catch(e=>{console.warn('sub',e);return null;}); // N
 PRE.carrier=fetchBin('carrier.glb').catch(e=>{console.warn('carrier',e);return null;}); // (Matt, 29 Oct 2026) his aircraft carrier (cn 004 assault, a Wings 3D file decoded + decimated in Blender): sits off your end of the island, your air strikes launch from it
 PRE.station=fetchBin('station.glb').catch(e=>{console.warn('station',e);return null;}); // (Matt, 29 Oct 2026) orbital laser platform SPOON, scratch-built in Blender (truss, hab modules, folding solar wings + radiators, gimballed emitter)
 PRE.orbtex=Promise.all([['earth','earth',1],['clouds','clouds',1],['rough','earth_r',0]].map(([k,f,srgb])=>new THREE.TextureLoader().loadAsync(DATA+f+'.webp?v='+DATA_V).then(t=>{t.colorSpace=srgb?THREE.SRGBColorSpace:THREE.NoColorSpace;t.anisotropy=8;ORBT[k]=t;}).catch(e=>console.warn('orbtex',k,e))));
+PRE.hazmat=Promise.all([fetchBin('hazmat_trooper.glb'),fetchBin('hazmat_troop.glb')]).catch(e=>{console.warn('hazmat',e);return null;}); // (Matt, 2 Nov 2026) his hazmat/medic figure, skinned in Blender to both rigs: after a nuke his men wear it
 PRE.m4=fetchBin('m4.glb').catch(e=>{console.warn('m4',e);return null;}); // (Matt, 29 Oct 2026) the M4 carbine, scratch-built in Blender: 14.5 in barrel, quad rail, FSB, A2 hider, flat-top + red dot, 6-position stock, STANAG mag
 PRE.props=fetchBin('props.glb').catch(e=>{console.warn('props',e);return null;}); // Blender ordnance (29 Oct 2026): M67 grenade, M15 anti-tank mine, Mk 82 bomb
 PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
@@ -502,6 +503,7 @@ async function loadAssets(){
   try{const cb=await PRE.carrier;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(cb,'',res,rej));const cr=cg.scene.getObjectByName('Carrier')||cg.scene;cr.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.4;o.material.flatShading=false;o.material.fog=false;o.material.color.lerp(new THREE.Color(FOG),.22);}}});A.carrier=cr;}}catch(e){console.warn('carrier model',e);}
   try{const mb=await PRE.m4;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const m4=mg.scene.getObjectByName('M4')||mg.scene;m4.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;if(o.material){o.material.envMapIntensity=.7;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}}});A.m4=m4;RIFLE.tpl=null;RIFLE.grip.copy(RIFLE.m4.grip);RIFLE.fore.copy(RIFLE.m4.fore);}}catch(e){console.warn('m4 model',e);}
   try{const sb=await PRE.station;if(sb){const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));const st=sg.scene.getObjectByName('Station')||sg.scene;st.traverse(o=>{if(o.isMesh&&o.material){o.material.metalness=Math.min(o.material.metalness,.35);o.material.envMapIntensity=.5;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}});A.station=st;}await PRE.orbtex;}catch(e){console.warn('station model',e);}
+  try{const hb=await PRE.hazmat;if(hb&&hb[0]&&hb[1]){A.hazmat={};for(const [k,buf] of [['trooper',hb[0]],['troop',hb[1]]]){const g=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(buf,'',res,rej));A.hazmat[k]=g.scene;}}}catch(e){console.warn('hazmat model',e);}
   try{const pb=await PRE.props;if(pb){const pg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(pb,'',res,rej));A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
   try{const tb=await PRE.trooper;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
   for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
@@ -2407,8 +2409,23 @@ const _ashFog=new THREE.Color(0x5b5a55);
 // ---- hazmat: once the bomb has gone off your men suit up (yellow, hooded), and the radiation at ground zero only hurts the other side
 const HAZ={mat:null,tm:null};
 function hazMat(){if(!HAZ.mat){HAZ.mat=new THREE.MeshStandardMaterial({color:0xe8c23a,roughness:.42,metalness:0});HAZ.tm=new THREE.MeshStandardMaterial({color:0x1b1d20,roughness:.6,metalness:.1});}return HAZ.mat;}
+// (Matt, 2 Nov 2026) the real suit: his medic/hazmat figure (blend.rar) skinned in Blender to the trooper (Ch15) and the troop (CC3) rigs,
+// hazmat_trooper.glb / hazmat_troop.glb. The suit mesh is bound to the man's own bones (matched by name), so every move, the rifle
+// in his hands and the jeep seats carry straight over; the body meshes underneath are hidden. The yellow-material recolour is the fallback.
+function hazmatSuit(o,fp){
+  if(o.userData.hazSuit)return true;const kind=o.getObjectByName('Character')?'troop':'trooper';const src=A.hazmat&&A.hazmat[kind];if(!src)return false;
+  let hz=null;src.traverse(m=>{if(m.isSkinnedMesh&&!hz)hz=m;});if(!hz)return false;
+  const par=o.getObjectByName(hz.parent.name)||o;const byName=new Map();o.traverse(b=>{if(b.isBone)byName.set(b.name,b);});
+  const bones=hz.skeleton.bones.map(b=>byName.get(b.name));if(bones.some(b=>!b)){console.warn('hazmat: bones missing on',kind);return false;}
+  if(!HAZ.suit)HAZ.suit=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:0});
+  const mesh=new THREE.SkinnedMesh(hz.geometry,HAZ.suit);mesh.name='Hazmat';mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;
+  mesh.position.copy(hz.position);mesh.quaternion.copy(hz.quaternion);mesh.scale.copy(hz.scale);par.add(mesh);
+  mesh.bind(new THREE.Skeleton(bones,hz.skeleton.boneInverses.map(m=>m.clone())),hz.bindMatrix.clone());
+  o.traverse(m=>{if(m.isSkinnedMesh&&m!==mesh){m.visible=false;m.userData.hazHidden=true;}});
+  if(fp)trooperHideHead(mesh);
+  o.userData.hazSuit=mesh;return true;}
 function hazmatDress(o,fp){ // every mesh goes yellow; the head/visor stays dark; the first-person body keeps its head-hiding shader
-  hazMat();o.traverse(m=>{if(!m.isMesh)return;if(m.userData.hazDone)return;m.userData.hazDone=true;const head=/head|visor|goggle|glass/i.test(m.name)||m.userData.head!==undefined;
+  hazMat();if(hazmatSuit(o,fp))return;o.traverse(m=>{if(!m.isMesh)return;if(m.userData.hazDone)return;m.userData.hazDone=true;const head=/head|visor|goggle|glass/i.test(m.name)||m.userData.head!==undefined;
     if(fp&&m.userData.hideHead){const h=m.material.clone();h.onBeforeCompile=m.material.onBeforeCompile;h.customProgramCacheKey=m.material.customProgramCacheKey;h.map=null;h.normalMap=null;h.color.set(0xe8c23a);h.roughness=.55;h.metalness=0;m.material=h;}
     else m.material=head||/boot|glove|belt|strap|holster|goggle/i.test(m.name+' '+(m.material&&m.material.name||''))?HAZ.tm:HAZ.mat;});}
 function hazmatOn(T){if(!G)return;G.hazmat=T;for(const sd of G.soldiers)if(sd.team===T&&sd.alive)hazmatDress(sd.obj,false);
@@ -2925,7 +2942,7 @@ function heroDie(v,by){
   const team=G.teams[v.team];if(v.carrying)dropFlag(v.carrying,v.x,v.z);
   world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);
   const dsd={soldier:true,team:v.team,x:v.x,z:v.z,y:v.y,alive:false,deadT:0,fallDir:RND()<.5?1:-1,crushed:false,obj:v.obj,hp:0,mode:'dead'};G.soldiers.push(dsd); // the body falls like any soldier's
-  if(v.parts.sd.trooper){const sd=v.parts.sd;v.obj.traverse(m=>{if(m.isSkinnedMesh&&m.userData.hideHead){m.material=A.trooper.mats.get(m.name)||m.material;}});for(const k in sd.acts)sd.acts[k].setEffectiveWeight(0);const k=['dieF','dieB','dieR'][(RND()*3)|0];sd.acts[k].reset().setEffectiveWeight(1).play();sd.acts[k].clampWhenFinished=true;dsd.mx=sd.mx;dsd.dieAct=sd.acts[k];}
+  if(v.parts.sd.trooper){const sd=v.parts.sd;v.obj.traverse(m=>{if(m.isSkinnedMesh&&m.userData.hideHead){m.material=A.trooper.mats.get(m.name)||(m.name==='Hazmat'?HAZ.suit:m.material);}});for(const k in sd.acts)sd.acts[k].setEffectiveWeight(0);const k=['dieF','dieB','dieR'][(RND()*3)|0];sd.acts[k].reset().setEffectiveWeight(1).play();sd.acts[k].clampWhenFinished=true;dsd.mx=sd.mx;dsd.dieAct=sd.acts[k];}
   gore(v.x,v.y,v.z,'hit');sfx('splat',v.x,v.z);sfx('scream',v.x,v.z);
   team.vehicle=null;team.respawnT=2.5;team.hero=null;if(document.pointerLockElement)document.exitPointerLock();
   if(team.view&&!G.demo)skullFor(team.view);note(v.team,'You were killed','bad',true);if(by!==undefined&&by!==v.team)note(by,'Enemy soldier down','good');
@@ -4683,7 +4700,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

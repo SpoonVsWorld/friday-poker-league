@@ -2421,8 +2421,8 @@ function hazmatSuit(o,fp){
   const mesh=new THREE.SkinnedMesh(hz.geometry,HAZ.suit);mesh.name='Hazmat';mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;
   mesh.position.copy(hz.position);mesh.quaternion.copy(hz.quaternion);mesh.scale.copy(hz.scale);par.add(mesh);
   mesh.bind(new THREE.Skeleton(bones,hz.skeleton.boneInverses.map(m=>m.clone())),hz.bindMatrix.clone());
-  o.traverse(m=>{if(m.isSkinnedMesh&&m!==mesh){m.visible=false;m.userData.hazHidden=true;}});
-  if(fp)trooperHideHead(mesh);
+  o.traverse(m=>{if(m.isSkinnedMesh&&m!==mesh){if(fp&&kind==='trooper'){maskByBones(m,/mixamorig(Head|HeadTop_End|Neck)$/,/mixamorig(Left|Right)Hand/);m.userData.hazHands=true;}else{m.visible=false;m.userData.hazHidden=true;}}}); // first person keeps his gloved hands (the suit's mittens are blobs up close)
+  if(fp)maskByBones(mesh,kind==='trooper'?/mixamorig(Head|HeadTop_End|Neck)$|mixamorig(Left|Right)Hand/:/mixamorig(Head|HeadTop_End|Neck)$/,null);
   o.userData.hazSuit=mesh;return true;}
 function hazmatDress(o,fp){ // every mesh goes yellow; the head/visor stays dark; the first-person body keeps its head-hiding shader
   hazMat();if(hazmatSuit(o,fp))return;o.traverse(m=>{if(!m.isMesh)return;if(m.userData.hazDone)return;m.userData.hazDone=true;const head=/head|visor|goggle|glass/i.test(m.name)||m.userData.head!==undefined;
@@ -2755,7 +2755,7 @@ function trooperSetup(tg){
     const M=new THREE.Matrix4().makeBasis(right,up,fwd);const q=new THREE.Quaternion().setFromRotationMatrix(M);
     const grip=RIFLE.grip.clone().applyQuaternion(q),pos=palmR.clone().sub(grip).addScaledVector(up,.015);
     const gw=new THREE.Matrix4().compose(pos,q,new V3(1,1,1));const hw=R.matrixWorld.clone().invert();const local=hw.multiply(gw);
-    TROOP.gun=local;TROOP.handSpan=palmR.distanceTo(palmL);console.log('trooper rifle fit: hands',TROOP.handSpan.toFixed(2),'m apart');}catch(e){console.warn('trooper rifle fit',e);}
+    TROOP.gun=local;TROOP.handSpan=palmR.distanceTo(palmL);const gi=gw.clone().invert();TROOP.hR=R.matrixWorld.clone().premultiply(gi);TROOP.hL=L.matrixWorld.clone().premultiply(gi);TROOP.offR=new V3().setFromMatrixPosition(TROOP.hR).sub(palmR.clone().applyMatrix4(gi));TROOP.offL=new V3().setFromMatrixPosition(TROOP.hL).sub(palmL.clone().applyMatrix4(gi)); /* (2 Nov) each hand bone's frame in gun space, from this fitted pose: the first-person view model puts the rifle where it likes and brings the hands to it */console.log('trooper rifle fit: hands',TROOP.handSpan.toFixed(2),'m apart');}catch(e){console.warn('trooper rifle fit',e);}
   // the enemy infantry share the moves (their CC3 rig has the same Mixamo joint frames; adaptClip drops the per-bone translations)
   if(A.troop&&A.soldier){try{const th=A.troop.getObjectByName('mixamorigHips'),ch=root.getObjectByName('mixamorig:Hips')||root.getObjectByName('mixamorigHips');
       const Rfix=th.parent.quaternion.clone().premultiply(new THREE.Quaternion().setFromAxisAngle(UP,Math.PI)).invert().multiply(ch.parent.quaternion); // the two rigs' root frames differ by a fixed turn (and the troop root gets spun 180 deg at load, below): hips keys go through both
@@ -2764,12 +2764,14 @@ function trooperSetup(tg){
         else if(t.name==='mixamorigHips.position'){for(let i=0;i<t.values.length;i+=3){v.fromArray(t.values,i).applyQuaternion(Rfix).multiplyScalar(hk);v.toArray(t.values,i);}}}return k;};
       A.soldier.m={};for(const k of ['idle','aim','walkF','runF','dieF','dieB','dieR','hit','salute'])if(clips[k])A.soldier.m[k]=fix(clips[k]);}catch(e){console.warn('soldier moves',e);}}
 }
-function trooperHideHead(o){ // first person: discard every fragment the head or neck joints own (scaling the bone leaves neck spikes)
-  o.traverse(m=>{if(!m.isSkinnedMesh)return;const idx=[];m.skeleton.bones.forEach((b,i)=>{if(/mixamorig(Head|HeadTop_End|Neck)$/.test(b.name))idx.push(i);});if(!idx.length)return;
-    const mat=m.material.clone();mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vHd;').replace('#include <skinbase_vertex>',`#include <skinbase_vertex>
-{vHd=0.;${idx.map(i=>`vHd+=(abs(skinIndex.x-${i}.)<.5?skinWeight.x:0.)+(abs(skinIndex.y-${i}.)<.5?skinWeight.y:0.)+(abs(skinIndex.z-${i}.)<.5?skinWeight.z:0.)+(abs(skinIndex.w-${i}.)<.5?skinWeight.w:0.);`).join('')}}`);
-      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vHd;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vHd>.3)discard;');};
-    mat.customProgramCacheKey=()=>'hidehead'+idx.join('_');m.material=mat;m.userData.hideHead=mat;m.userData.showMat=null;});}
+function trooperHideHead(o){maskByBones(o,/mixamorig(Head|HeadTop_End|Neck)$/,null);} // first person: discard every fragment the head or neck joints own (scaling the bone leaves neck spikes)
+function maskByBones(o,hideRe,onlyRe){ // skinned meshes under o: discard fragments owned (>30%) by hideRe bones, and - when onlyRe is given - fragments NOT owned (>=50%) by onlyRe bones
+  o.traverse(m=>{if(!m.isSkinnedMesh)return;const hid=[],only=[];m.skeleton.bones.forEach((b,i)=>{if(hideRe&&hideRe.test(b.name))hid.push(i);if(onlyRe&&onlyRe.test(b.name))only.push(i);});if(!hid.length&&!onlyRe)return;
+    const sum=(idx,v)=>idx.map(i=>`${v}+=(abs(skinIndex.x-${i}.)<.5?skinWeight.x:0.)+(abs(skinIndex.y-${i}.)<.5?skinWeight.y:0.)+(abs(skinIndex.z-${i}.)<.5?skinWeight.z:0.)+(abs(skinIndex.w-${i}.)<.5?skinWeight.w:0.);`).join('');
+    const mat=m.material.clone();mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vHd;varying float vOn;').replace('#include <skinbase_vertex>',`#include <skinbase_vertex>
+{vHd=0.;vOn=0.;${sum(hid,'vHd')}${sum(only,'vOn')}}`);
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vHd;varying float vOn;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vHd>.3)discard;'+(onlyRe?'if(vOn<.5)discard;':''));};
+    mat.customProgramCacheKey=()=>'mask'+hid.join('_')+'o'+only.join('_');m.material=mat;m.userData.hideHead=mat;m.userData.showMat=null;});}
 function trooperActs(o,mx){const acts={};for(const k in A.trooper.clips){const c=A.trooper.upper[k]||A.trooper.clips[k];const a=mx.clipAction(c);a.enabled=true;a.setEffectiveWeight(0);a.play();if(/^(die|jump|grenade|hit|reload|turn|salute)/.test(k)){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true;a.stop();}acts[k]=a;}return acts;}
 const _bq=new THREE.Quaternion(),_bq2=new THREE.Quaternion(),_bax=new V3(),_gd=new V3(),_ge=new V3(),_gt=new V3(),_gg=new V3(),_gu=new V3(),_gr=new V3(),_gm=new THREE.Matrix4(),_gq=new THREE.Quaternion(),_gq2=new THREE.Quaternion();
 function bendBone(bone,axis,ang){ // rotate a bone about a WORLD axis, after the mixer has posed it
@@ -2794,10 +2796,42 @@ function trooperAnim(v,sd,dt,inp){ // weights for the player's body from what he
   sd.mx.update(dt);
   // the torso follows the aim (the camera is in the head, so this is what bends the rifle up and down)
   if(!v.air){_bax.set(-Math.cos(v.heading),0,Math.sin(v.heading));const a=v.pitch*TROOP.spineK*(v.crouch?.6:1);bendBone(sd.bones.spine1,_bax,a*.45);bendBone(sd.bones.spine2,_bax,a*.55);}
-  if(sd.gun&&sd.bones.rhand&&!v.air&&!v.sprint){sd.obj.updateMatrixWorld(true);const cp=Math.cos(v.pitch);_gd.set(Math.sin(v.heading)*cp,Math.sin(v.pitch),Math.cos(v.heading)*cp);sd.bones.head.getWorldPosition(_ge);_ge.y+=.08;_ge.addScaledVector(_gd,.1);_gt.copy(_ge).addScaledVector(_gd,30); // the point under the crosshair, 30 m out
+  if(sd.gun&&sd.fp&&TROOP.hR&&sd.bones.R.every(Boolean)&&sd.bones.L.every(Boolean))trooperViewModel(v,sd,dt,inp);
+  else{  if(sd.gun&&sd.bones.rhand&&!v.air&&!v.sprint){sd.obj.updateMatrixWorld(true);const cp=Math.cos(v.pitch);_gd.set(Math.sin(v.heading)*cp,Math.sin(v.pitch),Math.cos(v.heading)*cp);sd.bones.head.getWorldPosition(_ge);_ge.y+=.08;_ge.addScaledVector(_gd,.1);_gt.copy(_ge).addScaledVector(_gd,30); // the point under the crosshair, 30 m out
     sd.gun.localToWorld(_gg.copy(RIFLE.grip));_gd.copy(_gt).sub(_gg).normalize();_gu.set(0,1,0).addScaledVector(_gd,-_gd.y).normalize();_gr.crossVectors(_gu,_gd).normalize();_gm.makeBasis(_gr,_gu,_gd);_gq.setFromRotationMatrix(_gm);sd.bones.rhand.getWorldQuaternion(_gq2);_gq2.invert();sd.gun.quaternion.copy(_gq2.multiply(_gq));sd.gun.updateMatrixWorld(true);} // muzzle on the target; the left hand follows below
   if(sd.gun&&sd.bones.L.every(Boolean)&&!sd.shot){sd.obj.updateMatrixWorld(true);sd.obj.getWorldQuaternion(_sq);_sf.set(0,0,1).applyQuaternion(_sq);_sr.set(1,0,0).applyQuaternion(_sq);const L=sd.bones.L;L[0].getWorldPosition(_pl);_pl.addScaledVector(UP,-1).addScaledVector(_sr,-.6).addScaledVector(_sf,-.1);ik2(L[0],L[1],L[2],sd.gun.localToWorld(_tg.copy(RIFLE.fore)),_pl);} // left hand on the handguard
+  }
   if(sd.flash){FP.flashT-=dt;const fo=FP.flashT>0;sd.flash.visible=fo;sd.flashLight.intensity=fo?4:0;if(fo){sd.flash.material.rotation=Math.random()*TAU;sd.flash.scale.setScalar(rr(.14,.22));}}
+}
+// (Matt, 2 Nov 2026) Call of Duty-style first-person view model. The 'aim' animation holds the rifle shouldered with the stock at
+// the cheek, which from inside the head is a wall of sleeve and no hands. Instead the rifle is placed in camera space the way CoD
+// does it (low right, ~30 cm out, muzzle converging on the crosshair, a little bob and sway), both arms are IK'd onto it and the
+// hand bones are locked to the grip and handguard in the exact frames the Blender fit gave them - so you see your forearms and
+// gloves on the gun from the elbows forward. Jumping, sprinting and the one-shot moves (grenade, reload, hit) hand the rifle back
+// to the right hand so those animations play as made.
+const _vm1=new THREE.Matrix4(),_vm2=new THREE.Matrix4(),_vm3=new THREE.Matrix4(),_vq=new THREE.Quaternion(),_vq2=new THREE.Quaternion(),_vp=new V3(),_vp2=new V3(),_vp3=new V3();
+function setBoneWorldQuat(b,q){b.parent.getWorldQuaternion(_vq2);_vq2.invert();b.quaternion.copy(_vq2.multiply(q));b.updateMatrixWorld(true);}
+function trooperViewModel(v,sd,dt,inp){
+  const gun=sd.gun,o=sd.obj;if(gun.parent!==o)o.attach(gun);o.updateMatrixWorld(true);
+  const sp=Math.hypot(v.vx,v.vz),mv=clamp(sp/v.def.speed,0,1.6);sd.bob+=dt*(3+mv*6)*(mv>.1?1:.15);
+  const dh=sd.lastH==null?0:((v.heading-sd.lastH+Math.PI*3)%(Math.PI*2))-Math.PI;sd.lastH=v.heading;sd.sway=lerp(sd.sway,clamp(dh/Math.max(dt,.001)*-.02,-.05,.05),1-Math.exp(-dt*8));
+  const follow=v.air||v.sprint||!!sd.shot; // the animation keeps the rifle
+  if(follow){sd.bones.rhand.updateMatrixWorld(true);_vm1.multiplyMatrices(sd.bones.rhand.matrixWorld,TROOP.gun);}
+  else{const cp=Math.cos(v.pitch);_gd.set(Math.sin(v.heading)*cp,Math.sin(v.pitch),Math.cos(v.heading)*cp);sd.bones.head.getWorldPosition(_ge);_ge.y+=.08;_ge.addScaledVector(_gd,.1); // the camera
+    _gu.set(0,1,0).addScaledVector(_gd,-_gd.y).normalize();_gr.crossVectors(_gd,_gu).normalize(); // screen right
+    const cr=v.crouch?1:0,f=lerp(.235,.22,cr),r=lerp(.09,.08,cr)+Math.sin(sd.bob)*.011*mv+sd.sway,u=lerp(-.13,-.12,cr)-Math.abs(Math.cos(sd.bob))*.008*mv-Math.abs(sd.sway)*.3;
+    _gg.copy(_ge).addScaledVector(_gd,f).addScaledVector(_gr,r).addScaledVector(_gu,u); // where the grip goes
+    _gt.copy(_ge).addScaledVector(_gd,30);_vp.copy(_gt).sub(_gg).normalize();_vp2.set(0,1,0).addScaledVector(_vp,-_vp.y).normalize();_vp3.crossVectors(_vp2,_vp).normalize();_gm.makeBasis(_vp3,_vp2,_vp);_gq.setFromRotationMatrix(_gm);
+    _vp.copy(RIFLE.grip).applyQuaternion(_gq);_vp2.copy(_gg).sub(_vp);_vm1.compose(_vp2,_gq,_vp3.set(1,1,1));}
+  // smooth between the two placements, then set the rifle (world -> parent space)
+  _vm2.copy(o.matrixWorld).invert().multiply(_vm1);_vm2.decompose(_vp,_vq,_vp3); // in his own frame, so the smoothing never lags behind him as he runs
+  if(!sd.vmPos){sd.vmPos=_vp.clone();sd.vmQ=_vq.clone();}else{const k=1-Math.exp(-dt*(follow?14:30));sd.vmPos.lerp(_vp,k);sd.vmQ.slerp(_vq,k);}
+  gun.position.copy(sd.vmPos);gun.quaternion.copy(sd.vmQ);gun.scale.set(1,1,1);gun.updateMatrixWorld(true);_vm1.copy(gun.matrixWorld);
+  if(follow)return;
+  // both arms onto the rifle: wrist targets are the fitted hand frames carried along with the gun
+  const R=sd.bones.R,L=sd.bones.L;o.getWorldQuaternion(_sq);_sf.set(0,0,1).applyQuaternion(_sq);_sr.set(1,0,0).applyQuaternion(_sq);
+  gun.localToWorld(_tg.copy(RIFLE.grip).add(TROOP.offR));R[0].getWorldPosition(_pl);_pl.addScaledVector(UP,-1).addScaledVector(_sr,.7).addScaledVector(_sf,-.2);ik2(R[0],R[1],R[2],_tg,_pl);_vm2.multiplyMatrices(_vm1,TROOP.hR);_vq.setFromRotationMatrix(_vm3.extractRotation(_vm2));setBoneWorldQuat(R[2],_vq);
+  gun.localToWorld(_tg.copy(RIFLE.fore).add(TROOP.offL));L[0].getWorldPosition(_pl);_pl.addScaledVector(UP,-1).addScaledVector(_sr,-.7).addScaledVector(_sf,-.2);ik2(L[0],L[1],L[2],_tg,_pl);_vm2.multiplyMatrices(_vm1,TROOP.hL);_vq.setFromRotationMatrix(_vm3.extractRotation(_vm2));setBoneWorldQuat(L[2],_vq);
 }
 // ============================================================ ON FOOT
 // (Matt, 27 Oct 2026) Press G (gamepad X, touch OUT) in a stopped ground vehicle to climb out and fight on foot as Matt's own soldier
@@ -2843,7 +2877,7 @@ function buildHeroObj(T){
 }
 function buildTrooperObj(T,firstPerson=true,withGun=true){
   const g=new THREE.Group();const o=SkeletonUtils.clone(A.trooper.body);g.add(o);o.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});
-  const bn=n=>o.getObjectByName('mixamorig'+n),bones={head:bn('Head'),neck:bn('Neck'),spine1:bn('Spine1'),spine2:bn('Spine2'),rhand:bn('RightHand'),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
+  const bn=n=>o.getObjectByName('mixamorig'+n),bones={head:bn('Head'),neck:bn('Neck'),spine1:bn('Spine1'),spine2:bn('Spine2'),rhand:bn('RightHand'),L:['LeftArm','LeftForeArm','LeftHand'].map(bn),R:['RightArm','RightForeArm','RightHand'].map(bn)};
   if(firstPerson)trooperHideHead(o); // the camera lives in the head: helmet and mask would sit over the lens
   if(G&&G.hazmat===T)hazmatDress(o,firstPerson);
   let gun=null,flash=null,flashLight=null;
@@ -2852,7 +2886,7 @@ function buildTrooperObj(T,firstPerson=true,withGun=true){
     flash=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));flash.position.copy(A.m4?RIFLE.m4.muzzle:new V3(0,.005,.7));flash.scale.setScalar(.18);flash.visible=false;gun.add(flash);
     flashLight=new THREE.PointLight(0xffc070,0,2.2,2);flashLight.position.copy(A.m4?RIFLE.m4.muzzle:new V3(0,.02,.6));flashLight.position.z-=.05;gun.add(flashLight);}
   const mx=new THREE.AnimationMixer(o);const acts=trooperActs(o,mx);acts.idle.setEffectiveWeight(1);
-  const sd={obj:g,mx,acts,w:{idle:1},gun,bones,flash,flashLight,trooper:true,arms:null,idle:acts.idle,run:acts.runF};
+  const sd={obj:g,mx,acts,w:{idle:1},gun,bones,flash,flashLight,trooper:true,arms:null,idle:acts.idle,run:acts.runF,fp:firstPerson,bob:0,sway:0,lastH:null};
   const ring=new THREE.Mesh(new THREE.RingGeometry(.75,1.05,28),new THREE.MeshBasicMaterial({color:TEAMS[T].color,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=1;
   return {g,parts:{sd,ring}};
 }
@@ -2942,7 +2976,7 @@ function heroDie(v,by){
   const team=G.teams[v.team];if(v.carrying)dropFlag(v.carrying,v.x,v.z);
   world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);
   const dsd={soldier:true,team:v.team,x:v.x,z:v.z,y:v.y,alive:false,deadT:0,fallDir:RND()<.5?1:-1,crushed:false,obj:v.obj,hp:0,mode:'dead'};G.soldiers.push(dsd); // the body falls like any soldier's
-  if(v.parts.sd.trooper){const sd=v.parts.sd;v.obj.traverse(m=>{if(m.isSkinnedMesh&&m.userData.hideHead){m.material=A.trooper.mats.get(m.name)||(m.name==='Hazmat'?HAZ.suit:m.material);}});for(const k in sd.acts)sd.acts[k].setEffectiveWeight(0);const k=['dieF','dieB','dieR'][(RND()*3)|0];sd.acts[k].reset().setEffectiveWeight(1).play();sd.acts[k].clampWhenFinished=true;dsd.mx=sd.mx;dsd.dieAct=sd.acts[k];}
+  if(v.parts.sd.trooper){const sd=v.parts.sd;v.obj.traverse(m=>{if(m.isSkinnedMesh&&m.userData.hideHead){if(m.userData.hazHands){m.visible=false;return;}m.material=A.trooper.mats.get(m.name)||(m.name==='Hazmat'?HAZ.suit:m.material);}});for(const k in sd.acts)sd.acts[k].setEffectiveWeight(0);const k=['dieF','dieB','dieR'][(RND()*3)|0];sd.acts[k].reset().setEffectiveWeight(1).play();sd.acts[k].clampWhenFinished=true;dsd.mx=sd.mx;dsd.dieAct=sd.acts[k];}
   gore(v.x,v.y,v.z,'hit');sfx('splat',v.x,v.z);sfx('scream',v.x,v.z);
   team.vehicle=null;team.respawnT=2.5;team.hero=null;if(document.pointerLockElement)document.exitPointerLock();
   if(team.view&&!G.demo)skullFor(team.view);note(v.team,'You were killed','bad',true);if(by!==undefined&&by!==v.team)note(by,'Enemy soldier down','good');

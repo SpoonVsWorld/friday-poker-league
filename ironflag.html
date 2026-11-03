@@ -206,6 +206,8 @@ body.touchui .sel{gap:9px}body.touchui .sel h2{font-size:clamp(16px,2.6vw,24px)}
   #msl.nukemap .mcancel{margin-left:0}#msl.nukemap .nkcon{margin-left:auto}}
 @media (max-height:480px){#msl .mhelp{display:none}}
 #mslCine{position:fixed;inset:0;pointer-events:none;z-index:11}
+/* strike cinematic (truck / sub / nuke / orbital): nothing but the animation and the letterbox - HUD, minimap, touch controls, messages all hidden (Matt, 3 Nov 2026) */
+body.cine #huds,body.cine #touch,body.cine #topbtn{visibility:hidden}
 #mslCine .cbar{position:absolute;left:0;right:0;height:max(9vh,calc(var(--sat) + 10px));background:#000}#mslCine .b{height:max(9vh,calc(var(--sab) + 28px))}
 #mslCine .t{top:0}#mslCine .b{bottom:0;display:flex;align-items:center;justify-content:center}
 #mslCine span{font:400 clamp(15px,2.4vw,24px) var(--display);letter-spacing:.14em;color:var(--signal)}
@@ -2125,7 +2127,7 @@ function updateStrike(dt){
 }
 const MSL_FOG={on:false,near:0,far:0};
 function mslCineStart(view){if(!MSL_FOG.on){MSL_FOG.on=true;MSL_FOG.near=scene.fog.near;MSL_FOG.far=scene.fog.far;}scene.fog.near=260;scene.fog.far=900;if(view&&view.cam.far<1100){view.cam.far=1100;view.cam.updateProjectionMatrix();}}
-function mslCineEnd(){if(MSL_FOG.on){scene.fog.near=MSL_FOG.near;scene.fog.far=MSL_FOG.far;MSL_FOG.on=false;}if(G)for(const v of G.views)if(v.cam.far!==700){v.cam.far=700;v.cam.updateProjectionMatrix();}if(MM.cine)MM.cine.hidden=true;}
+function mslCineEnd(){if(MSL_FOG.on){scene.fog.near=MSL_FOG.near;scene.fog.far=MSL_FOG.far;MSL_FOG.on=false;}if(G)for(const v of G.views)if(v.cam.far!==700){v.cam.far=700;v.cam.updateProjectionMatrix();}if(MM.cine)MM.cine.hidden=true;document.body.classList.remove('cine');}
 function mslBlocked(ax,ay,az,bx,by,bz,skip){ // does a building / tree / tower sit on the line of sight?
   for(let i=1;i<14;i++){const t=i/14,x=lerp(ax,bx,t),y=lerp(ay,by,t),z=lerp(az,bz,t);staticsNear(x,z,_near);
     for(const s of _near){if(s===skip||!s.obj&&s.kind!=='tree'||s.kind==='wall'||s.kind==='hedge')continue;if(y>s.y0+s.h+.5)continue;for(const p of s.pts)if(Math.hypot(p[0]-x,p[1]-z)<p[2]+.6)return true;}}
@@ -2160,7 +2162,7 @@ function strikeCam(view,dt){
   if(view.shake>0){cam.position.x+=rr(-.5,.5)*view.shake;cam.position.y+=rr(-.5,.5)*view.shake;cam.position.z+=rr(-.5,.5)*view.shake;view.shake=Math.max(0,view.shake-dt*1.2);}
   cam.lookAt(S.clook);
   const fp=S.phase==='fly'?S.m.position:S.clook;view.focus.set(fp.x,Math.max(0,groundAt(fp.x,fp.z)),fp.z);
-  if(MM.cine){if(MM.cine.hidden)MM.cine.hidden=false;let tx;
+  if(MM.cine){if(MM.cine.hidden){MM.cine.hidden=false;document.body.classList.add('cine');}let tx;
     if(S.phase==='raise')tx=`ERECTOR RAISING · ${Math.max(0,MSL.raise-S.t).toFixed(1)}`;else if(S.phase==='ignite')tx='IGNITION';
     else if(S.phase==='fly'){const left=S.t<MSL.boostT?MSL.boostT-S.t+S.path.len/110:(S.path.len-S.s)/Math.max(S.v,1);tx=`MISSILE AWAY · IMPACT IN ${Math.max(0,left).toFixed(1)} s`;}
     else tx=S.name?`DIRECT HIT · ${S.name.toUpperCase()} DESTROYED`:'IMPACT';
@@ -2500,7 +2502,7 @@ function nukeCam(view,dt){
   if(view.shake>0){cam.position.x+=rr(-.5,.5)*view.shake;cam.position.y+=rr(-.5,.5)*view.shake;cam.position.z+=rr(-.5,.5)*view.shake;view.shake=Math.max(0,view.shake-dt*1.2);}
   cam.lookAt(S.clook);
   const fp=S.phase==='fly'?S.m.position:S.clook;view.focus.set(fp.x,Math.max(0,groundAt(fp.x,fp.z)),fp.z);
-  if(MM.cine){if(MM.cine.hidden)MM.cine.hidden=false;let tx;
+  if(MM.cine){if(MM.cine.hidden){MM.cine.hidden=false;document.body.classList.add('cine');}let tx;
     if(S.phase==='surface')tx=`SUBMARINE SURFACING · ${Math.max(0,NUKE.surface-S.t).toFixed(1)}`;else if(S.phase==='hatch')tx='MISSILE HATCH OPENING';else if(S.phase==='ignite')tx='IGNITION';
     else if(S.phase==='fly'){const left=S.t<NUKE.boostT?NUKE.boostT-S.t+S.path.len/130:(S.path.len-S.s)/Math.max(S.v,1);tx=`NUCLEAR MISSILE AWAY · IMPACT IN ${Math.max(0,left).toFixed(1)} s`;}
     else tx=S.killed?`GROUND ZERO · ${S.killed} STRUCTURES VAPORISED`:'GROUND ZERO';
@@ -2633,7 +2635,7 @@ function orbCam(view,dt){
     if(S.cut!==S.phase){const first=!S.cpos;S.cut=S.phase;if(first||S.phase!=='deploy'){S.cpos=new V3(px,py,pz);S.clook=new V3(lx,ly,lz);}} // hard cuts between the shots
     S.cpos.lerp(_mc1.set(px,py,pz),k);S.clook.lerp(_mc2.set(lx,ly,lz),Math.min(1,k*1.5));c.position.copy(S.cpos);c.lookAt(S.clook);
     if(c.aspect!==view.cam.aspect){c.aspect=view.cam.aspect;c.updateProjectionMatrix();}
-    if(MM.cine){if(MM.cine.hidden)MM.cine.hidden=false;let tx;
+    if(MM.cine){if(MM.cine.hidden){MM.cine.hidden=false;document.body.classList.add('cine');}let tx;
       if(S.phase==='orbit')tx=`ORBITAL PLATFORM SPOON · UPLINK ${Math.min(100,Math.round(S.t/ORB.orbit*100))}%`;else if(S.phase==='deploy')tx='DEPLOYING SOLAR ARRAYS · RADIATORS';else if(S.phase==='aim')tx=S.t<ORB.aim*.75?'EMITTER TRACKING':'TARGET ACQUIRED';else tx=`CHARGING · ${Math.min(100,Math.round(S.t/ORB.charge*100))}%`;
       if(MM.cineT!==tx){MM.cineTxt.textContent=tx;MM.cineT=tx;}}
     return;}
@@ -2645,7 +2647,7 @@ function orbCam(view,dt){
   S.cpos.lerp(_mc1,k);S.clook.lerp(_mc2,Math.min(1,k*1.4));cam.position.copy(S.cpos);
   if(view.shake>0){cam.position.x+=rr(-.5,.5)*view.shake;cam.position.y+=rr(-.5,.5)*view.shake;cam.position.z+=rr(-.5,.5)*view.shake;view.shake=Math.max(0,view.shake-dt*1.2);}
   cam.lookAt(S.clook);view.focus.set(ip.x,Math.max(0,groundAt(ip.x,ip.z)),ip.z);
-  if(MM.cine){if(MM.cine.hidden)MM.cine.hidden=false;const left=S.phase==='fire'?orbCandidates().length:0;const tx=S.phase==='end'?`PLATFORM POWERING DOWN · ${S.n} TARGETS DESTROYED`:`ORBITAL LASER · ${S.n} DESTROYED · ${left} LEFT`;if(MM.cineT!==tx){MM.cineTxt.textContent=tx;MM.cineT=tx;}}
+  if(MM.cine){if(MM.cine.hidden){MM.cine.hidden=false;document.body.classList.add('cine');}const left=S.phase==='fire'?orbCandidates().length:0;const tx=S.phase==='end'?`PLATFORM POWERING DOWN · ${S.n} TARGETS DESTROYED`:`ORBITAL LASER · ${S.n} DESTROYED · ${left} LEFT`;if(MM.cineT!==tx){MM.cineTxt.textContent=tx;MM.cineT=tx;}}
 }
 function scatterNature(){
   const B=G.batches;const tries=4200;const n4=makeNoise(G.seed+33);

@@ -425,7 +425,7 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='12';
+const DATA='sp-data/',DATA_V='13';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -2417,12 +2417,12 @@ function hazmatSuit(o,fp){
   let hz=null;src.traverse(m=>{if(m.isSkinnedMesh&&!hz)hz=m;});if(!hz)return false;
   const par=o.getObjectByName(hz.parent.name)||o;const byName=new Map();o.traverse(b=>{if(b.isBone)byName.set(b.name,b);});
   const bones=hz.skeleton.bones.map(b=>byName.get(b.name));if(bones.some(b=>!b)){console.warn('hazmat: bones missing on',kind);return false;}
-  if(!HAZ.suit)HAZ.suit=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:0});
+  if(!HAZ.suit){HAZ.suit=hz.material;HAZ.suit.vertexColors=true;HAZ.suit.side=THREE.DoubleSide;HAZ.suit.roughness=.5;HAZ.suit.metalness=0;HAZ.suit.envMapIntensity=.5;HAZ.suit.envMap=skyEnv();HAZ.suit.needsUpdate=true;}
   const mesh=new THREE.SkinnedMesh(hz.geometry,HAZ.suit);mesh.name='Hazmat';mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;
   mesh.position.copy(hz.position);mesh.quaternion.copy(hz.quaternion);mesh.scale.copy(hz.scale);par.add(mesh);
   mesh.bind(new THREE.Skeleton(bones,hz.skeleton.boneInverses.map(m=>m.clone())),hz.bindMatrix.clone());
   o.traverse(m=>{if(m.isSkinnedMesh&&m!==mesh){if(fp&&kind==='trooper'){maskByBones(m,/mixamorig(Head|HeadTop_End|Neck)$/,/mixamorig(Left|Right)Hand/);m.userData.hazHands=true;}else{m.visible=false;m.userData.hazHidden=true;}}}); // first person keeps his gloved hands (the suit's mittens are blobs up close)
-  if(fp)maskByBones(mesh,kind==='trooper'?/mixamorig(Head|HeadTop_End|Neck)$|mixamorig(Left|Right)Hand/:/mixamorig(Head|HeadTop_End|Neck)$/,null);
+  if(fp)maskByBones(mesh,kind==='trooper'?/mixamorig(Head|HeadTop_End|Neck)$|mixamorig(Left|Right)Hand/:/mixamorig(Head|HeadTop_End|Neck)$/,null,kind==='trooper'?.12:.3);
   o.userData.hazSuit=mesh;return true;}
 function hazmatDress(o,fp){ // every mesh goes yellow; the head/visor stays dark; the first-person body keeps its head-hiding shader
   hazMat();if(hazmatSuit(o,fp))return;o.traverse(m=>{if(!m.isMesh)return;if(m.userData.hazDone)return;m.userData.hazDone=true;const head=/head|visor|goggle|glass/i.test(m.name)||m.userData.head!==undefined;
@@ -2765,13 +2765,13 @@ function trooperSetup(tg){
       A.soldier.m={};for(const k of ['idle','aim','walkF','runF','dieF','dieB','dieR','hit','salute'])if(clips[k])A.soldier.m[k]=fix(clips[k]);}catch(e){console.warn('soldier moves',e);}}
 }
 function trooperHideHead(o){maskByBones(o,/mixamorig(Head|HeadTop_End|Neck)$/,null);} // first person: discard every fragment the head or neck joints own (scaling the bone leaves neck spikes)
-function maskByBones(o,hideRe,onlyRe){ // skinned meshes under o: discard fragments owned (>30%) by hideRe bones, and - when onlyRe is given - fragments NOT owned (>=50%) by onlyRe bones
+function maskByBones(o,hideRe,onlyRe,thr=.3){ // skinned meshes under o: discard fragments owned (>30%) by hideRe bones, and - when onlyRe is given - fragments NOT owned (>=50%) by onlyRe bones
   o.traverse(m=>{if(!m.isSkinnedMesh)return;const hid=[],only=[];m.skeleton.bones.forEach((b,i)=>{if(hideRe&&hideRe.test(b.name))hid.push(i);if(onlyRe&&onlyRe.test(b.name))only.push(i);});if(!hid.length&&!onlyRe)return;
     const sum=(idx,v)=>idx.map(i=>`${v}+=(abs(skinIndex.x-${i}.)<.5?skinWeight.x:0.)+(abs(skinIndex.y-${i}.)<.5?skinWeight.y:0.)+(abs(skinIndex.z-${i}.)<.5?skinWeight.z:0.)+(abs(skinIndex.w-${i}.)<.5?skinWeight.w:0.);`).join('');
     const mat=m.material.clone();mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vHd;varying float vOn;').replace('#include <skinbase_vertex>',`#include <skinbase_vertex>
 {vHd=0.;vOn=0.;${sum(hid,'vHd')}${sum(only,'vOn')}}`);
-      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vHd;varying float vOn;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vHd>.3)discard;'+(onlyRe?'if(vOn<.5)discard;':''));};
-    mat.customProgramCacheKey=()=>'mask'+hid.join('_')+'o'+only.join('_');m.material=mat;m.userData.hideHead=mat;m.userData.showMat=null;});}
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vHd;varying float vOn;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vHd>'+thr.toFixed(2)+')discard;'+(onlyRe?'if(vOn<.5)discard;':''));};
+    mat.customProgramCacheKey=()=>'mask'+hid.join('_')+'o'+only.join('_')+'t'+thr;m.material=mat;m.userData.hideHead=mat;m.userData.showMat=null;});}
 function trooperActs(o,mx){const acts={};for(const k in A.trooper.clips){const c=A.trooper.upper[k]||A.trooper.clips[k];const a=mx.clipAction(c);a.enabled=true;a.setEffectiveWeight(0);a.play();if(/^(die|jump|grenade|hit|reload|turn|salute)/.test(k)){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true;a.stop();}acts[k]=a;}return acts;}
 const _bq=new THREE.Quaternion(),_bq2=new THREE.Quaternion(),_bax=new V3(),_gd=new V3(),_ge=new V3(),_gt=new V3(),_gg=new V3(),_gu=new V3(),_gr=new V3(),_gm=new THREE.Matrix4(),_gq=new THREE.Quaternion(),_gq2=new THREE.Quaternion();
 function bendBone(bone,axis,ang){ // rotate a bone about a WORLD axis, after the mixer has posed it

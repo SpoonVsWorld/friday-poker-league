@@ -44,10 +44,13 @@ export default async function handler(req, res) {
     // "poker"); Spoon Platoon sends {page:"spoonplatoon"}. Anything else is
     // ignored rather than trusted, since the browser picks this value.
     let page = "poker";
+    let name = null; // Spoon Platoon's call sign (title screen), if the player typed one
     try {
       const raw = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
       if (raw && raw.page === "spoonplatoon") page = "spoonplatoon";
+      if (raw && typeof raw.name === "string" && raw.name.trim()) name = raw.name.trim().slice(0, 24);
     } catch {}
+    const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
 
     const body = {
       page,
@@ -56,6 +59,10 @@ export default async function handler(req, res) {
       region: decode(req.headers["x-vercel-ip-country-region"]),
       country: decode(req.headers["x-vercel-ip-country"]),
       user_agent: req.headers["user-agent"] || null,
+      name,
+      // Vercel's geo headers also carry an approximate lat/lon (the ISP's city): the Admin map plots these
+      latitude: num(req.headers["x-vercel-ip-latitude"]),
+      longitude: num(req.headers["x-vercel-ip-longitude"]),
     };
  
     await fetch(`${SUPABASE_URL}/rest/v1/page_views`, {

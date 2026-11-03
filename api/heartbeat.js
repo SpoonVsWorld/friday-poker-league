@@ -28,6 +28,7 @@ export default async function handler(req, res) {
       raw = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     } catch {}
 
+    const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
     const str = (v, n) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
     const sid = str(raw.sid, 40);
     if (!sid || !/^[A-Za-z0-9_-]+$/.test(sid)) {
@@ -64,6 +65,8 @@ export default async function handler(req, res) {
       p_country: decode(req.headers["x-vercel-ip-country"]),
       p_ua: req.headers["user-agent"] || null,
       p_started: started,
+      p_lat: num(req.headers["x-vercel-ip-latitude"]),
+      p_lon: num(req.headers["x-vercel-ip-longitude"]),
     };
 
     // game_heartbeat() is a security-definer function: it does the upsert itself, so the anon key

@@ -71,7 +71,7 @@ export default async function handler(req, res) {
 
     // game_heartbeat() is a security-definer function: it does the upsert itself, so the anon key
     // never needs read/write access to the table.
-    await fetch(SUPABASE_URL + "/rest/v1/rpc/game_heartbeat", {
+    const r = await fetch(SUPABASE_URL + "/rest/v1/rpc/game_heartbeat", {
       method: "POST",
       headers: {
         apikey: SUPABASE_ANON_KEY,
@@ -80,9 +80,16 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(params),
     });
+    // (3 Nov 2026) the function returns true when the Admin screen has asked to watch this session (spectating)
+    let watch = false;
+    try {
+      watch = (await r.json()) === true;
+    } catch {}
+    res.status(200).json({ watch });
+    return;
   } catch {
     // swallow - presence is best-effort
   }
 
-  res.status(204).end();
+  res.status(200).json({ watch: false });
 }

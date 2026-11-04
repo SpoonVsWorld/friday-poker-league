@@ -4490,7 +4490,7 @@ async function loadHall(){
   if(!Array.isArray(rows)||!rows.length){h.hidden=true;return;}
   const MAX=8,fmt=s=>{s=Math.round(s||0);const hh=Math.floor(s/3600),m=Math.floor(s%3600/60);return hh?`${hh}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(s%60).padStart(2,'0')}s`;},
   date=d=>{try{return new Date(d).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});}catch(e){return '';}},esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  ol.innerHTML=rows.slice(0,MAX).map((r,i)=>`<li${i===0?' class="first"':''}>${esc(r.name)} <span>· ${esc(date(r.first_won))}${r.best_secs?' · '+fmt(r.best_secs):''}${i===0?' · FIRST':''}</span></li>`).join('');
+  ol.innerHTML=rows.slice(0,MAX).map((r,i)=>`<li${i===0?' class="first"':''}>${esc(r.name)}</li>`).join(''); // (Matt, 4 Nov 2026) names only on the public roll - date, time, IP and location stay in Admin
   more.hidden=rows.length<=MAX;if(rows.length>MAX)more.textContent=`and ${rows.length-MAX} more`;h.hidden=false;
 }
 setTimeout(loadHall,2500);

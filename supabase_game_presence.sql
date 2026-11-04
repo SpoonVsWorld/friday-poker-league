@@ -66,3 +66,26 @@ language sql security definer set search_path = public as $$
 $$;
 revoke all on function game_heartbeat(text, text, text, text, boolean, text, text, text, text, text, timestamptz, double precision, double precision) from public;
 grant execute on function game_heartbeat(text, text, text, text, boolean, text, text, text, text, text, timestamptz, double precision, double precision) to anon, authenticated, service_role;
+
+-- (3 Nov 2026) spectating: Admin > Playing now > Watch stamps watch_at; the player's next heartbeat reply carries
+-- {watch:true} (game_heartbeat now returns that flag) and the game starts streaming to Realtime channel ironflag-spec-<sid>
+alter table game_presence add column if not exists watch_at timestamptz;
+drop policy if exists "game_presence_admin_update" on game_presence;
+create policy "game_presence_admin_update" on game_presence for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop function if exists game_heartbeat(text, text, text, text, boolean, text, text, text, text, text, timestamptz, double precision, double precision);
+create or replace function game_heartbeat(
+  p_sid text, p_name text, p_mode text, p_detail text, p_self boolean,
+  p_ip text, p_city text, p_region text, p_country text, p_ua text, p_started timestamptz,
+  p_lat double precision default null, p_lon double precision default null
+) returns boolean
+language sql security definer set search_path = public as $$
+  insert into game_presence (session_id, name, mode, detail, self, ip_address, city, region, country, user_agent, started_at, last_seen, latitude, longitude)
+  values (p_sid, p_name, p_mode, p_detail, coalesce(p_self, false), p_ip, p_city, p_region, p_country, p_ua, coalesce(p_started, now()), now(), p_lat, p_lon)
+  on conflict (session_id) do update set
+    name = excluded.name, mode = excluded.mode, detail = excluded.detail, self = excluded.self,
+    ip_address = excluded.ip_address, city = excluded.city, region = excluded.region, country = excluded.country,
+    user_agent = excluded.user_agent, last_seen = now(), latitude = excluded.latitude, longitude = excluded.longitude;
+  select coalesce(watch_at > now() - interval '2 minutes', false) from game_presence where session_id = p_sid;
+$$;
+revoke all on function game_heartbeat(text, text, text, text, boolean, text, text, text, text, text, timestamptz, double precision, double precision) from public;
+grant execute on function game_heartbeat(text, text, text, text, boolean, text, text, text, text, text, timestamptz, double precision, double precision) to anon, authenticated, service_role;

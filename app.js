@@ -1782,10 +1782,29 @@
           <div class="visit-meta">
             <span class="visit-time">Open for ${formatDuration(now - new Date(r.started_at).getTime())}</span>
             <span class="visit-device">${escapeHtml(summarizeUserAgent(r.user_agent))} · seen ${ago}s ago</span>
+            <button type="button" class="btn btn-small watch-btn" data-sid="${escapeHtml(r.session_id)}" title="Open a spectator view of this player's game (needs developer mode on in the game on this device)">👁 Watch</button>
           </div>
         </div>`;
         })
         .join("");
+      playingNowList.querySelectorAll(".watch-btn").forEach((b) => {
+        b.addEventListener("click", () => watchPlayer(b.dataset.sid, b).catch((e) => console.warn("watch", e)));
+      });
+    }
+
+    // (Matt, 3 Nov 2026) spectate: stamp watch_at on their presence row (their game's next heartbeat, within 30 s,
+    // sees it and starts streaming), then open the game as a spectator in a new tab.
+    async function watchPlayer(sid, btn) {
+      if (!sid) return;
+      if (btn) { btn.disabled = true; btn.textContent = "Opening…"; }
+      const { error } = await supabaseClient.from("game_presence").update({ watch_at: new Date().toISOString() }).eq("session_id", sid);
+      if (error) {
+        if (btn) { btn.disabled = false; btn.textContent = "👁 Watch"; }
+        alert("Could not flag that session for watching: " + error.message + (/watch_at|policy/i.test(error.message) ? " (run the 3 Nov part of supabase_game_presence.sql in the Supabase SQL editor once)" : ""));
+        return;
+      }
+      window.open("https://spoonplatoon.vercel.app/ironflag.html?spectate=" + encodeURIComponent(sid), "_blank", "noopener");
+      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = "👁 Watch"; } }, 3000);
     }
 
     // ------------------------------------------------------------------

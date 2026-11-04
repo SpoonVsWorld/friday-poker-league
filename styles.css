@@ -1018,6 +1018,7 @@ ul#player-list, ul#season-list {
 }
 
 .visit-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.visit-meta .watch-btn { margin-top: 4px; padding: 3px 9px; font-size: 12px; }
 .visit-time { font-size: 0.78rem; color: var(--text); font-weight: 600; white-space: nowrap; }
 .visit-device { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
 

@@ -215,6 +215,8 @@ body.touchui .sel{gap:9px}body.touchui .sel h2{font-size:clamp(16px,2.6vw,24px)}
   #msl.nukemap .mcancel{margin-left:0}#msl.nukemap .nkcon{margin-left:auto}}
 @media (max-height:480px){#msl .mhelp{display:none}}
 #mslCine{position:fixed;inset:0;pointer-events:none;z-index:11}
+#specBar{position:fixed;left:50%;top:calc(8px + var(--sat));transform:translateX(-50%);z-index:19;display:flex;align-items:center;gap:12px;background:rgba(8,11,8,.88);border:1px solid var(--line);border-radius:4px;padding:7px 12px;font:600 13px var(--ui);color:var(--sand);letter-spacing:.04em;max-width:min(92vw,720px)}
+#specBar button{font:600 12px var(--ui);letter-spacing:.06em;text-transform:uppercase;border-radius:3px;border:1px solid var(--line);background:var(--panel);color:var(--sand);padding:6px 10px;cursor:pointer;white-space:nowrap}
 /* strike cinematic (truck / sub / nuke / orbital): nothing but the animation and the letterbox - HUD, minimap, touch controls, messages all hidden (Matt, 3 Nov 2026) */
 body.cine #huds,body.cine #touch,body.cine #topbtn{visibility:hidden}
 #mslCine .cbar{position:absolute;left:0;right:0;height:max(9vh,calc(var(--sat) + 10px));background:#000}#mslCine .b{height:max(9vh,calc(var(--sab) + 28px))}
@@ -328,6 +330,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <body>
 <div id="stage"></div>
 <div id="huds"><div class="divider" id="divider"></div></div>
+<div id="specBar" hidden><span id="specTxt">Connecting…</span><button id="specQuit" type="button">Stop watching</button></div>
 
 <div id="title" class="screen">
   <div class="rail">
@@ -724,7 +727,7 @@ function sample(name,g,rate=1,delay=0){
   const a=c.createGain();a.gain.value=g;s.connect(a);a.connect(AU.sfx);s.start(c.currentTime+delay);return true;
 }
 function sfx(kind,x,z){
-  if(G&&G.net&&G.net.host)G.net.events.push({k:'sfx',n:kind,x,z});
+  if(netLive())NET.events.push({k:'sfx',n:kind,x,z});
   if(!AU.ctx||G?.demo)return;const g=x===undefined?1:listenerGain(x,z);if(g<.02)return;
   switch(kind){
     case 'mg':noiseHit(.35*g,.07,4000,1200,'bandpass',.8);break;
@@ -891,7 +894,7 @@ function updateDebris(dt){
   DEB.im.instanceMatrix.needsUpdate=true;
 }
 function explosion(x,y,z,size=1,water=false){
-  if(G&&G.net&&G.net.host)G.net.events.push({k:'exp',x,y,z,size,water});
+  if(netLive())NET.events.push({k:'exp',x,y,z,size,water});
   if(water){for(let i=0;i<14*size;i++)SMOKE.spawn(x+rr(-1,1)*size,.2,z+rr(-1,1)*size,rr(-3,3)*size,rr(8,16)*size,rr(-3,3)*size,rr(.7,1.2),1.2*size,2.2*size,C_WATER,C_WATER,.9,25,.5);sfx(size>.7?'waterboom':'splash',x,z);return;}
   for(let i=0;i<22*size;i++)FIRE.spawn(x+rr(-.8,.8)*size,y+rr(0,1)*size,z+rr(-.8,.8)*size,rr(-7,7)*size,rr(1,9)*size,rr(-7,7)*size,rr(.25,.6),3*size,5.5*size,C_FIRE0,C_FIRE1,1,-2,2.5);
   for(let i=0;i<14*size;i++)SMOKE.spawn(x+rr(-1,1)*size,y+rr(0,1.5)*size,z+rr(-1,1)*size,rr(-3,3)*size,rr(2,7)*size,rr(-3,3)*size,rr(1.5,3),3*size,8*size,C_SMK0,C_SMK1,.8,-1,1.2);
@@ -1259,7 +1262,7 @@ function updateBlood(dt){
 // dx/dz: direction the hit came from, so the spray carries through. Relayed to the online guest as an fx event.
 // Tuned for "realistic, not cartoon": a short low spray of small dark droplets and a pool about the size of the body, not bigger.
 function gore(x,y,z,how='shot',dx=0,dz=0){
-  if(G&&G.net&&G.net.host)G.net.events.push({k:'gore',x,y,z,how,dx,dz});
+  if(netLive())NET.events.push({k:'gore',x,y,z,how,dx,dz});
   const R=Math.random;const n=how==='crush'?55:how==='blast'?40:how==='hit'?7:28;const f=how==='crush'?1.5:how==='blast'?1.3:1;
   for(let i=0;i<n;i++){const a=R()*TAU,sp=(1+R()*4.5)*f;const up=how==='crush'?.3+R()*2.5:.8+R()*4*f;
     SMOKE.spawn(x+(R()-.5)*.5,y+.2+R()*1.1,z+(R()-.5)*.5,Math.cos(a)*sp+dx*.3,up,Math.sin(a)*sp+dz*.3,.3+R()*.4,.13+R()*.17,.05+R()*.08,C_BLOOD0,C_BLOOD1,.9,30,1.8);}
@@ -3099,7 +3102,7 @@ function destroyVehicle(v,by){
   explosion(v.x,v.y+1,v.z,air?1:v.type==='jeep'?1.3:2);sfx(air?'boom':'bigboom',v.x,v.z);
   if(v.carrying){dropFlag(v.carrying,v.x,v.z);}
   crewAllDie(v,by); // riders are thrown out dead (before the wreck is cloned from the model)
-  if(G.net&&G.net.host)G.net.events.push({k:'wreck',id:v.netId,vx:Math.round((v.vx||0)*10)/10,vz:Math.round((v.vz||0)*10)/10});
+  if(netLive())NET.events.push({k:'wreck',id:v.netId,vx:Math.round((v.vx||0)*10)/10,vz:Math.round((v.vz||0)*10)/10});
   let W=null;try{W=wreckVehicle(v);}catch(e){console.warn('wreck',e);}
   if(driven&&team.view&&!G.demo){if(W)deathCam(team.view,W);else skullFor(team.view);}
   removeVehicle(v);if(driven){team.vehicle=null;team.respawnT=2.5;}
@@ -3259,7 +3262,7 @@ function damage(e,amount,byTeam){
   if(e.soldier){e.hp-=amount;if(e.hp<=0)killSoldier(e,byTeam);return;}
   if(e.state!==undefined){ // vehicle
     if(e.state!=='active')return;if(e.crew)crewHit(e,byTeam);e.hp-=amount*(G.dmgMul[e.team]||1);e.hitFlash=.15;if(e.type==='foot'&&e.parts&&e.parts.sd.trooper&&!e.parts.sd.shot&&e.hp>0)trooperOneShot(e.parts.sd,'hit',1.4);if(e.hp<=0)destroyVehicle(e,byTeam);return;}
-  if(!e.alive||e.hp===Infinity)return;e.hp-=amount;if(G.net&&G.net.host&&e.netIdx!==undefined)G.net.dirty.add(e.netIdx);if(e.hp<=0)destroyStatic(e,byTeam);
+  if(!e.alive||e.hp===Infinity)return;e.hp-=amount;if(netLive()&&e.netIdx!==undefined)NET.dirty.add(e.netIdx);if(e.hp<=0)destroyStatic(e,byTeam);
 }
 function collapseSafe(s){try{return collapseBuilding(s);}catch(e){console.warn('collapse',e);return false;}}
 function destroyStatic(s,byTeam){
@@ -3465,7 +3468,7 @@ function launchStrike(T,tx,tz){
     const ring=new THREE.Mesh(_ringGeo,new THREE.MeshBasicMaterial({color:T===0?0x5aa0ff:0xff4a3a,transparent:true,opacity:.85,depthWrite:false}));
     ring.position.set(px,Math.max(groundAt(px,pz),0)+.15,pz);ring.renderOrder=2;world.add(ring);pts.push({x:px,z:pz,s:(k-2)*JET.spacing,ring,dropped:false});}
   const ty=Math.max(groundAt(tx,tz),0)+JET.alt;
-  const j={jet:true,team:T,alive:true,hp:JET.hp,tx,tz,dx,dz,s:-JET.approach,x:tx-dx*JET.approach,z:tz-dz*JET.approach,y:ty,vx:dx*JET.speed,vz:dz*JET.speed,pts,obj:makeJetObj(T),roared:false};
+  const j={jet:true,netId:++G.netSeq,team:T,alive:true,hp:JET.hp,tx,tz,dx,dz,s:-JET.approach,x:tx-dx*JET.approach,z:tz-dz*JET.approach,y:ty,vx:dx*JET.speed,vz:dz*JET.speed,pts,obj:makeJetObj(T),roared:false};
   if(T===0&&G.carrier){const C=G.carrier;let cx=tx-C.bowX,cz=tz-C.bowZ;const L=Math.hypot(cx,cz)||1;cx/=L;cz/=L;j.dx=cx;j.dz=cz;j.s=-L;j.L=L;j.x=C.bowX;j.z=C.bowZ;j.y0=C.deckY+1.5;j.ty=ty;j.y=j.y0;j.spd=CVN.spd;j.vx=cx*j.spd;j.vz=cz*j.spd; // off the catapult: from the bow, straight at the target, climbing to bombing height
     for(const p of pts){p.x=tx+cx*(p.s);p.z=tz+cz*(p.s);p.ring.position.set(p.x,Math.max(groundAt(p.x,p.z),0)+.15,p.z);}
     for(let i=0;i<30;i++)SMOKE.spawn(C.bowX-cx*rr(0,30),j.y0-.5,C.bowZ-cz*rr(0,30),rr(-2,2),rr(1,4),rr(-2,2),rr(1.5,3),3,9,[.85,.85,.85],[.7,.7,.7],.5,0,.6);}
@@ -3606,7 +3609,7 @@ function makeDroneObj(T){
 function spawnDrone(T){
   const b=G.bases[T];const a=RND()*TAU;const ufo=RND()<.5?'ufoA':'ufoB';const o=makeDroneObj(T)||tintObj(proto(ufo,3.2).clone(),'team'+T,teamRecolor(T));world.add(o);
   const x=b.x+Math.cos(a)*30,z=b.z+Math.sin(a)*30;o.position.set(x,groundAt(x,z)+18,z);
-  const dr={drone:true,team:T,x,z,y:groundAt(x,z)+18,vx:0,vz:0,hp:16,alive:true,obj:o,ang:a,orbit:rr(35,62),cd:rr(1,3),burst:0,target:null,think:0,hitT:0};G.drones.push(dr);return dr;
+  const dr={drone:true,netId:++G.netSeq,team:T,x,z,y:groundAt(x,z)+18,vx:0,vz:0,hp:16,alive:true,obj:o,ang:a,orbit:rr(35,62),cd:rr(1,3),burst:0,target:null,think:0,hitT:0};G.drones.push(dr);return dr;
 }
 function killDrone(dr,byTeam){if(!dr.alive)return;dr.alive=false;debris(dr.x,dr.y,dr.z,4,6);if(byTeam!==undefined)note(byTeam,'Drone down','good');
   if(dr.obj.userData.rotors){explosion(dr.x,dr.y,dr.z,.6);sfx('hit',dr.x,dr.z); /* knocked out of the sky: it tumbles down smoking and bursts on the ground */
@@ -4071,7 +4074,7 @@ function laugh(){if(!AU.ctx)return;const c=AU.ctx;for(let i=0;i<5;i++){const t=c
   const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=700;f.Q.value=3;const g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.32,t+.02);g.gain.exponentialRampToValueAtTime(.001,t+.14);
   o.connect(f);f.connect(g);g.connect(AU.sfx);o.start(t);o.stop(t+.16);}}
 function note(T,text,kind='info',big=false){
-  if(G&&G.net&&G.net.host)G.net.events.push({k:'note',T,text,kind,big});
+  if(netLive())NET.events.push({k:'note',T,text,kind,big});
   const view=G?.teams[T]?.view;if(!view||G.demo)return;const d=document.createElement('div');d.className='msg';d.textContent=text;
   d.style.color={good:'#9fe08f',bad:'#ff8a7a',warn:'#f2c55a',info:'#efe2b8'}[kind];if(!big)d.style.fontSize='clamp(13px,1.6vw,17px)';
   view.q.msgs.appendChild(d);while(view.q.msgs.children.length>4)view.q.msgs.firstChild.remove();setTimeout(()=>d.remove(),3700);
@@ -4166,14 +4169,14 @@ function layoutViews(){
 addEventListener('resize',layoutViews);
 
 // ============================================================ game flow
-let G=null,state='loading',paused=false;
+let G=null,state='loading',paused=false;let MATCH_SEQ=0;
 const opts={diff:1,shadows:true,mouse:true,touch:false};
 const TOUCH={ax:0,ay:0,active:false,fire:false,special:false,id:null,ox:0,oy:0};
 function newGame(mode,seed,demo=false){
   endGame();
   scene.fog.color.set(FOG);scene.background.set(FOG);hemi.intensity=1.15;sun.intensity=2.5; // (ash rain from a nuke in the last match darkened these)
   world=new THREE.Group();scene.add(world);FIRE.clear();SMOKE.clear();for(const p of DEB.p)p.life=0;for(const p of BLD.p)p.life=0;
-  G={mode,seed,demo,time:0,statics:[],hash:new Map(),vehicles:[],proj:[],mines:[],smokers:[],views:[],batches:{},soldiers:[],soldierT:[0,0],drones:[],droneT:[40,40],sub:{mesh:null,cool:0},over:false,netSeq:0,net:mode==='online'?NET:null,jets:[],bombs:[],air:null};
+  G={id:++MATCH_SEQ,mode,seed,demo,time:0,statics:[],hash:new Map(),vehicles:[],proj:[],mines:[],smokers:[],views:[],batches:{},soldiers:[],soldierT:[0,0],drones:[],droneT:[40,40],sub:{mesh:null,cool:0},over:false,netSeq:0,net:mode==='online'||SPEC.watching?NET:null,jets:[],bombs:[],air:null};
   const SK={buildings:6,turrets:['gun','cannon','gun','cannon'],outposts:['gun'],soldiers:7,soldierCap:9,drones:0,gates:true};
   G.op=mode==='campaign'?OPS[opIndex]:null;
   G.strikes=G.op&&!demo?strikesBanked():0;G.lost=0;G.bodies=[0,0];G.nukeBodies=0; // soldiers of each team killed this match (the HUD body count)G.strike=null;G.mslMap=false; // missile strikes banked / player vehicles lost this op (a flawless op banks a strike)
@@ -4197,7 +4200,7 @@ function newGame(mode,seed,demo=false){
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}
   try{placeCarrier();}catch(e){console.warn('carrier',e);}
-  if(!demo&&mode!=='online')try{paradeSetup(0);}catch(e){console.warn('parade',e);}
+  if(!demo&&mode!=='online'&&!SPEC.watching)try{paradeSetup(0);}catch(e){console.warn('parade',e);}
   for(const b of bases)for(let i=0;i<G.cfg[b.team].drones;i++)spawnDrone(b.team);
   const humans=demo?[]:mode==='2p'||mode==='online'?[0,1]:[0];
   const d=opts.diff;
@@ -4403,8 +4406,9 @@ function render(dt){
     view.cam.lookAt(view.focus.x,view.focus.y,view.focus.z);
     if(CHASE.on&&v&&!G.demo&&v.state!=='dead'&&v.type!=='foot')chaseCam(view,v,dt);else{view.cy=null;view.cpos=null;}
     if(G.strike&&G.strike.cine&&view===G.strike.view)strikeCam(view,paused?0:dt); // missile strike cinematic: truck, then riding the missile, then the blast
-    const fpOn=!!(v&&v.type==='foot'&&v.state==='active'&&!G.demo&&!(G.strike&&G.strike.cine&&view===G.strike.view)&&!G.debugCam);
+    const fpOn=!!(v&&v.type==='foot'&&v.state==='active'&&!G.demo&&!(G.strike&&G.strike.cine&&view===G.strike.view)&&!G.debugCam&&!SPEC.watching);
     if(fpOn)fpCamera(view,v,dt);else if(view.fpFov!=null){view.fpFov=null;if(view.cam.near!==1){view.cam.near=1;view.cam.updateProjectionMatrix();}layoutViews();}
+    if(SPEC.watching&&SPEC.cam){const c=SPEC.cam,k=1-Math.exp(-dt*(SPEC.camSnap?50:9));SPEC.camSnap=false;view.cam.position.lerp(_sc1.set(c.x,c.y,c.z),k);view.focus.lerp(_sc2.set(c.fx,c.fy,c.fz),k);view.cam.lookAt(view.focus);if(Math.abs(view.cam.fov-c.fov)>.5){view.cam.fov=c.fov;view.cam.updateProjectionMatrix();}}
     if(G.debugCam){const d=G.debugCam;view.cam.position.set(d.x,d.h,d.z+(d.back??d.h*.35));view.cam.lookAt(d.x,d.y||0,d.z);view.focus.set(d.x,0,d.z);}
     sun.position.copy(view.focus).addScaledVector(SUN_DIR,140);sun.target.position.copy(view.focus);sun.target.updateMatrixWorld();
     const r=view.rect;renderer.setViewport(r.x,0,r.w,h);renderer.setScissor(r.x,0,r.w,h);
@@ -4417,24 +4421,27 @@ function render(dt){
 // ---- (Matt, 2 Nov 2026) "playing now": while the game is open and on screen, a heartbeat every 30 s to /api/heartbeat (the poker site's
 // Admin screen lists whoever has pinged in the last minute: lobby name if they set one, what they're playing, how long, city, device)
 const HB={sid:null,t0:new Date().toISOString()};
+function hbSid(){try{if(!HB.sid){HB.sid=sessionStorage.getItem('ironflag.sid');if(!HB.sid){HB.sid='s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);sessionStorage.setItem('ironflag.sid',HB.sid);}}}catch(e){HB.sid=HB.sid||'s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);}return HB.sid;}
 function hbTick(){
-  if(document.visibilityState!=='visible')return;
-  try{if(!HB.sid){HB.sid=sessionStorage.getItem('ironflag.sid');if(!HB.sid){HB.sid='s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);sessionStorage.setItem('ironflag.sid',HB.sid);}}}catch(e){HB.sid=HB.sid||'s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);}
+  if(document.visibilityState!=='visible'||SPEC.watching)return;
+  hbSid();
   let name=null;try{name=localStorage.getItem('ironflag.name')||null;}catch(e){}
   let mode='In the menus',detail=null;
   if(G&&!G.demo&&(state==='play'||state==='over')){mode=G.op?`Operation ${opIndex+1} · ${G.op.name}`:G.net?'Online match':G.views&&G.views.length>1?'2-player skirmish':'Skirmish';detail=(state==='over'?'finished · ':'')+fmtTime(Math.floor(G.time))+' in'+(G.bodies?` · body count ${G.bodies[1]}`:'')+(devFor(0)||devFor(1)?' · dev mode':'');}
   else if(state==='online')mode='Online lobby';else if(state==='ops')mode='Choosing an operation';else if(state==='loading')mode='Loading';
-  try{fetch('/api/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:HB.sid,name,mode,detail,started:HB.t0,self:!!window.__noCount}),keepalive:true}).catch(()=>{});}catch(e){}
+  try{fetch('/api/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:HB.sid,name,mode,detail,started:HB.t0,self:!!window.__noCount}),keepalive:true}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.watch&&!SPEC.on)specStart();}).catch(()=>{});}catch(e){}
 }
 setInterval(hbTick,30000);setTimeout(hbTick,4000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')hbTick();});
 function loop(now){
   requestAnimationFrame(loop);let dt=Math.min(.05,(now-last)/1000);last=now;
   if(!G)return;
-  if(G.net&&!G.net.host){netGuestTick(dt);}
+  if(SPEC.watching){specWatchTick(dt);}
+  else if(G.net&&!G.net.host){netGuestTick(dt);}
   else{
     if(G.net&&G.net.host)Object.assign(G.teams[1-G.net.myTeam].input,NET.remoteInp);
     if(!paused&&state!=='over')step(dt);else if(state==='over')step(dt*.3);
     if(G.net&&G.net.host)netHostTick(dt);
+    if(SPEC.on)specTick(dt);
   }
   FIRE.update(paused?0:dt);SMOKE.update(paused?0:dt);updateDebris(paused?0:dt);updateBlood(paused?0:dt);updateCollapses(paused?0:dt);updateWrecks(paused?0:dt);updateBurns(paused?0:dt);updateCraters(paused?0:dt);updateFlagBeacons(dt);
   if(G.mslMap)mslMapTick(dt);
@@ -4560,7 +4567,7 @@ function netBeginHost(){
   startMatch('online',NET.seed);
 }
 function netBeginGuest(){
-  NET.matchCh.on('broadcast',{event:'snap'},({payload})=>{NET.lastSnap=payload;NET.lastRecv=performance.now();});
+  NET.matchCh.on('broadcast',{event:'snap'},({payload})=>{NET.lastSnap=payload;NET.relay=payload;NET.lastRecv=performance.now();});
   NET.lastSnap=null;NET.sendAcc=0;NET.lastRecv=performance.now();
   startMatch('online',NET.seed);
 }
@@ -4572,7 +4579,7 @@ function netEndMatch(){
 function netHostTick(dt){
   if(NET.lastRecv&&performance.now()-NET.lastRecv>12000){note(NET.myTeam,'Connection to the other player was lost.','bad',true);NET.lastRecv=performance.now()+1e9;}
   NET.sendAcc+=dt;if(NET.sendAcc<.08)return;NET.sendAcc=0;
-  if(NET.matchCh)NET.matchCh.send({type:'broadcast',event:'snap',payload:netBuildSnapshot()});
+  NET.built=netBuildSnapshot();if(NET.matchCh)NET.matchCh.send({type:'broadcast',event:'snap',payload:NET.built});
 }
 function netGuestTick(dt){
   const view=G.views[0];if(view){readHuman(view,NET.localInp);menuInput(view);}
@@ -4591,6 +4598,7 @@ function netCosmeticTick(dt){
     else{o.rotation.order='YXZ';o.rotation.x=lerp(o.rotation.x,-sd.fallDir*Math.PI/2,1-Math.exp(-dt*9));}
     if(sd.deadT>3.5)o.position.y-=dt*.6;if(sd.deadT>5.5){world.remove(o);G.soldiers.splice(i,1);}}
   for(const v of G.vehicles){
+    if(v.type==='foot'){if(v.parts&&v.parts.sd&&v.parts.sd.trooper){try{trooperAnim(v,v.parts.sd,dt,null);}catch(e){}}continue;}
     if(v.type==='heli'){
       if(v.state==='active'){v.parts.rotor.rotation.y+=dt*28;v.parts.tail.rotation.x+=dt*40;}
       else{v.parts.rotor.rotation.y+=dt*18;}
@@ -4605,7 +4613,7 @@ function netCosmeticTick(dt){
 function netBuildSnapshot(){
   const r1=n=>Math.round(n*100)/100,r2=n=>Math.round(n*1000)/1000;
   const vt=T=>{const t=G.teams[T],v=t.vehicle;
-    return {stock:t.stock,respawnT:r1(t.respawnT),v:v?{id:v.netId,type:v.type,x:r1(v.x),y:r1(v.y),z:r1(v.z),h:r2(v.heading),tur:r2(v.turret||0),hp:r1(v.hp),fuel:r1(v.fuel),ammo:v.ammo,ammo2:v.ammo2,carrying:!!v.carrying,state:v.state,sp:r1(v.speed||0),st:r2(v.steer||0),fl:!!v.floats}:null};};
+    return {stock:t.stock,respawnT:r1(t.respawnT),v:v?{id:v.netId,type:v.type,x:r1(v.x),y:r1(v.y),z:r1(v.z),h:r2(v.heading),tur:r2(v.turret||0),hp:r1(v.hp),fuel:r1(v.fuel),ammo:v.ammo,ammo2:v.ammo2,carrying:!!v.carrying,state:v.state,sp:r1(v.speed||0),st:r2(v.steer||0),fl:!!v.floats,pt:v.type==='foot'?r2(v.pitch||0):undefined,cr:v.crouch?1:undefined,sp2:v.sprint?1:undefined,air:v.air?1:undefined}:null};};
   const soldiers=G.soldiers.filter(s=>s.alive).map(s=>s.ride?{id:s.netId,team:s.team,x:r1(s.x),z:r1(s.z),h:r2(s.heading),r:s.seat,v:s.ride.netId,a:r2(s.aimOff||0),p:r2(s.aimPitch||0)}:{id:s.netId,team:s.team,x:r1(s.x),z:r1(s.z),h:r2(s.heading)});
   const turrets=G.statics.filter(s=>s.kind==='turret'&&s.alive).map(s=>({i:s.netIdx,yaw:r2(s.yaw||0)}));
   const dirty=[];NET.dirty.forEach(i=>{const s=G.statics[i];if(s)dirty.push({i,alive:s.alive,hp:r1(s.hp)});});NET.dirty.clear();
@@ -4616,14 +4624,15 @@ function netBuildSnapshot(){
   return {t:G.time,over:G.over,oi:G.overInfo||null,teams:[vt(0),vt(1)],soldiers,turrets,dirty,bridges,proj,flags,fx};
 }
 function netSpawnVisualVehicle(T,s){
-  const def=VDEF[s.type];const {g,parts}=buildVehicleObj(s.type,T);
+  const def=VDEF[s.type];const {g,parts}=s.type==='foot'?buildHeroObj(T):buildVehicleObj(s.type,T);
   const v={type:s.type,def,team:T,x:s.x,z:s.z,y:s.y,heading:s.h,speed:0,vx:0,vz:0,turret:s.tur||0,hp:s.hp,fuel:s.fuel,ammo:s.ammo,ammo2:s.ammo2,cd:0,cd2:0,
     state:s.state||'active',stateT:0,obj:g,parts,leftPad:false,padT:0,carrying:null,r:def.r,alt:0,smokeT:0,scuttle:0,strafe:0,steer:0,wheelRot:0,lowFuelWarned:false,dustT:0,netId:s.id,floats:!!s.fl};
   g.position.set(v.x,v.y,v.z);g.rotation.y=v.heading;world.add(g);world.add(parts.ring);
   G.teams[T].vehicle=v;G.vehicles.push(v);sfx('lift',v.x,v.z);return v;
 }
 function netUpdateVisualVehicle(v,s){
-  v.x=s.x;v.y=s.y;v.z=s.z;v.heading=s.h;v.turret=s.tur;v.hp=s.hp;v.fuel=s.fuel;v.ammo=s.ammo;v.ammo2=s.ammo2;v.state=s.state;v.speed=s.sp;v.steer=s.st;v.floats=s.fl;
+  if(v.type==='foot'){v.vx=(s.x-v.x)*10;v.vz=(s.z-v.z)*10;v.speed=Math.hypot(v.vx,v.vz);v.pitch=s.pt||0;v.crouch=!!s.cr;v.sprint=!!s.sp2;v.air=!!s.air;}
+  v.x=s.x;v.y=s.y;v.z=s.z;v.heading=s.h;v.turret=s.tur;v.hp=s.hp;v.fuel=s.fuel;v.ammo=s.ammo;v.ammo2=s.ammo2;v.state=s.state;v.speed=v.type==='foot'?v.speed:s.sp;v.steer=s.st;v.floats=s.fl;
   v.obj.position.set(s.x,s.y,s.z);v.obj.rotation.y=s.h;
   if(v.parts.turret)v.parts.turret.rotation.y=s.tur;
   v.parts.ring.position.set(s.x,.05,s.z);
@@ -4674,7 +4683,101 @@ function netApplySnapshot(snap){
   for(const i of snap.bridges||[]){const sp=G.bridgeSpans[i];if(sp&&sp.alive)collapseSpan(sp,undefined);}
   netSyncProjectiles(snap.proj);
   for(let T=0;T<2;T++)netApplyFlag(G.flags[T],snap.flags[T]);
-  if(snap.over&&!G.over&&snap.oi)gameOver(snap.oi.winner,snap.oi.how);
+  if(snap.over&&!G.over&&snap.oi){if(SPEC.watching){G.over=true;specStatus(`Match over — ${snap.oi.winner===0?'they won':'they lost'}. Still watching.`);}else gameOver(snap.oi.winner,snap.oi.how);}
+}
+
+// ============================================================ spectating (Matt, 3 Nov 2026)
+// Admin > "Playing now" > Watch. The Admin screen stamps watch_at on the player's game_presence row; the player's next
+// heartbeat reply says {watch:true} and the game opens a Realtime channel 'ironflag-spec-<sid>' and streams the same
+// snapshot the online host sends its guest (plus campaign extras: drones, jets, mines, the missile, hazmat, the cinematic
+// bar text and the player's camera) ~10x a second, for as long as a watcher is present on the channel. Nothing is streamed
+// when nobody is watching, and the player is never told. The watcher is this same page opened with ?spectate=<sid> on a
+// device with developer mode on: it builds the same world from the player's mode + seed and renders what it receives
+// (the online guest path), following the player's camera. It sends nothing back and never calls step().
+const SPEC={on:false,ch:null,acc:0,hello:0,full:false,watchers:0,idleT:0,watching:false,sid:null,wch:null,lastSnap:null,cam:null,camSnap:true,mid:0,dr:new Map(),jt:new Map(),mn:[],msl:null,started:false};
+const _sc1=new V3(),_sc2=new V3(),_sc3=new V3();
+function netLive(){return !!(G&&!G.demo&&((G.net&&G.net.host)||SPEC.on));}
+function specStart(){
+  if(SPEC.on||SPEC.watching)return;const sb=netSupa();if(!sb||!hbSid())return;
+  const ch=sb.channel('ironflag-spec-'+HB.sid,{config:{presence:{key:'p'+netMyId()}}});SPEC.ch=ch;SPEC.on=true;SPEC.watchers=0;SPEC.idleT=0;SPEC.full=true;SPEC.hello=99;
+  ch.on('presence',{event:'sync'},()=>{const st=ch.presenceState();let n=0;for(const k in st)for(const m of st[k])if(m.role==='spec')n++;if(n>SPEC.watchers){SPEC.full=true;SPEC.hello=99;}SPEC.watchers=n;if(n>0)SPEC.idleT=0;});
+  ch.subscribe(status=>{if(status==='SUBSCRIBED')try{ch.track({role:'player'});}catch(e){}});
+}
+function specStop(){if(SPEC.ch){try{SPEC.ch.unsubscribe();}catch(e){}SPEC.ch=null;}SPEC.on=false;SPEC.watchers=0;}
+function specHello(){
+  if(!G||G.demo||!(state==='play'||state==='over'))return {idle:true,mid:0,name:callSign()||null,where:state==='online'?'Online lobby':state==='ops'?'Choosing an operation':'In the menus'};
+  const me=G.net?G.net.myTeam:0;
+  return {mid:G.id||0,mode:G.mode,seed:G.seed,op:G.op?opIndex:null,diff:opts.diff,team:me,name:callSign()||null,touch:!!opts.touch};
+}
+function specExtras(){
+  const r1=n=>Math.round(n*100)/100,r2=n=>Math.round(n*1000)/1000,x={};
+  x.dr=G.drones.filter(d=>d.alive).map(d=>({id:d.netId,t:d.team,x:r1(d.x),y:r1(d.y),z:r1(d.z),a:r2(d.obj.rotation.y||0)}));
+  x.jt=G.jets.filter(j=>j.alive).map(j=>({id:j.netId,t:j.team,x:r1(j.x),y:r1(j.y),z:r1(j.z),h:r2(j.obj.rotation.y||0),p:r2(j.obj.rotation.x||0)}));
+  x.mn=G.mines.map(m=>({x:r1(m.x),z:r1(m.z),t:m.team}));
+  x.hz=G.hazmat==null?null:G.hazmat;
+  const view=G.views[0];if(view){const c=view.cam;c.getWorldDirection(_sc3);x.cam={x:r1(c.position.x),y:r1(c.position.y),z:r1(c.position.z),fx:r1(c.position.x+_sc3.x*12),fy:r1(c.position.y+_sc3.y*12),fz:r1(c.position.z+_sc3.z*12),fov:Math.round(c.fov)};}
+  const S=G.strike;x.cine=S&&S.cine&&MM.cineT||null;x.bars=!!(S&&S.cine);
+  if(S&&S.m&&!S.orb&&!S.nuke){const q=S.m.quaternion;x.msl={x:r1(S.m.position.x),y:r1(S.m.position.y),z:r1(S.m.position.z),q:[r2(q.x),r2(q.y),r2(q.z),r2(q.w)]};}else x.msl=null;
+  if(G.launcher&&G.launcher.er)x.er=r2(G.launcher.er.rotation.x);
+  x.bank=G.strikes;
+  return x;
+}
+function specTick(dt){ // player side
+  if(!SPEC.on)return;
+  if(SPEC.watchers===0){SPEC.idleT+=dt;if(SPEC.idleT>45){specStop();return;}}
+  SPEC.hello+=dt;if(SPEC.hello>=5){SPEC.hello=0;try{SPEC.ch.send({type:'broadcast',event:'hello',payload:specHello()});}catch(e){}}
+  if(SPEC.watchers===0||!G||G.demo||!(state==='play'||state==='over')){if(!(G&&G.net&&G.net.host))NET.events.length=0;return;}
+  SPEC.acc+=dt;if(SPEC.acc<.1)return;SPEC.acc=0;
+  let snap;
+  if(G.net&&!G.net.host){snap=NET.relay;if(!snap)return;} // an online guest forwards what the host sent it
+  else{if(SPEC.full){SPEC.full=false;G.statics.forEach((st,i)=>{if(st.netIdx!==undefined&&(!st.alive||st.hp<st.maxHp))NET.dirty.add(st.netIdx);});}
+    snap=(G.net&&G.net.host&&NET.built)?NET.built:netBuildSnapshot();NET.built=null;}
+  snap.x=specExtras();
+  try{SPEC.ch.send({type:'broadcast',event:'snap',payload:snap});}catch(e){}
+}
+// ---- watcher side
+function specStatus(t){const b=$('#specBar');if(!b)return;b.hidden=false;$('#specTxt').textContent=t;}
+function specWatch(sid){
+  SPEC.watching=true;SPEC.sid=sid;$('#title').hidden=true;specStatus('Connecting to the player…');
+  const sb=netSupa();if(!sb){specStatus('Spectating needs the realtime library (no internet?)');return;}
+  const ch=sb.channel('ironflag-spec-'+sid,{config:{presence:{key:'w'+netMyId()}}});SPEC.wch=ch;
+  ch.on('broadcast',{event:'hello'},({payload})=>specOnHello(payload));
+  ch.on('broadcast',{event:'snap'},({payload})=>{SPEC.lastSnap=payload;});
+  ch.subscribe(status=>{if(status==='SUBSCRIBED'){try{ch.track({role:'spec',name:callSign()||'Admin'});}catch(e){}specStatus('Waiting for the player (their game checks in every 30 s)…');}});
+}
+function specOnHello(h){
+  if(!h)return;const who=h.name?`${h.name}`:'the player';
+  if(h.idle){specStatus(`👁 ${who} — ${h.where||'in the menus'}`);return;}
+  if(SPEC.started&&SPEC.mid===h.mid)return;
+  try{mslBuildUI();}catch(e){}
+  SPEC.mid=h.mid;SPEC.started=true;SPEC.lastSnap=null;SPEC.dr.clear();SPEC.jt.clear();SPEC.mn=[];SPEC.msl=null;SPEC.cam=null;SPEC.camSnap=true;
+  if(h.op!=null)opIndex=h.op;opts.diff=h.diff??1;NET.host=false;NET.myTeam=h.team||0;NET.seed=h.seed;NET.lastRecv=performance.now()+1e9;
+  const label=h.op!=null?`Operation ${h.op+1}: ${OPS[h.op]?OPS[h.op].name:''}`:h.mode==='online'?'Online match':h.mode==='2p'?'2-player skirmish':'Skirmish';
+  specStatus(`👁 Watching ${who} — ${label}`);
+  try{startMatch(h.mode==='2p'?'1p':h.mode,h.seed);}catch(e){console.warn('spectate start',e);specStatus('Could not build their map: '+e.message);}
+}
+function specMine(m){let o;if(A.props&&A.props.Mine){o=A.props.Mine.clone();o.scale.setScalar(2.4);}else o=new THREE.Mesh(new THREE.CylinderGeometry(.75,.85,.3,10),new THREE.MeshStandardMaterial({color:0x2a2c22,roughness:.7}));
+  o.position.set(m.x,groundAt(m.x,m.z)+.12,m.z);world.add(o);return o;}
+function specApplyExtras(x){
+  if(!x)return;
+  const seenD=new Set();for(const d of x.dr){seenD.add(d.id);let dr=SPEC.dr.get(d.id);if(!dr){const o=makeDroneObj(d.t)||tintObj(proto(Math.random()<.5?'ufoA':'ufoB',3.2).clone(),'team'+d.t,teamRecolor(d.t));world.add(o);dr={obj:o};SPEC.dr.set(d.id,dr);}dr.obj.position.set(d.x,d.y,d.z);dr.obj.rotation.y=d.a;if(dr.obj.userData.rotors)for(const r of dr.obj.userData.rotors)r.rotation.y+=.9;}
+  for(const [id,dr] of SPEC.dr)if(!seenD.has(id)){world.remove(dr.obj);SPEC.dr.delete(id);}
+  const seenJ=new Set();for(const j of x.jt){seenJ.add(j.id);let jt=SPEC.jt.get(j.id);if(!jt){const o=makeJetObj(j.t);o.rotation.order='YXZ';world.add(o);jt={obj:o};SPEC.jt.set(j.id,jt);}jt.obj.position.set(j.x,j.y,j.z);jt.obj.rotation.y=j.h;jt.obj.rotation.x=j.p;}
+  for(const [id,jt] of SPEC.jt)if(!seenJ.has(id)){world.remove(jt.obj);SPEC.jt.delete(id);}
+  if(x.mn.length!==SPEC.mn.length){for(const o of SPEC.mn)world.remove(o);SPEC.mn=x.mn.map(specMine);}
+  if(x.hz!=null&&G.hazmat!==x.hz)try{hazmatOn(x.hz);}catch(e){}
+  if(x.cam)SPEC.cam=x.cam;
+  if(G.launcher&&G.launcher.er&&x.er!=null)G.launcher.er.rotation.x=x.er;
+  if(x.msl){if(!SPEC.msl&&G.launcher&&G.launcher.msl){const m=G.launcher.msl.clone();m.visible=true;world.add(m);SPEC.msl=m;G.launcher.msl.visible=false;}if(SPEC.msl){SPEC.msl.position.set(x.msl.x,x.msl.y,x.msl.z);SPEC.msl.quaternion.set(x.msl.q[0],x.msl.q[1],x.msl.q[2],x.msl.q[3]);}}
+  else if(SPEC.msl){world.remove(SPEC.msl);SPEC.msl=null;if(G.launcher&&G.launcher.msl)G.launcher.msl.visible=true;}
+  if(G.strikes!==x.bank&&x.bank!=null)G.strikes=x.bank;
+  if(MM.cine){if(x.bars){if(MM.cine.hidden){MM.cine.hidden=false;document.body.classList.add('cine');}if(MM.cineT!==x.cine){MM.cineT=x.cine;MM.cineTxt.textContent=x.cine||'';}}
+    else if(!MM.cine.hidden){MM.cine.hidden=true;document.body.classList.remove('cine');}}
+}
+function specWatchTick(dt){
+  if(!G||G.demo)return;
+  if(SPEC.lastSnap){const s=SPEC.lastSnap;SPEC.lastSnap=null;try{netApplySnapshot(s);specApplyExtras(s.x);}catch(e){console.warn('spectate apply',e);}}
+  netCosmeticTick(dt);
 }
 
 // ============================================================ UI wiring
@@ -4686,6 +4789,8 @@ $('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state=
 $('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();
+$('#specQuit').onclick=()=>{if(SPEC.wch){try{SPEC.wch.unsubscribe();}catch(e){}SPEC.wch=null;}SPEC.watching=false;SPEC.started=false;$('#specBar').hidden=true;try{history.replaceState(null,'',location.pathname);}catch(e){}endGame();toTitle();};
+{const sid=new URLSearchParams(location.search).get('spectate');if(sid&&/^[A-Za-z0-9_-]{4,40}$/.test(sid)){const go=()=>{if(state==='loading'){setTimeout(go,300);return;}if(!DEV.on){$('#specBar').hidden=false;$('#specTxt').textContent='Spectating needs developer mode on this device (title screen › dev)';$('#specQuit').textContent='OK';return;}endGame();specWatch(sid);};setTimeout(go,500);}}
 // Owner switch: 5 quick taps on the Spoon Lab logo toggles "don't count my visits on this device" (see head script).
 {const logo=document.querySelector('.brand .made img'),label=document.querySelector('.brand .made');let taps=[];
  const show=t=>{const old=label.lastChild.textContent;label.lastChild.textContent=t;label.style.color='var(--signal)';setTimeout(()=>{label.lastChild.textContent=old;label.style.color='';},2600);};
@@ -4773,7 +4878,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

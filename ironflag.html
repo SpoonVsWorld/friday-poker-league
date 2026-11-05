@@ -217,6 +217,17 @@ body.touchui .sel{gap:9px}body.touchui .sel h2{font-size:clamp(16px,2.6vw,24px)}
 #mslCine{position:fixed;inset:0;pointer-events:none;z-index:11}
 #specBar{position:fixed;left:50%;top:calc(8px + var(--sat));transform:translateX(-50%);z-index:19;display:flex;align-items:center;gap:12px;background:rgba(8,11,8,.88);border:1px solid var(--line);border-radius:4px;padding:7px 12px;font:600 13px var(--ui);color:var(--sand);letter-spacing:.04em;max-width:min(92vw,720px)}
 #specBar button{font:600 12px var(--ui);letter-spacing:.06em;text-transform:uppercase;border-radius:3px;border:1px solid var(--line);background:var(--panel);color:var(--sand);padding:6px 10px;cursor:pointer;white-space:nowrap}
+#vox{position:fixed;left:0;right:0;top:0;bottom:0;z-index:24;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+  background:radial-gradient(ellipse at 50% 45%,rgba(255,226,160,.14),rgba(0,0,0,.55) 62%);opacity:0;transition:opacity .45s ease}
+#vox.on{opacity:1}
+#vox[hidden]{display:none}
+#vox .vt{font:400 clamp(30px,8vw,86px) var(--display);letter-spacing:.2em;text-transform:uppercase;color:#f6e3b4;text-shadow:0 0 28px rgba(255,205,110,.75),0 0 90px rgba(255,170,40,.45),0 4px 0 rgba(0,0,0,.5);
+  transform:scale(.94);transition:transform .5s cubic-bezier(.2,1.4,.4,1);text-align:center;padding:0 var(--sal)}
+#vox.on .vt{transform:scale(1)}
+#vox .vb{width:min(46vw,380px);height:3px;background:rgba(246,227,180,.18);border-radius:2px;overflow:hidden}
+#vox .vb i{display:block;height:100%;width:30%;background:linear-gradient(90deg,transparent,#ffcf72,transparent);transform:translateX(-100%)}
+#specVox{border-color:#7a5a2a}#specVox.rec{background:#c0392b;border-color:#e5544a;color:#fff;animation:voxpulse 1s infinite}
+@keyframes voxpulse{0%,100%{opacity:1}50%{opacity:.6}}
 /* strike cinematic (truck / sub / nuke / orbital): nothing but the animation and the letterbox - HUD, minimap, touch controls, messages all hidden (Matt, 3 Nov 2026) */
 body.cine #huds,body.cine #touch,body.cine #topbtn{visibility:hidden}
 #mslCine .cbar{position:absolute;left:0;right:0;height:max(9vh,calc(var(--sat) + 10px));background:#000}#mslCine .b{height:max(9vh,calc(var(--sab) + 28px))}
@@ -330,7 +341,8 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <body>
 <div id="stage"></div>
 <div id="huds"><div class="divider" id="divider"></div></div>
-<div id="specBar" hidden><span id="specTxt">Connecting…</span><button id="specQuit" type="button">Stop watching</button></div>
+<div id="vox" hidden><div class="vt">Voice of God</div><div class="vb"><i></i></div></div>
+<div id="specBar" hidden><span id="specTxt">Connecting…</span><button id="specVox" type="button" hidden>🎤 Hold to speak</button><button id="specQuit" type="button">Stop watching</button></div>
 
 <div id="title" class="screen">
   <div class="rail">
@@ -4896,6 +4908,7 @@ function netLive(){return !!(G&&!G.demo&&((G.net&&G.net.host)||SPEC.on));}
 function specStart(){
   if(SPEC.on||SPEC.watching)return;const sb=netSupa();if(!sb||!hbSid())return;
   const ch=sb.channel('ironflag-spec-'+HB.sid,{config:{presence:{key:'p'+netMyId()}}});SPEC.ch=ch;SPEC.on=true;SPEC.watchers=0;SPEC.idleT=0;SPEC.full=true;SPEC.hello=99;
+  ch.on('broadcast',{event:'vox'},({payload})=>voxRecv(payload)); // the voice of god, from whoever is watching
   ch.on('presence',{event:'sync'},()=>{const st=ch.presenceState();let n=0;for(const k in st)for(const m of st[k])if(m.role==='spec')n++;if(n>SPEC.watchers){SPEC.full=true;SPEC.hello=99;}SPEC.watchers=n;if(n>0)SPEC.idleT=0;});
   ch.subscribe(status=>{if(status==='SUBSCRIBED')try{ch.track({role:'player'});}catch(e){}});
 }
@@ -4931,6 +4944,87 @@ function specTick(dt){ // player side
   snap.x=specExtras();
   try{SPEC.ch.send({type:'broadcast',event:'snap',payload:snap});}catch(e){}
 }
+
+// ---- "voice of god" (Matt, 5 Nov 2026). While spectating, hold the mic button and talk: the clip goes down the
+// same Realtime channel as the snapshots and plays out of the player's speakers - huge, reverberant and with no
+// explanation on their screen. Push-to-talk, ~20 s a clip, sent as base64 chunks because a broadcast payload is
+// capped around 250 KB.
+const VOX={rec:null,chunks:[],on:false,t0:0,stream:null,inbox:new Map(),playing:false,hold:false};
+const VOX_CH=60000; // characters of base64 per broadcast message
+function voxSupported(){return !!(navigator.mediaDevices&&window.MediaRecorder);}
+async function voxStart(){
+  if(VOX.on||!SPEC.wch)return;
+  try{
+    if(!VOX.stream)VOX.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    const mt=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'].find(t=>MediaRecorder.isTypeSupported(t))||'';
+    VOX.chunks=[];VOX.rec=new MediaRecorder(VOX.stream,mt?{mimeType:mt,audioBitsPerSecond:32000}:undefined);
+    VOX.rec.ondataavailable=e=>{if(e.data&&e.data.size)VOX.chunks.push(e.data);};
+    VOX.rec.onstop=()=>voxSend(new Blob(VOX.chunks,{type:VOX.rec.mimeType||'audio/webm'}));
+    VOX.rec.start();VOX.on=true;VOX.t0=performance.now();
+    const b=$('#specVox');if(b){b.classList.add('rec');b.textContent='● Release to send';}
+    VOX.cap=setTimeout(()=>voxStop(),20000);
+  }catch(e){specStatus('Microphone blocked — allow it for this site to use the voice of god');console.warn('vox',e);}
+}
+function voxStop(){
+  if(!VOX.on)return;VOX.on=false;clearTimeout(VOX.cap);
+  const b=$('#specVox');if(b){b.classList.remove('rec');b.textContent='🎤 Hold to speak';}
+  try{VOX.rec.stop();}catch(e){}
+}
+async function voxSend(blob){
+  if(!SPEC.wch||!blob.size)return;
+  if(performance.now()-VOX.t0<350)return; // a stray tap, not a message
+  const buf=new Uint8Array(await blob.arrayBuffer());
+  let bin='';for(let i=0;i<buf.length;i+=8192)bin+=String.fromCharCode.apply(null,buf.subarray(i,i+8192));
+  const b64=btoa(bin),id='v'+Date.now().toString(36),n=Math.ceil(b64.length/VOX_CH);
+  if(n>6){specStatus('That clip is too long to send — keep it under about 20 seconds');return;}
+  for(let i=0;i<n;i++)try{SPEC.wch.send({type:'broadcast',event:'vox',payload:{id,i,n,mime:blob.type,d:b64.slice(i*VOX_CH,(i+1)*VOX_CH)}});}catch(e){console.warn('vox send',e);}
+  specStatus(`Transmission sent (${(buf.length/1024).toFixed(0)} KB) — it plays on their speakers`);
+}
+// ---- player side
+function voxRecv(p){
+  if(!p||!p.id)return;let e=VOX.inbox.get(p.id);
+  if(!e){e=
+{parts:new Array(p.n).fill(null),n:p.n,mime:p.mime,t:performance.now()};VOX.inbox.set(p.id,e);
+    for(const [k,v] of VOX.inbox)if(performance.now()-v.t>60000)VOX.inbox.delete(k);}
+  e.parts[p.i]=p.d;
+  if(e.parts.every(x=>x!=null)){VOX.inbox.delete(p.id);voxPlay(e.parts.join(''),e.mime);}
+}
+async function voxPlay(b64,mime){
+  if(!AU.ctx)return;
+  try{
+    const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+    const buf=await AU.ctx.decodeAudioData(u.buffer);
+    const c=AU.ctx,src=c.createBufferSource();src.buffer=buf;src.playbackRate.value=.88; // dropped a little: bigger, slower, older
+    // a cathedral's worth of reverb, built from noise so it needs no extra file
+    const len=Math.floor(c.sampleRate*2.6),ir=c.createBuffer(2,len,c.sampleRate);
+    for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++){const t=i/len;d[i]=(Math.random()*2-1)*Math.pow(1-t,2.4)*(i<c.sampleRate*.03?i/(c.sampleRate*.03):1);}}
+    const cv=c.createConvolver();cv.buffer=ir;
+    const lo=c.createBiquadFilter();lo.type='lowshelf';lo.frequency.value=220;lo.gain.value=7;
+    const pk=c.createBiquadFilter();pk.type='peaking';pk.frequency.value=1800;pk.Q.value=.8;pk.gain.value=-4;
+    const hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=70;
+    const dry=c.createGain();dry.gain.value=.75;const wet=c.createGain();wet.gain.value=.55;
+    const out=c.createGain();out.gain.value=0;
+    src.connect(hp);hp.connect(lo);lo.connect(pk);pk.connect(dry);pk.connect(cv);cv.connect(wet);
+    dry.connect(out);wet.connect(out);out.connect(AU.master);
+    const now=c.currentTime,dur=buf.duration/.88;
+    out.gain.setValueAtTime(0,now);out.gain.linearRampToValueAtTime(1.35,now+.12);
+    out.gain.setValueAtTime(1.35,now+dur);out.gain.linearRampToValueAtTime(0,now+dur+.5);
+    // everything else gets out of the way while it speaks
+    const duck=(g,v)=>{if(!g)return;g.gain.cancelScheduledValues(now);g.gain.setValueAtTime(g.gain.value,now);g.gain.linearRampToValueAtTime(v,now+.18);
+      g.gain.setValueAtTime(v,now+dur);g.gain.linearRampToValueAtTime(g===AU.mus?(AU.music?MUSIC_GAIN:0):.6,now+dur+.7);};
+    duck(AU.mus,AU.music?MUSIC_GAIN*.12:0);duck(AU.sfx,.16);
+    // the title, with its bar riding the level of the voice
+    const an=c.createAnalyser();an.fftSize=256;an.smoothingTimeConstant=.72;pk.connect(an);
+    const el=$('#vox'),bar=el&&el.querySelector('.vb i'),dat=new Uint8Array(an.frequencyBinCount);
+    if(el){el.hidden=false;setTimeout(()=>el.classList.add('on'),16); // timers, not rAF: the voice still lands if the player has the tab in the background
+      if(bar)bar.style.transform='translateX(0)';
+      const iv=setInterval(()=>{an.getByteFrequencyData(dat);let sum=0;for(let i=2;i<40;i++)sum+=dat[i];const lv=Math.min(1,sum/(38*150));
+        if(bar){bar.style.width=(12+lv*88)+'%';bar.style.opacity=.35+lv*.65;}},50);
+      setTimeout(()=>{clearInterval(iv);el.classList.remove('on');setTimeout(()=>{el.hidden=true;},600);},(dur+.45)*1000);}
+    sample('s_power',.5,.7);
+    src.start();
+  }catch(e){console.warn('vox play',e);}
+}
 // ---- watcher side
 function specStatus(t){const b=$('#specBar');if(!b)return;b.hidden=false;$('#specTxt').textContent=t;}
 function specWatch(sid){
@@ -4939,7 +5033,12 @@ function specWatch(sid){
   const ch=sb.channel('ironflag-spec-'+sid,{config:{presence:{key:'w'+netMyId()}}});SPEC.wch=ch;
   ch.on('broadcast',{event:'hello'},({payload})=>specOnHello(payload));
   ch.on('broadcast',{event:'snap'},({payload})=>{SPEC.lastSnap=payload;});
-  ch.subscribe(status=>{if(status==='SUBSCRIBED'){try{ch.track({role:'spec',name:callSign()||'Admin'});}catch(e){}specStatus('Waiting for the player (their game checks in every 30 s)…');}});
+  ch.subscribe(status=>{if(status==='SUBSCRIBED'){try{ch.track({role:'spec',name:callSign()||'Admin'});}catch(e){}specStatus('Waiting for the player (their game checks in every 30 s)…');
+    const vb=$('#specVox');if(vb&&voxSupported()){vb.hidden=false;
+      const dn=e=>{e.preventDefault();voxStart();},up=e=>{e.preventDefault();voxStop();};
+      vb.addEventListener('pointerdown',dn);vb.addEventListener('pointerup',up);vb.addEventListener('pointercancel',up);vb.addEventListener('pointerleave',up);
+      addEventListener('keydown',e=>{if(e.code==='KeyV'&&!e.repeat&&SPEC.watching)voxStart();});
+      addEventListener('keyup',e=>{if(e.code==='KeyV'&&SPEC.watching)voxStop();});}}});
 }
 function specOnHello(h){
   if(!h)return;const who=h.name?`${h.name}`:'the player';
@@ -4985,7 +5084,7 @@ $('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state=
 $('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();
-$('#specQuit').onclick=()=>{if(SPEC.wch){try{SPEC.wch.unsubscribe();}catch(e){}SPEC.wch=null;}SPEC.watching=false;SPEC.started=false;$('#specBar').hidden=true;try{history.replaceState(null,'',location.pathname);}catch(e){}endGame();toTitle();};
+$('#specQuit').onclick=()=>{voxStop();if(VOX.stream){VOX.stream.getTracks().forEach(t=>t.stop());VOX.stream=null;}if(SPEC.wch){try{SPEC.wch.unsubscribe();}catch(e){}SPEC.wch=null;}SPEC.watching=false;SPEC.started=false;$('#specBar').hidden=true;try{history.replaceState(null,'',location.pathname);}catch(e){}endGame();toTitle();};
 {const sid=new URLSearchParams(location.search).get('spectate');if(sid&&/^[A-Za-z0-9_-]{4,40}$/.test(sid)){const go=()=>{if(state==='loading'){setTimeout(go,300);return;}if(!DEV.on){$('#specBar').hidden=false;$('#specTxt').textContent='Spectating needs developer mode on this device (title screen › dev)';$('#specQuit').textContent='OK';return;}endGame();specWatch(sid);};setTimeout(go,500);}}
 // Owner switch: 5 quick taps on the Spoon Lab logo toggles "don't count my visits on this device" (see head script).
 {const logo=document.querySelector('.brand .made img'),label=document.querySelector('.brand .made');let taps=[];
@@ -5074,7 +5173,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

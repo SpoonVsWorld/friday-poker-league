@@ -470,6 +470,7 @@ PRE.launcher=fetchBin('launcher.glb').catch(e=>{console.warn('launcher',e);retur
 PRE.turrets=fetchBin('turrets.glb').catch(e=>{console.warn('turrets',e);return null;}); // tripod turret set (Matt's Turret.rar + Blender heads): Base, Ring, PodMissile/PodGun/PodCannon
 PRE.sub=fetchBin('sub.glb').catch(e=>{console.warn('sub',e);return null;}); // NUCLEAR STRIKE: the player's ballistic-missile submarine (Blender, scratch-built 28 Oct 2026: Hull/Sail/Hatch pivot/Mount)
 PRE.carrier=fetchBin('carrier.glb').catch(e=>{console.warn('carrier',e);return null;}); // (Matt, 29 Oct 2026) his aircraft carrier (cn 004 assault, a Wings 3D file decoded + decimated in Blender): sits off your end of the island, your air strikes launch from it
+PRE.cargo=fetchBin('cargo.glb').catch(e=>{console.warn('cargo',e);return null;}); // (Matt, 4 Nov 2026) four-engine transport that flies the supply drops in (Blender, cargo/plane.py)
 PRE.station=fetchBin('station.glb').catch(e=>{console.warn('station',e);return null;}); // (Matt, 29 Oct 2026) orbital laser platform SPOON, scratch-built in Blender (truss, hab modules, folding solar wings + radiators, gimballed emitter)
 PRE.orbtex=Promise.all([['earth','earth',1],['clouds','clouds',1],['rough','earth_r',0]].map(([k,f,srgb])=>new THREE.TextureLoader().loadAsync(DATA+f+'.webp?v='+DATA_V).then(t=>{t.colorSpace=srgb?THREE.SRGBColorSpace:THREE.NoColorSpace;t.anisotropy=8;ORBT[k]=t;}).catch(e=>console.warn('orbtex',k,e))));
 PRE.hazmat=Promise.all([fetchBin('hazmat_trooper.glb'),fetchBin('hazmat_troop.glb')]).catch(e=>{console.warn('hazmat',e);return null;}); // (Matt, 2 Nov 2026) his hazmat/medic figure, skinned in Blender to both rigs: after a nuke his men wear it
@@ -523,6 +524,8 @@ async function loadAssets(){
     A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
   try{const cb=await PRE.carrier;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(cb,'',res,rej));const cr=cg.scene.getObjectByName('Carrier')||cg.scene;cr.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.4;o.material.flatShading=false;o.material.fog=false;o.material.color.lerp(new THREE.Color(FOG),.22);}}});A.carrier=cr;}}catch(e){console.warn('carrier model',e);}
   try{const mb=await PRE.m4;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const m4=mg.scene.getObjectByName('M4')||mg.scene;m4.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;if(o.material){o.material.envMapIntensity=.7;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}}});A.m4=m4;RIFLE.tpl=null;RIFLE.grip.copy(RIFLE.m4.grip);RIFLE.fore.copy(RIFLE.m4.fore);}}catch(e){console.warn('m4 model',e);}
+  try{const cb2=await PRE.cargo;if(cb2){const cg2=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(cb2,'',res,rej));
+    cg2.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.material.envMap=skyEnv();o.material.envMapIntensity=.35;}});A.cargo=cg2.scene;}}catch(e){console.warn('cargo model',e);}
   try{const sb=await PRE.station;if(sb){const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));const st=sg.scene.getObjectByName('Station')||sg.scene;st.traverse(o=>{if(o.isMesh&&o.material){o.material.metalness=Math.min(o.material.metalness,.35);o.material.envMapIntensity=.5;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}});A.station=st;}await PRE.orbtex;}catch(e){console.warn('station model',e);}
   try{const hb=await PRE.hazmat;if(hb&&hb[0]&&hb[1]){A.hazmat={};for(const [k,buf] of [['trooper',hb[0]],['troop',hb[1]]]){const g=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(buf,'',res,rej));A.hazmat[k]=g.scene;}}}catch(e){console.warn('hazmat model',e);}
   try{const pb=await PRE.props;if(pb){const pg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(pb,'',res,rej));A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
@@ -3207,8 +3210,8 @@ function dropFlag(f,x,z){f.carrier=null;f.state='exposed';world.attach(f.obj);f.
   note(f.team,'Your flag was dropped in the field','warn');note(1-f.team,f.item?`The ${f.item.n.toLowerCase()} was dropped! Recover it.`:'The flag was dropped! Recover it.','warn');}
 // exposed / dropped flag beacon: tall team-coloured light pillar, pulsing ground ring and a bobbing marker,
 // so the flag is easy to spot through dust and rubble when you go in with the jeep (cosmetic, every client)
-function makeBeacon(T){
-  const col=new THREE.Color(T===0?0x4d8ae6:0xe5544a),g=new THREE.Group();
+function makeBeacon(T,hex){
+  const col=new THREE.Color(hex!=null?hex:T===0?0x4d8ae6:0xe5544a),g=new THREE.Group();
   const pm=new THREE.ShaderMaterial({uniforms:{c:{value:col},a:{value:.6}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
     vertexShader:'varying float vy;void main(){vy=uv.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader:'uniform vec3 c;uniform float a;varying float vy;void main(){gl_FragColor=vec4(c*a*pow(1.-vy,1.6)*1.4+vec3(.25)*a*pow(1.-vy,6.),1.);}'});
@@ -3580,6 +3583,110 @@ function callStrike(){
   if(tx===undefined){const a=v.heading+(v.type==='tank'?v.turret:0);tx=v.x+Math.sin(a)*45;tz=v.z+Math.cos(a)*45;}
   tx=clamp(tx,X0+20,-X0-20);tz=clamp(tz,Z0+20,-Z0-20);
   if(foot)G.footAir--;else air.left[0]--;launchStrike(0,tx,tz);}
+
+// ============================================================ supply drops (Matt, 4 Nov 2026)
+// Partway through an operation a transport crosses the island and parachutes a pod of ordnance. Reach it with
+// any vehicle, or on foot, and it banks a missile strike (3 of those make a nuke, 6 an orbital strike). It lands
+// out in the open between the bases, so going for it means leaving the objective - and the enemy is still shooting.
+const DROP={first:[50,85],gap:[105,170],alt:48,speed:44,fall:8.5,pickR:7,scale:.7,chuteR:3.6};
+const GREEN=0x5fd36a;
+function dropsOn(){return !!(G&&G.op&&!G.demo&&!G.net);}
+function dropPoint(){ // open ground between the bases: not in the sea, not on a bridge, not inside anything
+  for(let i=0;i<400;i++){const x=rr(X0+70,-X0-70),z=rr(Z0+90,-Z0-90);
+    if(H(x,z)<2.4||onBridge(x,z))continue;
+    let ok=true;for(const b of G.bases)if(Math.hypot(x-b.x,z-b.z)<62)ok=false;
+    if(!ok)continue;
+    staticsNear(x,z,_near);let blocked=false;
+    for(const st of _near){if(!st.alive)continue;for(const pt of st.pts)if(Math.hypot(pt[0]-x,pt[1]-z)<pt[2]+4.5){blocked=true;break;}if(blocked)break;}
+    if(!blocked)return {x,z};}
+  return null;}
+function makeCargoObj(){
+  const g=new THREE.Group();g.userData.props=[];
+  if(A.cargo){const c=A.cargo.clone(true);c.scale.setScalar(DROP.scale);g.add(c);
+    c.traverse(o=>{if(/^Prop/.test(o.name))g.userData.props.push(o);});}
+  else{const m=new THREE.MeshStandardMaterial({color:0x4e5248,roughness:.7});
+    const b=new THREE.Mesh(new THREE.BoxGeometry(3,3,20),m);g.add(b);const w=new THREE.Mesh(new THREE.BoxGeometry(28,.6,4),m);w.position.y=1.6;g.add(w);}
+  return g;}
+function makePod(){
+  const g=new THREE.Group();
+  let crate;
+  try{crate=proto('crate',2.9).clone(true);}catch(e){crate=null;}
+  if(!crate)crate=new THREE.Mesh(new THREE.BoxGeometry(2.6,2.2,2.6),new THREE.MeshStandardMaterial({color:0x5c6b3f,roughness:.85}));
+  crate.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(crate);
+  // a green stripe round the pod so it reads as yours at a glance
+  const band=new THREE.Mesh(new THREE.BoxGeometry(2.95,.45,2.95),new THREE.MeshStandardMaterial({color:GREEN,roughness:.6,emissive:0x12401a}));
+  band.position.y=1.15;g.add(band);
+  const chute=new THREE.Group();
+  const canopy=new THREE.Mesh(new THREE.SphereGeometry(DROP.chuteR,16,8,0,TAU,0,Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0xd8d2bc,roughness:.95,side:THREE.DoubleSide}));
+  canopy.position.y=6.4;chute.add(canopy);
+  const panel=new THREE.Mesh(new THREE.SphereGeometry(DROP.chuteR*1.004,16,8,0,TAU/3,0,Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0x6e7f4a,roughness:.95,side:THREE.DoubleSide}));
+  panel.position.y=6.4;chute.add(panel);
+  const cm=new THREE.MeshBasicMaterial({color:0x2a2a26});
+  for(let i=0;i<6;i++){const a=i/6*TAU,c=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,6.6,4),cm);
+    c.position.set(Math.cos(a)*DROP.chuteR*.42,3.2,Math.sin(a)*DROP.chuteR*.42);c.rotation.z=-Math.cos(a)*.26;c.rotation.x=Math.sin(a)*.26;chute.add(c);}
+  g.add(chute);g.userData.chute=chute;g.userData.canopy=canopy;
+  return g;}
+function dropStart(){
+  const p=dropPoint();if(!p)return false;
+  const a=rr(0,TAU),dx=Math.sin(a),dz=Math.cos(a);
+  const y=Math.max(groundAt(p.x,p.z),0)+DROP.alt;
+  const obj=makeCargoObj();obj.rotation.order='YXZ';obj.rotation.y=Math.atan2(dx,dz);
+  const D={x:p.x-dx*300,z:p.z-dz*300,y,tx:p.x,tz:p.z,dx,dz,s:-300,obj,dropped:false,pod:null};
+  obj.position.set(D.x,y,D.z);world.add(obj);
+  G.drop.run=D;
+  sample('s_radio',.85,1,.2);sfx('jet',p.x,p.z);
+  note(0,'Supply drop inbound — watch for the green smoke','good',true);
+  return true;}
+function dropRelease(D){
+  D.dropped=true;
+  const pod=makePod();pod.position.set(D.x,D.y-3,D.z);world.add(pod);
+  D.pod={obj:pod,x:D.x,y:D.y-3,z:D.z,vy:-2,vx:D.dx*9,vz:D.dz*9,landed:false,t:0,beacon:null,sacc:0};
+  G.drop.pod=D.pod;
+  for(let i=0;i<10;i++)SMOKE.spawn(D.x+rr(-2,2),D.y-2,D.z+rr(-2,2),rr(-1,1),rr(-1,0),rr(-1,1),rr(1,2),.6,2.4,[.85,.85,.82],[.7,.7,.68],.4,-.4,.6);}
+function podLand(P){
+  P.landed=true;P.y=Math.max(groundAt(P.x,P.z),0);P.obj.position.set(P.x,P.y,P.z);
+  const ch=P.obj.userData.chute;ch.position.set(rr(-2.4,2.4),0,rr(-2.4,2.4));ch.rotation.z=rr(.9,1.4)*(RND()<.5?1:-1);ch.scale.set(1,.35,1);
+  sfx('lift',P.x,P.z);puff(P.x,P.y+.4,P.z,[.72,.68,.6],3,1.4,.5);
+  P.beacon=makeBeacon(0,GREEN);P.beacon.g.visible=true;P.beacon.g.position.set(P.x,P.y,P.z);
+  note(0,'Supply pod down — grab it to bank a missile strike','good');}
+function podTaken(P){
+  setStrikes(strikesBanked()+1);const n=mslCount();
+  if(P.beacon){world.remove(P.beacon.g);P.beacon=null;}
+  world.remove(P.obj);G.drop.pod=null;
+  sfx('pick');sample('s_case',.8,1);
+  for(let i=0;i<26;i++){const a=rr(0,TAU);FIRE.spawn(P.x+Math.cos(a)*rr(0,1.4),P.y+1,P.z+Math.sin(a)*rr(0,1.4),Math.cos(a)*rr(2,7),rr(4,10),Math.sin(a)*rr(2,7),rr(.5,1),.3,.9,[.65,1,.7],[.1,.5,.2],1,-4,1);}
+  note(0,`Supply recovered — ${n} missile strike${n===1?'':'s'} banked`,'good',true);}
+function updateDrops(dt){
+  if(!dropsOn())return;const S=G.drop;if(!S)return;
+  const D=S.run;
+  if(!D){if(S.left>0){S.t-=dt;if(S.t<=0){S.t=rr(DROP.gap[0],DROP.gap[1]);if(dropStart())S.left--;}}}
+  else{
+    D.s+=DROP.speed*dt;D.x=D.tx+D.dx*D.s;D.z=D.tz+D.dz*D.s;D.obj.position.set(D.x,D.y,D.z);
+    D.obj.rotation.z=Math.sin(G.time*.7)*.03;
+    for(const p of D.obj.userData.props)p.rotation.y+=dt*34;
+    if(!D.dropped&&D.s>=-6)dropRelease(D);
+    if(D.s>320){world.remove(D.obj);S.run=null;}}
+  const P=S.pod;if(!P)return;
+  P.t+=dt;
+  if(!P.landed){
+    P.vy=Math.max(-DROP.fall,P.vy-16*dt);P.vx*=1-dt*1.1;P.vz*=1-dt*1.1;
+    P.x+=P.vx*dt;P.z+=P.vz*dt;P.y+=P.vy*dt;
+    const sw=Math.sin(P.t*1.7)*.09;P.obj.rotation.z=sw;P.obj.rotation.x=Math.cos(P.t*1.4)*.07;
+    P.obj.position.set(P.x,P.y,P.z);
+    if(P.y<=Math.max(groundAt(P.x,P.z),0)+.05)podLand(P);
+    return;}
+  // down and waiting: green smoke, a beacon, and anyone of yours who touches it takes it
+  P.sacc+=dt*7;while(P.sacc>=1){P.sacc--;
+    SMOKE.spawn(P.x+rr(-.5,.5),P.y+1.4,P.z+rr(-.5,.5),rr(-.3,.9),rr(2.4,4.4),rr(-.3,.6),rr(2.6,4.4),.8,4.2,[.32,.85,.4],[.5,.75,.52],.6,-.5,.35);}
+  const b=P.beacon;if(b){b.t+=dt;const pulse=.75+.25*Math.sin(b.t*4);b.pm.uniforms.a.value=.42*pulse;b.core.material.uniforms.a.value=.55*pulse;
+    b.rings.forEach((r,i)=>{const k=(b.t*.7+i*.5)%1;r.scale.setScalar(1.5+k*7);r.material.opacity=.8*(1-k);});
+    b.arrow.position.y=10+Math.sin(b.t*3)*1.1;b.arrow.rotation.y+=dt*2.5;}
+  if(G.over)return;
+  for(const v of G.vehicles){if(v.team!==0||v.state!=='active'||v.def.air&&v.alt>6)continue;
+    if(Math.hypot(v.x-P.x,v.z-P.z)<DROP.pickR+(v.r||2)){podTaken(P);return;}}
+}
 function updateAir(dt){
   const air=G.air;
   if(air&&air.left[1]>0&&!G.over){const pv=G.teams[0].vehicle,pb=G.bases[0];
@@ -4187,6 +4294,11 @@ function drawMini(view){
   for(const j of G.jets){if(!j.alive)continue;const col=j.team===T?'#7fb0ff':'#ff5a4a';x.strokeStyle=col;x.lineWidth=1;
     for(const p of j.pts){if(p.dropped)continue;const [rx,ry]=P(p.x,p.z);x.beginPath();x.arc(rx,ry,1.8,0,TAU);x.stroke();}
     const [px,py]=P(j.x,j.z),hx=j.dx*112/W,hz=j.dz*188/L,hl=Math.hypot(hx,hz)||1,ux=hx/hl,uz=hz/hl;x.fillStyle=col;x.beginPath();x.moveTo(px+ux*5,py+uz*5);x.lineTo(px-ux*3-uz*3,py-uz*3+ux*3);x.lineTo(px-ux*3+uz*3,py-uz*3-ux*3);x.closePath();x.fill();}
+  if(G.drop){const D=G.drop.run,Pd=G.drop.pod; // supply drop: the transport's track, then the pod on the ground
+    if(D){const [px,py]=P(D.x,D.z),hx=D.dx*112/W,hz=D.dz*188/L,hl=Math.hypot(hx,hz)||1,ux=hx/hl,uz=hz/hl;
+      x.fillStyle='#bfe8c0';x.beginPath();x.moveTo(px+ux*5.5,py+uz*5.5);x.lineTo(px-ux*3.5-uz*3.5,py-uz*3.5+ux*3.5);x.lineTo(px-ux*3.5+uz*3.5,py-uz*3.5-ux*3.5);x.closePath();x.fill();}
+    if(Pd){const [px,py]=P(Pd.x,Pd.z),k=(G.time*1.4)%1;x.strokeStyle='rgba(95,211,106,'+(1-k)+')';x.lineWidth=1.4;x.beginPath();x.arc(px,py,2+k*5,0,TAU);x.stroke();
+      x.fillStyle='#5fd36a';x.fillRect(px-2,py-2,4,4);x.strokeStyle='#0d1a0f';x.lineWidth=.8;x.strokeRect(px-2,py-2,4,4);}}
   if(G.strike){const Sk=G.strike,[rx,ry]=P(Sk.tx,Sk.tz);x.strokeStyle='#f2b632';x.lineWidth=1.2;x.beginPath();x.arc(rx,ry,2.5+((G.time*2)%1)*4,0,TAU);x.stroke();
     if(Sk.m&&Sk.phase==='fly'){const [mx,my]=P(Sk.m.position.x,Sk.m.position.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2,0,TAU);x.fill();}if(Sk.beam){const [mx,my]=P(Sk.beam.ip.x,Sk.beam.ip.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2.5,0,TAU);x.fill();}}
   for(const sd of G.soldiers){if(!sd.alive)continue;const [px,py]=P(sd.x,sd.z);x.fillStyle=sd.team===T?'rgba(170,200,255,.8)':'rgba(255,170,160,.8)';x.fillRect(px-.5,py-.5,1,1);}
@@ -4266,6 +4378,7 @@ function newGame(mode,seed,demo=false){
   G.op=mode==='campaign'?OPS[opIndex]:null;
   G.strikes=G.op&&!demo?strikesBanked():0;G.lost=0;G.bodies=[0,0];G.nukeBodies=0; // soldiers of each team killed this match (the HUD body count)G.strike=null;G.mslMap=false; // missile strikes banked / player vehicles lost this op (a flawless op banks a strike)
   if(G.op&&G.op.cfg.airStrikes&&!demo){const n=G.op.cfg.airStrikes;G.air={total:n,left:[n,n],enemyT:45+Math.random()*45};}
+  if(G.op&&!demo&&mode!=='online')G.drop={t:rr(DROP.first[0],DROP.first[1]),left:2,run:null,pod:null}; // supply drops: two per operation
   // Online matches are two separately-controlled browsers; opts.diff is a
   // purely local per-client setting, so if each side were on a different
   // difficulty this would desync the (shared, mutated-in-place) VDEF.jeep.hp
@@ -4453,7 +4566,7 @@ function step(dt){
       aiThink(t.team,dt);aiDrive(t.team,dt,t.input);}
   }
   for(const v of [...G.vehicles]){const t=G.teams[v.team];updateVehicle(v,t.vehicle===v?t.input:{thr:0,turn:0},dt);}
-  updateTurrets(dt);updateGates(dt);updateSoldiers(dt);updateDrones(dt);devTick();updateAir(dt);updateStrike(dt);updateSub(dt);updateProjectiles(dt);updateMines(dt);updateFlags(dt);
+  updateTurrets(dt);updateGates(dt);updateSoldiers(dt);updateDrones(dt);devTick();updateAir(dt);updateDrops(dt);updateStrike(dt);updateSub(dt);updateProjectiles(dt);updateMines(dt);updateFlags(dt);
   if((G.time*2|0)!==((G.time-dt)*2|0))checkLose();
 }
 // ---- chase (3rd-person) camera: V key / CAM button / gamepad stick click toggles; remembered per device
@@ -4963,7 +5076,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,grooveOff,carveGroove,grooveStart,GRV,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

@@ -3589,7 +3589,6 @@ function callStrike(){
 // any vehicle, or on foot, and it banks a missile strike (3 of those make a nuke, 6 an orbital strike). It lands
 // out in the open between the bases, so going for it means leaving the objective - and the enemy is still shooting.
 const DROP={first:[50,85],gap:[105,170],alt:48,speed:44,fall:8.5,pickR:7,scale:.7,chuteR:3.6};
-const GREEN=0x5fd36a;
 function dropsOn(){return !!(G&&G.op&&!G.demo&&!G.net);}
 function dropPoint(){ // open ground between the bases: not in the sea, not on a bridge, not inside anything
   for(let i=0;i<400;i++){const x=rr(X0+70,-X0-70),z=rr(Z0+90,-Z0-90);
@@ -3614,7 +3613,7 @@ function makePod(){
   if(!crate)crate=new THREE.Mesh(new THREE.BoxGeometry(2.6,2.2,2.6),new THREE.MeshStandardMaterial({color:0x5c6b3f,roughness:.85}));
   crate.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(crate);
   // a green stripe round the pod so it reads as yours at a glance
-  const band=new THREE.Mesh(new THREE.BoxGeometry(2.95,.45,2.95),new THREE.MeshStandardMaterial({color:GREEN,roughness:.6,emissive:0x12401a}));
+  const band=new THREE.Mesh(new THREE.BoxGeometry(2.95,.45,2.95),new THREE.MeshStandardMaterial({color:0x5fd36a,roughness:.6,emissive:0x12401a}));
   band.position.y=1.15;g.add(band);
   const chute=new THREE.Group();
   const canopy=new THREE.Mesh(new THREE.SphereGeometry(DROP.chuteR,16,8,0,TAU,0,Math.PI/2),
@@ -3642,18 +3641,16 @@ function dropStart(){
 function dropRelease(D){
   D.dropped=true;
   const pod=makePod();pod.position.set(D.x,D.y-3,D.z);world.add(pod);
-  D.pod={obj:pod,x:D.x,y:D.y-3,z:D.z,vy:-2,vx:D.dx*9,vz:D.dz*9,landed:false,t:0,beacon:null,sacc:0};
+  D.pod={obj:pod,x:D.x,y:D.y-3,z:D.z,vy:-2,vx:D.dx*9,vz:D.dz*9,landed:false,t:0,sacc:0};
   G.drop.pod=D.pod;
   for(let i=0;i<10;i++)SMOKE.spawn(D.x+rr(-2,2),D.y-2,D.z+rr(-2,2),rr(-1,1),rr(-1,0),rr(-1,1),rr(1,2),.6,2.4,[.85,.85,.82],[.7,.7,.68],.4,-.4,.6);}
 function podLand(P){
   P.landed=true;P.y=Math.max(groundAt(P.x,P.z),0);P.obj.position.set(P.x,P.y,P.z);
   const ch=P.obj.userData.chute;ch.position.set(rr(-2.4,2.4),0,rr(-2.4,2.4));ch.rotation.z=rr(.9,1.4)*(RND()<.5?1:-1);ch.scale.set(1,.35,1);
   sfx('lift',P.x,P.z);puff(P.x,P.y+.4,P.z,[.72,.68,.6],3,1.4,.5);
-  P.beacon=makeBeacon(0,GREEN);P.beacon.g.visible=true;P.beacon.g.position.set(P.x,P.y,P.z);
-  note(0,'Supply pod down — grab it to bank a missile strike','good');}
+  note(0,'Supply pod down — find the smoke and drive over it','good');} // no beacon: the smoke is the only marker, so you have to go and look
 function podTaken(P){
   setStrikes(strikesBanked()+1);const n=mslCount();
-  if(P.beacon){world.remove(P.beacon.g);P.beacon=null;}
   world.remove(P.obj);G.drop.pod=null;
   sfx('pick');sample('s_case',.8,1);
   for(let i=0;i<26;i++){const a=rr(0,TAU);FIRE.spawn(P.x+Math.cos(a)*rr(0,1.4),P.y+1,P.z+Math.sin(a)*rr(0,1.4),Math.cos(a)*rr(2,7),rr(4,10),Math.sin(a)*rr(2,7),rr(.5,1),.3,.9,[.65,1,.7],[.1,.5,.2],1,-4,1);}
@@ -3678,11 +3675,8 @@ function updateDrops(dt){
     if(P.y<=Math.max(groundAt(P.x,P.z),0)+.05)podLand(P);
     return;}
   // down and waiting: green smoke, a beacon, and anyone of yours who touches it takes it
-  P.sacc+=dt*7;while(P.sacc>=1){P.sacc--;
-    SMOKE.spawn(P.x+rr(-.5,.5),P.y+1.4,P.z+rr(-.5,.5),rr(-.3,.9),rr(2.4,4.4),rr(-.3,.6),rr(2.6,4.4),.8,4.2,[.32,.85,.4],[.5,.75,.52],.6,-.5,.35);}
-  const b=P.beacon;if(b){b.t+=dt;const pulse=.75+.25*Math.sin(b.t*4);b.pm.uniforms.a.value=.42*pulse;b.core.material.uniforms.a.value=.55*pulse;
-    b.rings.forEach((r,i)=>{const k=(b.t*.7+i*.5)%1;r.scale.setScalar(1.5+k*7);r.material.opacity=.8*(1-k);});
-    b.arrow.position.y=10+Math.sin(b.t*3)*1.1;b.arrow.rotation.y+=dt*2.5;}
+  P.sacc+=dt*8;while(P.sacc>=1){P.sacc--;
+    SMOKE.spawn(P.x+rr(-.5,.5),P.y+1.4,P.z+rr(-.5,.5),rr(-.3,1.1),rr(3,5.2),rr(-.3,.8),rr(4.5,7),.9,5.5,[.3,.86,.4],[.46,.72,.5],.55,-.35,.3);}
   if(G.over)return;
   for(const v of G.vehicles){if(v.team!==0||v.state!=='active'||v.def.air&&v.alt>6)continue;
     if(Math.hypot(v.x-P.x,v.z-P.z)<DROP.pickR+(v.r||2)){podTaken(P);return;}}
@@ -4297,8 +4291,7 @@ function drawMini(view){
   if(G.drop){const D=G.drop.run,Pd=G.drop.pod; // supply drop: the transport's track, then the pod on the ground
     if(D){const [px,py]=P(D.x,D.z),hx=D.dx*112/W,hz=D.dz*188/L,hl=Math.hypot(hx,hz)||1,ux=hx/hl,uz=hz/hl;
       x.fillStyle='#bfe8c0';x.beginPath();x.moveTo(px+ux*5.5,py+uz*5.5);x.lineTo(px-ux*3.5-uz*3.5,py-uz*3.5+ux*3.5);x.lineTo(px-ux*3.5+uz*3.5,py-uz*3.5-ux*3.5);x.closePath();x.fill();}
-    if(Pd){const [px,py]=P(Pd.x,Pd.z),k=(G.time*1.4)%1;x.strokeStyle='rgba(95,211,106,'+(1-k)+')';x.lineWidth=1.4;x.beginPath();x.arc(px,py,2+k*5,0,TAU);x.stroke();
-      x.fillStyle='#5fd36a';x.fillRect(px-2,py-2,4,4);x.strokeStyle='#0d1a0f';x.lineWidth=.8;x.strokeRect(px-2,py-2,4,4);}}
+    if(Pd){} /* the pod itself is deliberately NOT on the minimap: follow the transport's track and look for the smoke */ }
   if(G.strike){const Sk=G.strike,[rx,ry]=P(Sk.tx,Sk.tz);x.strokeStyle='#f2b632';x.lineWidth=1.2;x.beginPath();x.arc(rx,ry,2.5+((G.time*2)%1)*4,0,TAU);x.stroke();
     if(Sk.m&&Sk.phase==='fly'){const [mx,my]=P(Sk.m.position.x,Sk.m.position.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2,0,TAU);x.fill();}if(Sk.beam){const [mx,my]=P(Sk.beam.ip.x,Sk.beam.ip.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2.5,0,TAU);x.fill();}}
   for(const sd of G.soldiers){if(!sd.alive)continue;const [px,py]=P(sd.x,sd.z);x.fillStyle=sd.team===T?'rgba(170,200,255,.8)':'rgba(255,170,160,.8)';x.fillRect(px-.5,py-.5,1,1);}

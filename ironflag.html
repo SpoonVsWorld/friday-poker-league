@@ -2661,7 +2661,7 @@ function orbPose(w,r,e,yaw){ // solar wings w, radiators r, emitter pitch e (0 s
 }
 function orbGo(){
   if(!G||!G.mslMap)return;const s=MM.snap&&MM.snap.alive?MM.snap:null;MM.lastO={x:MM.tx,z:MM.tz,seed:G.seed};closeStrikeMap(false);if(G.strike||orbCount()<=0||!A.station)return;
-  sample('s_switch',1,.75);orbBuild();orbPose(0,0,0,0);for(const m of ORBS.glow)m.emissiveIntensity=.25;ORBS.chg.scale.setScalar(.001);
+  sample('s_switch',1,.75);bloomOn();orbBuild();orbPose(0,0,0,0);for(const m of ORBS.glow)m.emissiveIntensity=.25;ORBS.chg.scale.setScalar(.001);
   G.strike={orb:true,phase:'orbit',t:0,ft:0,tx:MM.tx,tz:MM.tz,tgt:s,name:s?mslTargetName(s):null,view:MM.view||G.views[0],cine:true,n:0,snd:null};
   if(!devActive()){setStrikes(mslCount()-orbCost());
     if(!orbUsed()){const d=loadOps();d.orbUsed=1;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}}}
@@ -2677,13 +2677,78 @@ function orbCandidates(){ // everything on the enemy side that is still standing
 function orbPos(t,out){const o=t.o;out.set(o.x,t.k==='static'?Math.max(groundAt(o.x,o.z),0):(o.y||Math.max(groundAt(o.x,o.z),0)),o.z);if(t.k==='static'&&o.kind==='turret')out.y+=1.2;return out;}
 function orbAlive(t){const o=t.o;return t.k==='static'?o.alive:t.k==='vehicle'?o.state==='active':o.alive;}
 function orbNext(S,x,z){let best=null,bd=1e9;for(const c of orbCandidates()){const d=Math.hypot(c.o.x-x,c.o.z-z);if(d<bd){bd=d;best=c;}}return best;}
+// (Matt, 5 Nov 2026) the beam is a shader, not three flat tubes: value-noise turbulence boiling down the column,
+// ramped the way the Cycles emission/transparent mix in laser+beam.blend does it, brightest through the thick of
+// the volume and soft at the silhouette. Additive, no depth write, so it never needs sorting.
+const BEAM_V=`varying vec2 vUv;varying vec3 vN;varying vec3 vV;
+void main(){vUv=uv;vec4 wp=modelMatrix*vec4(position,1.);vN=normalize(mat3(modelMatrix)*normal);vV=cameraPosition-wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`;
+const BEAM_F=`uniform float t;uniform float op;uniform vec3 cA;uniform vec3 cB;uniform float nsc;uniform float sp;uniform float hot;
+varying vec2 vUv;varying vec3 vN;varying vec3 vV;
+float h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+float vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+            mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec3 p){return vn(p)*.55+vn(p*2.13)*.28+vn(p*4.31)*.17;}
+void main(){
+  vec3 N=normalize(vN),V=normalize(vV);
+  float thick=pow(abs(dot(N,V)),1.4);              // longest path through the column reads brightest
+  float v=vUv.y,a2=vUv.x*6.2831;
+  float n=fbm(vec3(sin(a2)*1.6,cos(a2)*1.6,v*nsc-t*sp));
+  n=n*.8+fbm(vec3(cos(a2)*.7,sin(a2)*.7,v*nsc*.33-t*sp*.42))*.3;
+  float ramp=smoothstep(.22,.82,n);
+  float a=op*thick*(.4+.8*ramp);
+  a*=mix(1.45,.9,smoothstep(0.,.14,v));            // flared, hotter root at the ground
+  a*=1.-smoothstep(.7,1.,v);                       // thins out toward the sky
+  vec3 col=mix(cA,cB,clamp(ramp*1.3-thick*hot,0.,1.));
+  gl_FragColor=vec4(col*(1.+ramp*.45),a);
+}`;
+function beamMat(cA,cB,op,nsc,sp,hot){
+  return new THREE.ShaderMaterial({uniforms:{t:{value:0},op:{value:op},cA:{value:new THREE.Color(cA)},cB:{value:new THREE.Color(cB)},nsc:{value:nsc},sp:{value:sp},hot:{value:hot}},
+    vertexShader:BEAM_V,fragmentShader:BEAM_F,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
+}
+// (Matt, 5 Nov 2026) bloom, but only while the orbital platform is firing. It is a full extra pass over the frame,
+// which is too expensive to leave running on a phone, and the strike is already a locked cinematic - so it is loaded
+// on demand the first time, switched on for the ~20 s of the strike and switched straight off again. If the addons
+// can't be fetched the strike just renders the way it always did.
+const BLOOM={on:false,c:null,pass:null,bloom:null,w:0,h:0,tried:false};
+async function bloomLoad(){
+  if(BLOOM.c||BLOOM.tried)return BLOOM.c;BLOOM.tried=true;
+  try{
+    const [EC,RP,UB,OP]=await Promise.all([
+      import('three/addons/postprocessing/EffectComposer.js'),
+      import('three/addons/postprocessing/RenderPass.js'),
+      import('three/addons/postprocessing/UnrealBloomPass.js'),
+      import('three/addons/postprocessing/OutputPass.js')]);
+    const c=new EC.EffectComposer(renderer);
+    const rp=new RP.RenderPass(scene,null);
+    const bp=new UB.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.42,.45,.9); // a halo around the beam and the fires, not a white flood
+    c.addPass(rp);c.addPass(bp);c.addPass(new OP.OutputPass());
+    BLOOM.c=c;BLOOM.pass=rp;BLOOM.bloom=bp;bloomSize();
+  }catch(e){console.warn('bloom unavailable',e);}
+  return BLOOM.c;
+}
+function bloomSize(){if(!BLOOM.c)return;const w=innerWidth,h=innerHeight;if(BLOOM.w===w&&BLOOM.h===h)return;BLOOM.w=w;BLOOM.h=h;BLOOM.c.setSize(w,h);BLOOM.bloom.setSize(w,h);}
+function bloomOn(){bloomLoad().then(c=>{if(c)BLOOM.on=true;});}
+function bloomOff(){BLOOM.on=false;}
+function bloomActive(view){return !!(BLOOM.on&&BLOOM.c&&G&&G.views.length===1&&G.strike&&G.strike.orb&&view===G.strike.view);}
+function bloomRender(sc,cam){bloomSize();BLOOM.pass.scene=sc;BLOOM.pass.camera=cam;BLOOM.c.render();}
 function orbBeamMake(){
   const g=new THREE.Group();const cyl=(r,col,op,seg)=>{const ge=new THREE.CylinderGeometry(r,r,1,seg,1,true);ge.translate(0,.5,0);const m=new THREE.Mesh(ge,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}));m.frustumCulled=false;return m;};
-  const core=cyl(.5,0xfff6e8,1,10),mid=cyl(1.6,0xff7a30,.45,14),outer=cyl(5,0xff3010,.12,16);g.add(core,mid,outer);
+  const shaft=(r,mat,seg)=>{const ge=new THREE.CylinderGeometry(r,r,1,seg,22,true);ge.translate(0,.5,0);const m=new THREE.Mesh(ge,mat);m.frustumCulled=false;m.renderOrder=5;return m;};
+  const core=shaft(.62,beamMat(0xfff0d2,0xffc278,.78,11,2.3,.55),14),
+        mid =shaft(1.9,beamMat(0xff9a3c,0xff3d0c,.46,7,1.55,.3),18),
+        outer=shaft(5.2,beamMat(0xff5a1e,0xc81604,.14,3.4,.9,.15),20);
+  g.add(core,mid,outer);
+  for(const m of [core,mid,outer])m.userData.op0=m.material.uniforms.op.value;
+  const flare=new THREE.Mesh(new THREE.ConeGeometry(4.6,9,20,10,true).translate(0,4.5,0),beamMat(0xffc070,0xff4a12,.42,5,1.9,.35));
+  flare.frustumCulled=false;flare.renderOrder=5;flare.userData.op0=flare.material.uniforms.op.value;g.add(flare);
   const disc=new THREE.Mesh(new THREE.CircleGeometry(6,24).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffb060,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));disc.renderOrder=6;g.add(disc);
   const light=new THREE.PointLight(0xff7030,0,110,2);g.add(light);
   const L=ORB.sky.length()*1.4,q=new THREE.Quaternion().setFromUnitVectors(new V3(0,1,0),ORB.sky.clone().normalize());for(const m of [core,mid,outer]){m.quaternion.copy(q);m.scale.y=L;}
-  world.add(g);return {g,core,mid,outer,disc,light,ip:new V3(),dir:new V3(1,0,0),trail:0,flick:0};
+  flare.quaternion.copy(q);
+  world.add(g);return {g,core,mid,outer,flare,disc,light,ip:new V3(),dir:new V3(1,0,0),trail:0,flick:0,
+    shafts:[core,mid,outer,flare],setT(v){for(const m of this.shafts)m.material.uniforms.t.value=v;},
+    fade(k){for(const m of this.shafts)m.material.uniforms.op.value=m.userData.op0*k;}};
 }
 function orbFireStart(S){
   const B=S.beam=orbBeamMake();B.ip.set(S.tx,Math.max(groundAt(S.tx,S.tz),0),S.tz);B.g.position.copy(B.ip);
@@ -2723,14 +2788,15 @@ function orbFireTick(S,dt){
     for(const sd of G.soldiers)if(sd.alive&&sd.team===1&&!sd.ride&&Math.hypot(sd.x-ip.x,sd.z-ip.z)<1.6)killSoldier(sd,0,'blast');}
   else{ip.y=lerp(ip.y,tp.y,1-Math.exp(-dt*8));S.dwell+=dt;ip.x+=rr(-.15,.15);ip.z+=rr(-.15,.15);
     if(S.dwell>=ORB.dwell[S.cur.k]){orbZap(S,S.cur);S.cur=null;S.dwell=0;}}
-  B.g.position.copy(ip);const f=.85+.15*Math.sin(B.flick*41)+.08*Math.sin(B.flick*7.3);B.core.scale.x=B.core.scale.z=f;B.mid.scale.x=B.mid.scale.z=f*(1+.1*Math.sin(B.flick*13));B.outer.scale.x=B.outer.scale.z=1+.2*Math.sin(B.flick*5);
+  B.g.position.copy(ip);B.setT(G.time);const f=.93+.07*Math.sin(B.flick*41)+.05*Math.sin(B.flick*7.3);B.core.scale.x=B.core.scale.z=f;B.mid.scale.x=B.mid.scale.z=f*(1+.06*Math.sin(B.flick*13));B.outer.scale.x=B.outer.scale.z=1+.12*Math.sin(B.flick*5);
+  B.flare.scale.set(f*(1+.1*Math.sin(B.flick*9)),1,f*(1+.1*Math.sin(B.flick*9)));
   B.disc.scale.setScalar(.8+.3*Math.sin(B.flick*29));B.light.intensity=140+40*Math.sin(B.flick*31);B.light.position.y=3;
   const n=Math.ceil(dt*90);for(let i=0;i<n;i++){const a=rr(0,TAU),sp=rr(2,9);FIRE.spawn(ip.x+rr(-.6,.6),ip.y+.2,ip.z+rr(-.6,.6),Math.cos(a)*sp,rr(4,12),Math.sin(a)*sp,rr(.3,.8),.5,1.6,[1,1,.85],[1,.4,.05],1,-3,1.5);}
   const ns=Math.ceil(dt*30);for(let i=0;i<ns;i++){const a=rr(0,TAU);SMOKE.spawn(ip.x,ip.y+.5,ip.z,Math.cos(a)*rr(.5,3),rr(3,8),Math.sin(a)*rr(.5,3),rr(2,4),1.2,5,[.2,.18,.16],[.4,.38,.36],.7,-1,1);}
   if(S.snd)S.snd.set(.8+.2*Math.sin(S.ft*5));
   if(S.view&&(S.ft*10|0)%3===0)S.view.shake=Math.max(S.view.shake,.12);
 }
-function orbEnd(S){if(S.beam){world.remove(S.beam.g);S.beam=null;}if(S.snd){S.snd.stop();S.snd=null;}}
+function orbEnd(S){bloomOff();if(S.beam){world.remove(S.beam.g);S.beam=null;}if(S.snd){S.snd.stop();S.snd=null;}}
 function updateOrb(S,dt){
   const O=ORBS;if(O.earth){O.earth.rotation.y+=dt*.012;O.clouds.rotation.y+=dt*.004;}
   switch(S.phase){
@@ -2740,7 +2806,7 @@ function updateOrb(S,dt){
       if(S.t>=ORB.aim){S.phase='charge';S.t=0;orbPose(1,1,1,0);sample('s_lock',1);sample('s_power',.9,1,.9);note(0,'TARGET ACQUIRED — charging','warn',true);if(AU.ctx)tone(.2,ORB.charge,180,900,'sine');}break;}
     case 'charge':{const q=S.t/ORB.charge;for(const m of O.glow)m.emissiveIntensity=1.7+q*7+Math.sin(S.t*30)*q*1.5;O.chg.scale.setScalar(.3+q*3+Math.sin(S.t*25)*.35*q);O.chg.userData.light.intensity=q*60;if(S.t>=ORB.charge){orbFireStart(S);}break;}
     case 'fire':orbFireTick(S,dt);break;
-    case 'end':{const B=S.beam;if(B){const k=Math.max(0,1-S.t/1.6);B.core.material.opacity=k;B.mid.material.opacity=.45*k;B.outer.material.opacity=.12*k;B.disc.material.opacity=.75*k;B.light.intensity=150*k;if(k<=0){world.remove(B.g);S.beam=null;}}
+    case 'end':{const B=S.beam;if(B){const k=Math.max(0,1-S.t/1.6);B.setT(G.time);B.fade(k);B.disc.material.opacity=.75*k;B.light.intensity=150*k;if(k<=0){world.remove(B.g);S.beam=null;}}
       if(S.t>=ORB.end){orbEnd(S);S.cine=false;mslCineEnd();G.strike=null;const n=orbCount();note(0,n>0?`Platform powered down — ${n} orbital strike${n>1?'s':''} left`:`Platform powered down — bank ${orbCost()} missile strikes for another (the uplink is open now)`,'info');}break;}
   }
 }
@@ -4621,8 +4687,11 @@ function render(dt){
     sun.position.copy(view.focus).addScaledVector(SUN_DIR,140);sun.target.position.copy(view.focus);sun.target.updateMatrixWorld();
     const r=view.rect;renderer.setViewport(r.x,0,r.w,h);renderer.setScissor(r.x,0,r.w,h);
     const sc=r.h/(2*Math.tan(THREE.MathUtils.degToRad(view.cam.fov/2)))*renderer.getPixelRatio()*.02;FIRE.mat.uniforms.scale.value=SMOKE.mat.uniforms.scale.value=sc*50;
-    if(G.strike&&G.strike.orb&&orbSpace(G.strike)&&view===G.strike.view&&ORBS.scene){renderer.render(ORBS.scene,ORBS.cam);}
-    else{const tp=fpOn&&v.parts&&v.parts.sd.trooper;if(fpOn&&!tp)v.obj.visible=false;renderer.render(scene,view.cam);if(fpOn&&!tp){v.obj.visible=true;fpRender(view,v,paused?0:dt,r,h);}}
+    const bl=bloomActive(view);
+    if(G.strike&&G.strike.orb&&orbSpace(G.strike)&&view===G.strike.view&&ORBS.scene){if(bl)bloomRender(ORBS.scene,ORBS.cam);else renderer.render(ORBS.scene,ORBS.cam);}
+    else{const tp=fpOn&&v.parts&&v.parts.sd.trooper;if(fpOn&&!tp)v.obj.visible=false;
+      if(bl)bloomRender(scene,view.cam);else renderer.render(scene,view.cam);
+      if(fpOn&&!tp){v.obj.visible=true;fpRender(view,v,paused?0:dt,r,h);}}
     if(!G.demo){updateHud(view);if(((G.time*10)|0)%2===0)drawMini(view);if(view.engine)updateEngine(view);}
   }
 }
@@ -5173,7 +5242,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

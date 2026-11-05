@@ -1813,7 +1813,7 @@ function islandSnapshot(){ // one top-down render of the whole island for the ta
 }
 function openStrikeMap(view,nuke){
   const orb=nuke==='orb';
-  if(orb){if(!orbReady()){if(G&&!orbCount())note(0,`Orbital strike needs ${ORB.cost} banked missile strikes`,'warn');return;}}
+  if(orb){if(!orbReady()){if(G&&!orbCount())note(0,`Orbital strike needs ${orbCost()} banked missile strikes`,'warn');return;}}
   else if(nuke){if(!nukeReady()){if(G&&!nukeCount())note(0,`Nuclear strike needs ${NUKE.cost} banked missile strikes`,'warn');return;}}
   else if(!mslReady()){if(G&&G.op&&!mslCount())note(0,'No missile strikes banked — finish an operation without losing a vehicle','warn');return;}
   mslBuildUI();MM.nuke=!!nuke;MM.orb=orb;MM.site=nuke&&!orb?nukeSite():null;if(nuke&&!orb&&!MM.site){note(0,'No open water off your coast for the submarine','warn');return;}
@@ -1823,7 +1823,7 @@ function openStrikeMap(view,nuke){
   if(last)mslAim(last.x,last.z);else if(MM.orb){const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}else if(MM.nuke){const b=G.bases[1];mslAim(b.x,b.z);}else{const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}
   MM.z=clamp(.9/MM.fit,1,6);MM.cx=MM.tx;MM.cz=MM.tz;mslClamp(); // small screens open zoomed in on the target; pinch / wheel / ± to see the whole island
   const pads=navigator.getGamepads?[...navigator.getGamepads()].filter(Boolean):[];const pad=pads[0];MM.pad={};if(pad)for(const i of [0,1,4,5])MM.pad[i]=!!pad.buttons[i]?.pressed;
-  MM.q.num.textContent=MM.orb?`×${orbCount()} ready · ${ORB.cost} missile strikes each`:MM.nuke?`×${nukeCount()} ready · ${NUKE.cost} missile strikes each`:`×${mslCount()} ready`;
+  MM.q.num.textContent=MM.orb?`×${orbCount()} ready · ${orbCost()} missile strikes each`:MM.nuke?`×${nukeCount()} ready · ${NUKE.cost} missile strikes each`:`×${mslCount()} ready`;
   MM.q.help.innerHTML=MM.nuke?(opts.touch?'Drag to aim · turn both keys · break the glass · press the red button':'Aim · <kbd>Enter</kbd> key A, key B, break the glass (twice), fire · <kbd>Esc</kbd> cancel'):opts.touch?'Drag to aim · pinch to zoom':'Click a spot or building · wheel zoom · drag to pan · <kbd>Tab</kbd> next target · <kbd>Enter</kbd> launch · <kbd>Esc</kbd> cancel';
   sfx('click');
 }
@@ -2612,14 +2612,18 @@ function nukeCam(view,dt){
 // through every enemy structure, turret, gate, vehicle, drone, jet and soldier, burning a trail into the ground, with
 // the camera chasing the impact point. Matt's sounds: the switch clicks for the keys and button, the glass, the
 // "super erasism beam" as the beam, his power-down clip for each zap and for the platform powering down at the end.
-const ORB={cost:6,orbit:7,deploy:8,aim:5,charge:3,end:5,maxT:160,sweep:70,dwell:{static:.5,vehicle:.4,soldier:.2,drone:.25,jet:.3},sky:new V3(-260,760,-200)};
+const ORB={cost:6,cost2:4,orbit:7,deploy:8,aim:5,charge:3,end:5,maxT:160,sweep:70,dwell:{static:.5,vehicle:.4,soldier:.2,drone:.25,jet:.3},sky:new V3(-260,760,-200)};
 const ORB_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><rect x="3" y="9" width="17" height="6" fill="#4f7fd0"/><rect x="44" y="9" width="17" height="6" fill="#4f7fd0"/><rect x="22" y="7" width="20" height="10" rx="2" fill="#c9b98a"/><path d="M32 17v7" stroke="#ff5a4a" stroke-width="2"/><circle cx="32" cy="12" r="2.5" fill="#ff5a4a"/></svg>';
 const ORB_KINDS=new Set(['building','hospital','depot','gas','turret','gate','radio','tower','gen','fuel','tent']);
 const ORBS={scene:null,cam:null,earth:null,clouds:null,st:null,parts:null,glow:null};
 const ORBT={};
 function orbUnlocked(){if(DEV.on)return true;const b=loadOps().best||{};return b[OPS.length-1]!=null;}
+// (Matt, 5 Nov 2026) the first shot is the expensive one: once the platform has been fired, the uplink is
+// established and every later strike costs ORB.cost2 instead, so the orbital isn't a once-a-campaign thing
+function orbUsed(){return !!loadOps().orbUsed;}
+function orbCost(){return orbUsed()?ORB.cost2:ORB.cost;}
 function orbShown(){return !!(A.station&&G&&(G.op||devActive())&&!G.net&&!G.demo&&orbUnlocked());}
-function orbCount(){if(devActive())return 99;return Math.floor(mslCount()/ORB.cost);}
+function orbCount(){if(devActive())return 99;return Math.floor(mslCount()/orbCost());}
 function orbReady(){return !!(orbShown()&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&orbCount()>0);}
 function orbSpace(S){return S.phase==='orbit'||S.phase==='deploy'||S.phase==='aim'||S.phase==='charge';}
 function orbBuild(){ // the orbit set: stars, Earth (map + clouds + a fresnel atmosphere), the sun, the platform
@@ -2647,7 +2651,8 @@ function orbGo(){
   if(!G||!G.mslMap)return;const s=MM.snap&&MM.snap.alive?MM.snap:null;MM.lastO={x:MM.tx,z:MM.tz,seed:G.seed};closeStrikeMap(false);if(G.strike||orbCount()<=0||!A.station)return;
   sample('s_switch',1,.75);orbBuild();orbPose(0,0,0,0);for(const m of ORBS.glow)m.emissiveIntensity=.25;ORBS.chg.scale.setScalar(.001);
   G.strike={orb:true,phase:'orbit',t:0,ft:0,tx:MM.tx,tz:MM.tz,tgt:s,name:s?mslTargetName(s):null,view:MM.view||G.views[0],cine:true,n:0,snd:null};
-  if(!devActive())setStrikes(mslCount()-ORB.cost);
+  if(!devActive()){setStrikes(mslCount()-orbCost());
+    if(!orbUsed()){const d=loadOps();d.orbUsed=1;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}}}
   note(0,'Uplink to orbital platform SPOON — stand by','warn',true);sfx('alarm');sample('s_radio',.8,1,.6);musicStop();
 }
 function orbCandidates(){ // everything on the enemy side that is still standing
@@ -2724,7 +2729,7 @@ function updateOrb(S,dt){
     case 'charge':{const q=S.t/ORB.charge;for(const m of O.glow)m.emissiveIntensity=1.7+q*7+Math.sin(S.t*30)*q*1.5;O.chg.scale.setScalar(.3+q*3+Math.sin(S.t*25)*.35*q);O.chg.userData.light.intensity=q*60;if(S.t>=ORB.charge){orbFireStart(S);}break;}
     case 'fire':orbFireTick(S,dt);break;
     case 'end':{const B=S.beam;if(B){const k=Math.max(0,1-S.t/1.6);B.core.material.opacity=k;B.mid.material.opacity=.45*k;B.outer.material.opacity=.12*k;B.disc.material.opacity=.75*k;B.light.intensity=150*k;if(k<=0){world.remove(B.g);S.beam=null;}}
-      if(S.t>=ORB.end){orbEnd(S);S.cine=false;mslCineEnd();G.strike=null;const n=orbCount();note(0,n>0?`Platform powered down — ${n} orbital strike${n>1?'s':''} left`:`Platform powered down — bank ${ORB.cost} missile strikes for another`,'info');}break;}
+      if(S.t>=ORB.end){orbEnd(S);S.cine=false;mslCineEnd();G.strike=null;const n=orbCount();note(0,n>0?`Platform powered down — ${n} orbital strike${n>1?'s':''} left`:`Platform powered down — bank ${orbCost()} missile strikes for another (the uplink is open now)`,'info');}break;}
   }
 }
 function orbCam(view,dt){
@@ -4311,8 +4316,8 @@ function updateHud(view){
     if(nshow){const n=nukeCount(),ok=nukeReady(),need=NUKE.cost-(mslCount()%NUKE.cost),key='n'+n+'|'+ok+'|'+need+'|'+(view.sel===NUKE_SLOT);if(lastHud.get(nb)!==key){lastHud.set(nb,key);
       nb.innerHTML=`${NUKE_ICON}<span class="mt">Nuclear strike<small>${n?'from the submarine — trades in 3 missile strikes':`bank ${need} more missile strike${need>1?'s':''} (3 per nuke)`}</small></span><i>×${devActive()?'∞':n}</i>`;nb.toggleAttribute('disabled',!ok);nb.classList.toggle('on',ok&&view.sel===NUKE_SLOT);}}
     const ob=q.orb,oshow=orbShown();if(ob.hidden===oshow)ob.hidden=!oshow;
-    if(oshow){const n=orbCount(),ok=orbReady(),need=ORB.cost-(mslCount()%ORB.cost),key='o'+n+'|'+ok+'|'+need+'|'+(view.sel===ORB_SLOT);if(lastHud.get(ob)!==key){lastHud.set(ob,key);
-      ob.innerHTML=`${ORB_ICON}<span class="mt">Orbital strike<small>${n?'platform SPOON lasers every enemy on the island — trades in 6 missile strikes':`bank ${need} more missile strike${need>1?'s':''} (6 per shot)`}</small></span><i>×${devActive()?'∞':n}</i>`;ob.toggleAttribute('disabled',!ok);ob.classList.toggle('on',ok&&view.sel===ORB_SLOT);}}}
+    if(oshow){const n=orbCount(),ok=orbReady(),c=orbCost(),need=c-(mslCount()%c),key='o'+n+'|'+ok+'|'+need+'|'+c+'|'+(view.sel===ORB_SLOT);if(lastHud.get(ob)!==key){lastHud.set(ob,key);
+      ob.innerHTML=`${ORB_ICON}<span class="mt">Orbital strike<small>${n?`platform SPOON lasers every enemy on the island — trades in ${c} missile strikes`:`bank ${need} more missile strike${need>1?'s':''} (${c} per shot)`}</small></span><i>×${devActive()?'∞':n}</i>`;ob.toggleAttribute('disabled',!ok);ob.classList.toggle('on',ok&&view.sel===ORB_SLOT);}}}
   let s;
   {const foot=!!(v&&v.type==='foot');if(view.el&&view.el.classList.contains('foot')!==foot){view.el.classList.toggle('foot',foot);const hb=view.el.querySelector('.bar.hp');if(hb)hb.firstChild.nodeValue=foot?'HEALTH':'ARMOR';}
     if(view.index===0)document.body.classList.toggle('onfoot',foot&&opts.touch);
@@ -5069,7 +5074,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

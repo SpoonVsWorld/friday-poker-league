@@ -1274,7 +1274,10 @@ function gore(x,y,z,how='shot',dx=0,dz=0){
 // ============================================================ terrain
 const W=500,L=840,CELL=4,X0=-W/2,Z0=-L/2,NX=W/CELL+1,NZ=L/CELL+1;
 function H(x,z){const t=G.terr;let fx=(x-X0)/CELL,fz=(z-Z0)/CELL;fx=clamp(fx,0,NX-1.001);fz=clamp(fz,0,NZ-1.001);const ix=fx|0,iz=fz|0,ux=fx-ix,uz=fz-iz,i=iz*NX+ix,h=t.h;
-  const b=(h[i]*(1-ux)+h[i+1]*ux)*(1-uz)+(h[i+NX]*(1-ux)+h[i+NX+1]*ux)*uz;return G.craters?b+craterOff(x,z):b;} // + missile craters (makeCrater)
+  const b=(h[i]*(1-ux)+h[i+1]*ux)*(1-uz)+(h[i+NX]*(1-ux)+h[i+NX+1]*ux)*uz;
+  let o=0;if(G.craters)o+=craterOff(x,z);if(G.grv)o+=grooveOff(x,z);return b+o;} // + missile craters (makeCrater) and laser grooves (carveGroove)
+function Hnogrv(x,z){const t=G.terr;let fx=(x-X0)/CELL,fz=(z-Z0)/CELL;fx=clamp(fx,0,NX-1.001);fz=clamp(fz,0,NZ-1.001);const ix=fx|0,iz=fz|0,ux=fx-ix,uz=fz-iz,i=iz*NX+ix,h=t.h;
+  const b=(h[i]*(1-ux)+h[i+1]*ux)*(1-uz)+(h[i+NX]*(1-ux)+h[i+NX+1]*ux)*uz;return G.craters?b+craterOff(x,z):b;} // ground under the grooves themselves (so the trench mesh isn't dug twice)
 function onBridge(x,z){for(const b of G.bridgeSegs){if(!b.span.alive)continue;if(Math.abs(x-b.cx)>b.reach||Math.abs(z-b.cz)>b.reach)continue;
   const dx=x-b.ax,dz=z-b.az,t=clamp((dx*b.ux+dz*b.uz)/b.len,0,1),px=b.ax+b.ux*b.len*t-x,pz=b.az+b.uz*b.len*t-z;if(px*px+pz*pz<5.2*5.2)return true;}return false;}
 const BRIDGE_Y=1.7;
@@ -1971,9 +1974,82 @@ const MSL_LIGHT=new THREE.PointLight(0xffa860,0,260,2);MSL_LIGHT.position.set(0,
 const BLAST_DOME_MAT=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,uniforms:{op:{value:0}},
   vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
   fragmentShader:'uniform float op;varying vec3 vN;varying vec3 vV;void main(){float f=1.-abs(dot(normalize(vN),normalize(vV)));gl_FragColor=vec4(vec3(.96,.97,1.),op*pow(f,3.0));}'});
-function craterOff(x,z){let o=0;for(const c of G.craters){const lx=(x-c.x0)/c.step,lz=(z-c.z0)/c.step;if(lx<0||lz<0||lx>=c.n-1||lz>=c.n-1)continue;
+function craterOff(x,z){let o=0;if(!G.craters)return 0;for(const c of G.craters){const lx=(x-c.x0)/c.step,lz=(z-c.z0)/c.step;if(lx<0||lz<0||lx>=c.n-1||lz>=c.n-1)continue;
   const ix=lx|0,iz=lz|0,ux=lx-ix,uz=lz-iz,i=iz*c.n+ix,d=c.d;o+=(d[i]*(1-ux)+d[i+1]*ux)*(1-uz)+(d[i+c.n]*(1-ux)+d[i+c.n+1]*ux)*uz;}return o;}
 function craterProfile(r,rc,D,rim){const q=r/rc;return q<1?-D*(1-q*q)+rim*q**6:rim*Math.exp(-(((r-rc)/(rc*.5))**2));}
+// ---- (Matt, 4 Nov 2026) orbital laser grooves: wherever the beam touches down it cuts a trench into the
+// ground - a real dip in the height field (vehicles drop into it) plus a charred, glowing trench surface that
+// keeps smouldering long after the platform has powered down.
+const GRV={rim:2.2,depth:2.45,step:1.6,cell:24,fade:600,maxSeg:900};
+const GRV_U=[0,.2,.42,.62,.8,1],GRV_Y=[-1,-.95,-.7,-.3,.12,0];
+function grvProfile(q){ // q: distance from the centre line / rim. returns a multiple of GRV.depth (negative digs)
+  if(q>=1)return 0;for(let i=1;i<GRV_U.length;i++)if(q<=GRV_U[i])return lerp(GRV_Y[i-1],GRV_Y[i],(q-GRV_U[i-1])/(GRV_U[i]-GRV_U[i-1]));return 0;}
+function grvKey(ix,iz){return ix*8192+iz;}
+function grvDist(s,x,z){const t=clamp(((x-s.ax)*s.ux+(z-s.az)*s.uz)/s.l2,0,1);const px=x-(s.ax+s.ux*t),pz=z-(s.az+s.uz*t);return Math.hypot(px,pz);}
+function grooveOff(x,z){ // hot path: one hash cell, then the deepest segment under this spot
+  const g=G.grv;if(!g)return 0;const l=g.hash.get(grvKey(Math.floor(x/GRV.cell),Math.floor(z/GRV.cell)));if(!l)return 0;
+  let lo=0,hi=0;for(const s of l){const d=grvDist(s,x,z);if(d>=GRV.rim)continue;const v=grvProfile(d/GRV.rim)*GRV.depth;if(v<lo)lo=v;else if(v>hi)hi=v;}
+  return lo<0?lo:hi;}
+const GRV_R2=GRV.rim*1.7; // the coarse mesh is pushed below the trench this far out; the trench surface covers the same width
+function grvLower(x,z){ // the COARSE terrain mesh is dropped UNDER the trench everywhere, so it can never poke up through it
+  const g=G.grv;if(!g)return 0;const l=g.hash.get(grvKey(Math.floor(x/GRV.cell),Math.floor(z/GRV.cell)));if(!l)return 0;
+  let o=0;for(const s of l){const d=grvDist(s,x,z);if(d>=GRV_R2)continue;const v=-(GRV.depth+.7)*smooth(GRV_R2,GRV.rim*.35,d);if(v<o)o=v;}return o;}
+function grvSeg(ax,az,bx,bz){
+  const g=G.grv;if(g.segs.length>=GRV.maxSeg)return null;
+  const s={ax,az,bx,bz,ux:bx-ax,uz:bz-az};s.l2=s.ux*s.ux+s.uz*s.uz||1e-6;g.segs.push(s);
+  const R=GRV_R2;
+  for(let ix=Math.floor((Math.min(ax,bx)-R)/GRV.cell);ix<=Math.floor((Math.max(ax,bx)+R)/GRV.cell);ix++)
+    for(let iz=Math.floor((Math.min(az,bz)-R)/GRV.cell);iz<=Math.floor((Math.max(az,bz)+R)/GRV.cell);iz++){
+      const k=grvKey(ix,iz);let l=g.hash.get(k);if(!l){l=[];g.hash.set(k,l);}l.push(s);}
+  return s;}
+function grvTerrain(ax,az,bx,bz){ // re-drop the coarse terrain vertices around this new piece of trench
+  const tm=G.terrMesh;if(!tm)return;const pos=tm.geometry.attributes.position,t=G.terr,R=GRV_R2+CELL;
+  for(let j=Math.max(0,Math.floor((Math.min(az,bz)-R-Z0)/CELL));j<=Math.min(NZ-1,Math.ceil((Math.max(az,bz)+R-Z0)/CELL));j++)
+    for(let i=Math.max(0,Math.floor((Math.min(ax,bx)-R-X0)/CELL));i<=Math.min(NX-1,Math.ceil((Math.max(ax,bx)+R-X0)/CELL));i++){
+      const k=j*NX+i,px=X0+i*CELL,pz=Z0+j*CELL;pos.setY(k,t.h[k]+craterOff(px,pz)+grvLower(px,pz));}
+  pos.needsUpdate=true;tm.geometry.computeVertexNormals();}
+function grooveStart(){if(!G.grv)G.grv={segs:[],hash:new Map(),ribs:[]};const R={pts:[],mesh:null,ember:null,t:0};G.grv.ribs.push(R);return R;}
+function carveGroove(R,x,z,wide){ // extend the trench to (x,z); 'wide' deepens a dwell spot into a pit
+  if(!G.terrMesh||!G.grv)return;
+  const base=Hnogrv(x,z);if(base<1.2||onBridge(x,z))return; // no trench in the sea or on a bridge deck
+  const p=R.pts[R.pts.length-1];
+  if(p&&Math.hypot(p.x-x,p.z-z)<.35)return;
+  if(p){grvSeg(p.x,p.z,x,z);grvTerrain(p.x,p.z,x,z);}
+  else {grvSeg(x-.5,z,x+.5,z);grvTerrain(x-.6,z,x+.6,z);}
+  if(wide){grvSeg(x-1.1,z-1.1,x+1.1,z+1.1);grvSeg(x-1.1,z+1.1,x+1.1,z-1.1);grvTerrain(x-1.6,z-1.6,x+1.6,z+1.6);}
+  R.pts.push({x,z});grvMesh(R);
+  // grass, bushes and burnt-out props standing in the cut are gone
+  for(const b of G.cover||[])for(let i=0;i<b.mats.length;i++){const e=b.mats[i].elements;if(Math.hypot(e[12]-x,e[14]-z)<GRV.rim*1.25)b.hide(i);}}
+const GRV_V=[-1.7,-1.34,-1.13,-1,-.86,-.69,-.5,-.26,0,.26,.5,.69,.86,1,1.13,1.34,1.7];
+function grvMesh(R){
+  const P=R.pts;if(P.length<2)return;
+  const N=GRV_V.length,vp=[],vc=[],ve=[],idx=[];
+  const soot=[.022,.02,.019],char=[.06,.05,.044],warm=[.17,.075,.035],dirt=[.26,.2,.13],scorch=[.075,.065,.055];
+  for(let i=0;i<P.length;i++){const p=P[i],a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)];
+    let dx=b.x-a.x,dz=b.z-a.z;const l=Math.hypot(dx,dz)||1;dx/=l;dz/=l;const nx=-dz,nz=dx;
+    for(let k=0;k<N;k++){const u=GRV_V[k],q=Math.abs(u),px=p.x+nx*u*GRV.rim,pz=p.z+nz*u*GRV.rim;
+      vp.push(px,H(px,pz)+.05,pz); // the true height field: the cut itself, then the churned ground either side of it
+      const n=(Math.sin(px*2.3+pz*1.7)*.5+.5)*.55+(Math.sin(px*.73-pz*1.07+2)*.5+.5)*.45;
+      let col,al=1;
+      if(q<.62)col=soot.map((v,c)=>lerp(v,warm[c],n*n*.5)); // the floor: slag, nearly black, a dull red only in the grain
+      else if(q<1){const f=smooth(.62,1,q);col=soot.map((v,c)=>lerp(lerp(v,char[c],n*.8),dirt[c],f*f*(.4+.5*n)));} // the walls
+      else if(q<1.18){const f=smooth(1,1.18,q);col=dirt.map((v,c)=>lerp(v,scorch[c],f*(.55+.45*n)));} // thrown-up rim
+      else{const f=smooth(1.18,1.7,q);col=scorch.map((v,c)=>lerp(v,char[c],n*.35));al=(1-f*f)*.85;}
+      vc.push(col[0],col[1],col[2],al);
+      const e=q<.62?Math.max(0,n-.42)*2.4:q<1?Math.max(0,n-.68)*1.6:0; // embers speckled through the slag, not a wash of light
+      ve.push(1,.24+.18*n,.03,Math.min(1,e));}}
+  for(let i=0;i<P.length-1;i++)for(let k=0;k<N-1;k++){const a=i*N+k,b2=a+1,c=a+N,d=c+1;idx.push(a,c,b2,b2,c,d);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(vp,3));g.setAttribute('color',new THREE.Float32BufferAttribute(vc,4));g.setIndex(idx);g.computeVertexNormals();
+  const eg=new THREE.BufferGeometry();eg.setAttribute('position',g.attributes.position);eg.setAttribute('color',new THREE.Float32BufferAttribute(ve,4));eg.setIndex(idx);
+  if(R.mesh){world.remove(R.mesh);R.mesh.geometry.dispose();world.remove(R.ember);R.ember.geometry.dispose();}
+  else{R.mat=new THREE.MeshStandardMaterial({vertexColors:true,transparent:true,roughness:1,metalness:0,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-6,depthWrite:false});
+    R.emat=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-8,fog:false});}
+  const m=new THREE.Mesh(g,R.mat);m.receiveShadow=true;m.renderOrder=1;world.add(m);R.mesh=m;
+  const em=new THREE.Mesh(eg,R.emat);em.renderOrder=2;world.add(em);R.ember=em;}
+function updateGrooves(dt){if(!G||!G.grv)return;
+  for(const R of G.grv.ribs){if(!R.emat)continue;R.t+=dt;
+    const cool=Math.max(.2,1-R.t/GRV.fade); // the cut glows for a long while, then settles to a dull smoulder
+    R.emat.opacity=.75*cool*(.62+.38*Math.sin(R.t*5.1+Math.sin(R.t*2.3)*2));}}
 function makeCrater(x,z){
   if(!G.terrMesh)return null;const rc=BLAST.rc*rr(.92,1.08),D=BLAST.depth,rim=BLAST.rim,Ro=rc*BLAST.out,step=1,n=Math.ceil(Ro*2/step)+1,x0=x-Ro,z0=z-Ro;
   const nz=makeNoise((G.seed*31+(x*7|0)+(z*13|0))>>>0);
@@ -1991,7 +2067,7 @@ function makeCrater(x,z){
   const tm=G.terrMesh,pos=tm.geometry.attributes.position,t=G.terr;
   for(let j=Math.max(0,Math.floor((z-Ro-CELL-Z0)/CELL));j<=Math.min(NZ-1,Math.ceil((z+Ro+CELL-Z0)/CELL));j++)for(let i=Math.max(0,Math.floor((x-Ro-CELL-X0)/CELL));i<=Math.min(NX-1,Math.ceil((x+Ro+CELL-X0)/CELL));i++){
     const k=j*NX+i,px=X0+i*CELL,pz=Z0+j*CELL,r=Math.hypot(px-x,pz-z);if(r>Ro+CELL)continue;const o=craterOff(px,pz);
-    pos.setY(k,t.h[k]+o-1.4*smooth(rc*1.75,rc*1.15,r));}
+    pos.setY(k,t.h[k]+o+grvLower(px,pz)-1.4*smooth(rc*1.75,rc*1.15,r));}
   pos.needsUpdate=true;tm.geometry.computeVertexNormals();tm.geometry.computeBoundingSphere();
   // detailed polar surface: charred bowl, churned dirt rim, scorched ground fading out
   const RN=44,SN=80,vp=[],vc=[],ve=[],uv=[],idx=[];const cc=new THREE.Color();
@@ -2024,10 +2100,12 @@ function makeCrater(x,z){
   for(const s of G.statics){if(s.alive)continue;const dd=Math.hypot(s.x-x,s.z-z);if(dd<rc*1.25&&s.obj&&['turret','tent','radio','tower','gen','fuel','prop'].includes(s.kind)&&s.name!=='launcher')s.obj.visible=false;}
   return c;
 }
-function updateCraters(dt){if(!G||!G.craters)return;for(const c of G.craters){if(!c.ember)continue;c.t+=dt;const f=c.t<2?1:Math.max(0,1-(c.t-2)/40);
+function updateCraters(dt){updateGrooves(dt);if(!G||!G.craters)return;for(const c of G.craters){if(!c.ember)continue;c.t+=dt;const f=c.t<2?1:Math.max(0,1-(c.t-2)/40);
   c.ember.material.opacity=f*(.75+.25*Math.sin(c.t*7.3+Math.sin(c.t*3.1)*2));if(f<=0){world.remove(c.ember);c.ember.geometry.dispose();c.ember.material.dispose();c.ember=null;}}}
 // burning grass patches
-function addBurn(x,z,life,size,k=1){if(!G)return;const h=H(x,z);if(h<1.1||onBridge(x,z))return;(G.burns=G.burns||[]).push({x,z,life,max:life,size,k,t:0,acc:0,sacc:0,ph:Math.random()*9});} // k: particle budget of this fire (grass and tree fires are many, so they each spawn less)
+function addBurn(x,z,life,size,k=1){if(!G)return;const h=H(x,z);if(h<1.1||onBridge(x,z))return;const B=(G.burns=G.burns||[]);
+  if(B.length>=210){let w=0;for(let i=1;i<B.length;i++)if(B[i].max-B[i].t<B[w].max-B[w].t)w=i;B.splice(w,1);} // a whole island alight would drown the particle budget: the shortest-lived fire makes way
+  B.push({x,z,life,max:life,size,k,t:0,acc:0,sacc:0,ph:Math.random()*9});} // k: particle budget of this fire (grass and tree fires are many, so they each spawn less)
 function updateBurns(dt){
   updateFelled(dt);updateRad(dt);updateClouds(dt);updateAsh(dt);updateCarrier(dt);
   if(!G||!G.burns||!G.burns.length){return;}
@@ -2036,7 +2114,7 @@ function updateBurns(dt){
     const fire=left>0?smooth(0,1.2,b.t)*smooth(0,3,left):0,smoke=left>0?.6+.4*fire:Math.max(0,1+left/8)*.6;const gy=Math.max(groundAt(b.x,b.z),0);
     b.acc+=dt*26*fire*b.size*(b.k||1);while(b.acc>=1){b.acc--;const a=rr(0,TAU),r=rr(0,1.3)*b.size;
       FIRE.spawn(b.x+Math.cos(a)*r,gy+rr(.05,.4),b.z+Math.sin(a)*r,rr(-.4,.4)+.6,rr(1.8,4.2),rr(-.4,.4),rr(.35,.8),rr(.6,1.3)*b.size,rr(.1,.4),[1,.78,.38],[.85,.22,.04],.95,-1.2,.6);}
-    b.sacc+=dt*6*smoke*b.size*(b.k||1);while(b.sacc>=1){b.sacc--;const r=rr(0,1.2)*b.size;
+    b.sacc+=dt*6*smoke*b.size*(b.k||1)*(b.max>120?.5:1); /* a fire that burns for minutes would otherwise fog the whole island */ while(b.sacc>=1){b.sacc--;const r=rr(0,1.2)*b.size;
       SMOKE.spawn(b.x+rr(-r,r),gy+.6,b.z+rr(-r,r),rr(.4,1.4),rr(1.5,3),rr(-.3,.6),rr(3,6),1.2*b.size,5*b.size,fire>.2?[.2,.17,.14]:[.38,.36,.33],[.5,.49,.47],.42,-.6,.3);}
     if(fire>0){const w=fire*b.size;glow+=w;gx+=b.x*w;gz+=b.z*w;gw+=w;}}
   const S=G.strike;if(!(S&&S.phase==='impact'&&S.t<(S.nuke?7:1.6))){ // the strike's own flash drives the light while it's bright
@@ -2594,13 +2672,16 @@ function orbFireStart(S){
     S.snd={set(v){g.gain.setTargetAtTime(Math.max(.0001,v),c.currentTime,.15);},stop(fade=1.2){const n=c.currentTime;g.gain.cancelScheduledValues(n);g.gain.setValueAtTime(g.gain.value,n);g.gain.linearRampToValueAtTime(.0001,n+fade);try{src.stop(n+fade+.05);}catch(e){}}};}
   if(AU.ctx){noiseHit(.7,.5,3000,400,'bandpass',1.5);tone(.4,.6,1800,200,'sawtooth');}
   if(S.view)S.view.shake=Math.max(S.view.shake,.6);
+  S.rib=grooveStart();carveGroove(S.rib,B.ip.x,B.ip.z,true);S.carve=0;
   explosion(B.ip.x,B.ip.y,B.ip.z,1.6);note(0,'ORBITAL LASER FIRING','bad',true);
 }
 function orbZap(S,t){ // the beam has dwelt on the target long enough: it goes
   const o=t.o;_mp.copy(S.beam.ip);
-  if(t.k==='static'){damage(o,1e7,0);explosion(o.x,Math.max(groundAt(o.x,o.z),0)+1,o.z,o.kind==='building'||o.kind==='hospital'||o.kind==='depot'?2.2:1.3);addBurn(o.x,o.z,rr(40,90),rr(1.4,2.4),.8);}
-  else if(t.k==='vehicle'){damage(o,1e7,0);}
-  else if(t.k==='soldier'){killSoldier(o,0,'blast');FIRE.spawn(o.x,o.y+1,o.z,0,3,0,rr(.4,.8),.8,2.2,[1,.9,.6],[.6,.1,.02],.9,-2,1);addBurn(o.x,o.z,rr(6,14),.5,.5);}
+  if(S.rib)carveGroove(S.rib,S.beam.ip.x,S.beam.ip.z,true); // the dwell spot burns down into a pit
+  if(t.k==='static'){damage(o,1e7,0);explosion(o.x,Math.max(groundAt(o.x,o.z),0)+1,o.z,o.kind==='building'||o.kind==='hospital'||o.kind==='depot'?2.2:1.3);addBurn(o.x,o.z,rr(300,540),rr(1.4,2.4),.45);
+    for(let i=0;i<3;i++){const a=rr(0,TAU),r=rr(2,5.5);addBurn(o.x+Math.cos(a)*r,o.z+Math.sin(a)*r,rr(240,460),rr(.7,1.4),.3);}}
+  else if(t.k==='vehicle'){damage(o,1e7,0);addBurn(o.x,o.z,rr(260,460),rr(1,1.8),.4);}
+  else if(t.k==='soldier'){killSoldier(o,0,'blast');FIRE.spawn(o.x,o.y+1,o.z,0,3,0,rr(.4,.8),.8,2.2,[1,.9,.6],[.6,.1,.02],.9,-2,1);addBurn(o.x,o.z,rr(180,320),.5,.22);}
   else if(t.k==='drone')killDrone(o,0);else if(t.k==='jet')damage(o,1e7,0);
   S.n++;debris(_mp.x,_mp.y+.5,_mp.z,t.k==='soldier'?2:6,t.k==='soldier'?4:9);
   if(S.zapT<=0&&(t.k!=='soldier'||RND()<.35)){sample('s_power',t.k==='soldier'?.45:.7,rr(.92,1.12));S.zapT=.28;}
@@ -2613,7 +2694,11 @@ function orbFireTick(S,dt){
   const tp=orbPos(S.cur,_md);const dx=tp.x-ip.x,dz=tp.z-ip.z,d=Math.hypot(dx,dz);
   if(d>.6){const sp=Math.max(ORB.sweep,d/.7)*dt,mv=Math.min(d,sp);ip.x+=dx/d*mv;ip.z+=dz/d*mv;B.dir.set(dx/d,0,dz/d);
     const gy=S.cur.k==='static'||S.cur.k==='soldier'||S.cur.k==='vehicle'?Math.max(groundAt(ip.x,ip.z),0):lerp(ip.y,tp.y,1-Math.exp(-dt*6));ip.y=gy;
-    B.trail+=mv;if(B.trail>1.4){B.trail=0;addBurn(ip.x,ip.z,rr(8,22),rr(.45,.8),.45);FIRE.spawn(ip.x,ip.y+.3,ip.z,rr(-2,2),rr(3,7),rr(-2,2),rr(.5,1.1),.8,2.4,[1,.95,.7],[.7,.15,.02],.9,-2,1.2);}
+    B.trail+=mv;S.carve=(S.carve||0)+mv;
+    if(S.carve>=GRV.step){S.carve=0;if(S.rib)carveGroove(S.rib,ip.x,ip.z,false);}
+    if(B.trail>1.4){B.trail=0;FIRE.spawn(ip.x,ip.y+.3,ip.z,rr(-2,2),rr(3,7),rr(-2,2),rr(.5,1.1),.8,2.4,[1,.95,.7],[.7,.15,.02],.9,-2,1.2);
+      // the grass either side of the cut catches: down in the slot the flames would just be hidden by the walls
+      const nx=-B.dir.z,nz=B.dir.x;for(const sg of [-1,1])if(RND()<.8){const o=rr(GRV.rim*1.05,GRV.rim*2.1)*sg;addBurn(ip.x+nx*o,ip.z+nz*o,rr(200,380),rr(.6,1.1),.3);}}
     // anything standing on the trail burns too
     for(const sd of G.soldiers)if(sd.alive&&sd.team===1&&!sd.ride&&Math.hypot(sd.x-ip.x,sd.z-ip.z)<1.6)killSoldier(sd,0,'blast');}
   else{ip.y=lerp(ip.y,tp.y,1-Math.exp(-dt*8));S.dwell+=dt;ip.x+=rr(-.15,.15);ip.z+=rr(-.15,.15);
@@ -4878,7 +4963,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();i
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,campaignWon,SPEC,specStart,HB,grooveOff,carveGroove,grooveStart,GRV,msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

@@ -18,6 +18,16 @@ const HEADERS = {
   "Content-Type": "application/json",
 };
 
+
+// (Matt, 6 Nov 2026) a shared key the game sends with every call. It is in the game's source, so anyone who
+// reads code can find it - the point is only to turn away drive-by scripts and bots hitting the endpoint
+// directly. The real limits are counted in the database (see supabase_rate_limits.sql).
+const SP_KEY = "sp7f3a91c4e2";
+function keyOk(req) {
+  const k = req.headers["x-sp-key"];
+  return typeof k === "string" && k === SP_KEY;
+}
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
     try {
@@ -32,6 +42,10 @@ export default async function handler(req, res) {
   }
   if (req.method !== "POST") {
     res.status(405).end();
+    return;
+  }
+  if (!keyOk(req)) {
+    res.status(204).end();
     return;
   }
 

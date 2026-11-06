@@ -21,9 +21,23 @@ const SUPABASE_URL = "https://kvdsmrlzsjzovbegdalq.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2ZHNtcmx6c2p6b3ZiZWdkYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTQ4MzAsImV4cCI6MjEwMzc3MDgzMH0.gGIFNPXR7b4Iq_eRiFIEr4-TF6UE53HKvwXnKX8caxM";
  
+
+// (Matt, 6 Nov 2026) a shared key the game sends with every call. It is in the game's source, so anyone who
+// reads code can find it - the point is only to turn away drive-by scripts and bots hitting the endpoint
+// directly. The real limits are counted in the database (see supabase_rate_limits.sql).
+const SP_KEY = "sp7f3a91c4e2";
+function keyOk(req) {
+  const k = req.headers["x-sp-key"];
+  return typeof k === "string" && k === SP_KEY;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).end();
+    return;
+  }
+  if (!keyOk(req)) {
+    res.status(204).end();
     return;
   }
  

@@ -56,3 +56,34 @@ language sql security definer set search_path = public stable as $$
 $$;
 revoke all on function campaign_hall() from public;
 grant execute on function campaign_hall() to anon, authenticated, service_role;
+
+-- (5 Nov 2026) how much heavy ordnance the run cost: counted by the game (ironflag.html tally()) and sent with the win
+alter table campaign_wins add column if not exists nukes integer;
+alter table campaign_wins add column if not exists orbs integer;
+drop function if exists campaign_win(text, integer, text, text, boolean, text, text, text, text, text);
+create or replace function campaign_win(
+  p_name text, p_secs integer, p_diff text, p_sid text, p_self boolean,
+  p_ip text, p_city text, p_region text, p_country text, p_ua text,
+  p_nukes integer default null, p_orbs integer default null
+) returns void
+language sql security definer set search_path = public as $$
+  insert into campaign_wins (name, total_secs, difficulty, session_id, self, ip_address, city, region, country, user_agent, nukes, orbs)
+  values (p_name, p_secs, p_diff, p_sid, coalesce(p_self, false), p_ip, p_city, p_region, p_country, p_ua, p_nukes, p_orbs);
+$$;
+revoke all on function campaign_win(text, integer, text, text, boolean, text, text, text, text, text, integer, integer) from public;
+grant execute on function campaign_win(text, integer, text, text, boolean, text, text, text, text, text, integer, integer) to anon, authenticated, service_role;
+
+-- the public roll carries the best (lowest) warhead count that call sign has managed
+drop function if exists campaign_hall();
+create or replace function campaign_hall()
+returns table (name text, first_won timestamptz, best_secs integer, wins bigint, nukes integer, orbs integer)
+language sql security definer set search_path = public stable as $$
+  select (array_agg(name order by won_at))[1] as name, min(won_at) as first_won, min(total_secs) as best_secs, count(*) as wins,
+         min(nukes) as nukes, min(orbs) as orbs
+  from campaign_wins
+  group by lower(name)
+  order by min(won_at)
+  limit 200;
+$$;
+revoke all on function campaign_hall() from public;
+grant execute on function campaign_hall() to anon, authenticated, service_role;

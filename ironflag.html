@@ -4769,7 +4769,7 @@ function needCallSign(){const cs=$('#callSign');if(!cs)return;$('#csNeed').hidde
 function campaignWon(){
   if(DEV.on)return;const name=callSign();if(!name)return;const best=loadOps().best||{};if(Object.keys(best).length<OPS.length)return;
   let secs=0;for(let i=0;i<OPS.length;i++)secs+=best[i]||0;
-  try{fetch('/api/campaign-win',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,secs,diff:['easy','normal','hard'][opts.diff]||null,sid:HB.sid,self:!!window.__noCount}),keepalive:true}).then(()=>setTimeout(loadHall,1500)).catch(()=>{});}catch(e){}
+  try{fetch('/api/campaign-win',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,secs,diff:['easy','normal','hard'][opts.diff]||null,sid:HB.sid,self:!!window.__noCount,...tallyGet()}),keepalive:true}).then(()=>setTimeout(loadHall,1500)).catch(()=>{});}catch(e){}
 }
 async function loadHall(){
   const h=$('#hall'),ol=$('#hallList'),more=$('#hallMore');if(!h)return;
@@ -4777,7 +4777,9 @@ async function loadHall(){
   if(!Array.isArray(rows)||!rows.length){h.hidden=true;return;}
   const MAX=8,fmt=s=>{s=Math.round(s||0);const hh=Math.floor(s/3600),m=Math.floor(s%3600/60);return hh?`${hh}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(s%60).padStart(2,'0')}s`;},
   date=d=>{try{return new Date(d).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});}catch(e){return '';}},esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  ol.innerHTML=rows.slice(0,MAX).map((r,i)=>`<li${i===0?' class="first"':''}>${esc(r.name)} <span>· ${esc(date(r.first_won))}${r.best_secs?' · '+fmt(r.best_secs):''}${i===0?' · FIRST':''}</span></li>`).join(''); // (Matt, 4 Nov 2026) public roll: call sign, date and total time only - IP, location and device stay in Admin
+  const arms=r=>{const n=r.nukes,o=r.orbs;if(n==null&&o==null)return '';if(!n&&!o)return ' · no warheads';
+    return ' · '+[n?n+'☢':'',o?o+'◎':''].filter(Boolean).join(' ');};
+  ol.innerHTML=rows.slice(0,MAX).map((r,i)=>`<li${i===0?' class="first"':''}>${esc(r.name)} <span>· ${esc(date(r.first_won))}${r.best_secs?' · '+fmt(r.best_secs):''}${esc(arms(r))}${i===0?' · FIRST':''}</span></li>`).join(''); // (Matt, 4 Nov 2026) public roll: call sign, date, total time and what it cost in warheads - IP, location and device stay in Admin
   more.hidden=rows.length<=MAX;if(rows.length>MAX)more.textContent=`and ${rows.length-MAX} more`;h.hidden=false;
 }
 function showMyRun(){ // only once the whole campaign is behind them

@@ -1822,7 +1822,7 @@
       if (!campaignWinsList) return;
       const { data, error } = await supabaseClient
         .from("campaign_wins")
-        .select("id, name, total_secs, difficulty, self, ip_address, city, region, country, user_agent, won_at")
+        .select("id, name, total_secs, difficulty, self, ip_address, city, region, country, user_agent, won_at, nukes, orbs")
         .order("won_at", { ascending: false })
         .limit(200);
       if (error) {
@@ -1842,7 +1842,7 @@
         <div class="visit-row${r.self ? " self" : ""}">
           <div class="visit-info">
             <span class="visit-name">🏆 ${escapeHtml(r.name)}${r.id === firstId ? ' <span class="muted">(first ever)</span>' : ""}${r.self ? ' <span class="muted">(you / dev device)</span>' : ""}</span>
-            <span class="visit-mode">${r.total_secs ? "Total time " + escapeHtml(formatSecs(r.total_secs)) : "Total time unknown"}${r.difficulty ? " · " + escapeHtml(r.difficulty) : ""}</span>
+            <span class="visit-mode">${r.total_secs ? "Total time " + escapeHtml(formatSecs(r.total_secs)) : "Total time unknown"}${r.difficulty ? " · " + escapeHtml(r.difficulty) : ""}${r.nukes == null && r.orbs == null ? "" : " · " + (r.nukes || 0) + " nuke" + (r.nukes === 1 ? "" : "s") + ", " + (r.orbs || 0) + " orbital" + (r.orbs === 1 ? "" : "s")}</span>
             <span class="visit-location">${escapeHtml(formatVisitLocation(r))}</span>
             <span class="visit-ip">${escapeHtml(r.ip_address || "Unknown IP")}</span>
           </div>

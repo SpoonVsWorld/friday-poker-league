@@ -3116,7 +3116,7 @@ function toggleFoot(view){
     if(!spot){note(T,'No room to get out here','warn');return;}
     v.speed=0;v.strafe=0;const h=spawnHero(T,spot.x,spot.z,v.heading);t.parked=v;t.vehicle=h;view.cy=null;view.cpos=null;FP.prevH=null;
     if(view.index===0)musicStop();sfx('click',v.x,v.z);
-    note(T,opts.touch?'On foot: SPECIAL throws a grenade · tap IN beside a vehicle to get back in':'On foot: click to aim · right-click (or X) grenade · Shift sprint · C crouch · F jump · G beside a vehicle to get in','info');
+    note(T,opts.touch?'On foot: SPECIAL throws a grenade · tap IN beside a vehicle to get back in · walk home to write it off and re-kit':'On foot: click to aim · right-click (or X) grenade · Shift sprint · C crouch · F jump · G beside a vehicle to get in · walk home to write it off and re-kit','info');
   }else{
     let best=null,bd=1e9;for(const o of G.vehicles){if(o===v||o.team!==T||o.type==='foot'||o.state!=='active')continue;const d=Math.hypot(o.x-v.x,o.z-v.z)-o.r;if(d<2.4&&d<bd){bd=d;best=o;}}
     if(!best){note(T,'Walk up to one of your vehicles to get in','warn');return;}
@@ -3147,8 +3147,21 @@ function aimAssist(v,dt,firing){ // touch only: nearest enemy within ~10 deg of 
   for(const st of G.statics)if(st.alive&&st.team===1-v.team&&st.kind==='turret')consider(st.x,(st.y0||0)+Math.min(st.h||2,3)*.6,st.z);
   if(!best)return;const k=(firing?5:1.6)*dt;v.heading+=clamp(best.ya,-k,k);v.pitch=clamp(v.pitch+clamp(best.pa,-k,k),-1.25,1.25);
 }
+function footBunker(v,dt){ // (Matt, 6 Nov 2026) on foot, back on your own pad: scuttle whatever you abandoned and re-kit
+  const T=v.team,t=G.teams[T],b=G.bases[T];
+  if(t.vehicle!==v||v.state!=='active'||v.carrying||G.over||paused||mslBusy()){v.padT=0;return;}
+  const d=Math.hypot(v.x-b.x,v.z-b.z);
+  if(d>12)v.leftPad=true;                       // you have to have actually gone out there
+  if(!v.leftPad||d>5.5){v.padT=0;return;}
+  v.padT=(v.padT||0)+dt;if(v.padT<.6)return;
+  const p=t.parked;
+  if(p&&p.state==='active'){p.devDie=true;explosion(p.x,Math.max(groundAt(p.x,p.z),0)+1,p.z,1.1);destroyVehicle(p);note(T,`${p.def.name} written off in the field`,'bad');}
+  t.parked=null;t.hero=null;removeHero(v);t.vehicle=null;t.respawnT=.4;
+  sfx('lift',b.x,b.z);note(T,'Back in the bunker — pick a vehicle','info');
+  if(t.view&&t.view.index===0)musicStop();
+}
 function updateFoot(v,inp,dt){
-  const def=v.def,T=v.team;if(v.hitFlash>0)v.hitFlash-=dt;if(opts.touch&&G.teams[T].human)aimAssist(v,dt,!!inp.fire);
+  const def=v.def,T=v.team;footBunker(v,dt);if(v.state!=='active')return;if(v.hitFlash>0)v.hitFlash-=dt;if(opts.touch&&G.teams[T].human)aimAssist(v,dt,!!inp.fire);
   v.heading-=(inp.turn||0)*def.turn*dt;if(inp.look){v.heading-=inp.look.x*2.6*dt;v.pitch=clamp(v.pitch-inp.look.y*1.8*dt,-1.25,1.25);}
   const mzi=inp.thr||0,mxi=inp.strafe||0;v.crouch=!!inp.crouch&&!v.air;const sprint=!!inp.special&&mzi>.3&&!v.carrying&&!v.crouch;v.sprint=sprint;
   let mz=mzi,mx=mxi;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l;}

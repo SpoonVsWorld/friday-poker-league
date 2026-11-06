@@ -48,6 +48,7 @@ export default async function handler(req, res) {
       return;
     }
     const secs = Number.isFinite(+raw.secs) && +raw.secs > 0 ? Math.round(+raw.secs) : null;
+    const count = (v) => (Number.isFinite(+v) && +v >= 0 && +v < 10000 ? Math.round(+v) : null);
 
     const forwardedFor = String(req.headers["x-forwarded-for"] || "");
     const ip = forwardedFor.split(",")[0].trim() || req.socket?.remoteAddress || null;
@@ -71,6 +72,8 @@ export default async function handler(req, res) {
       p_region: decode(req.headers["x-vercel-ip-country-region"]),
       p_country: decode(req.headers["x-vercel-ip-country"]),
       p_ua: req.headers["user-agent"] || null,
+      p_nukes: count(raw.nukes),
+      p_orbs: count(raw.orbs),
     };
 
     await fetch(SUPABASE_URL + "/rest/v1/rpc/campaign_win", { method: "POST", headers: HEADERS, body: JSON.stringify(params) });

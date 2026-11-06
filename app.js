@@ -220,7 +220,7 @@
       if (data.session) {
         showLoggedIn(data.session);
       } else {
-        fetch("/api/log-view", { method: "POST" }).catch(() => {});
+        fetch("/api/log-view", { method: "POST", headers: { "X-SP-Key": "sp7f3a91c4e2" } }).catch(() => {});
       }
     });
 
@@ -1797,13 +1797,16 @@
     async function watchPlayer(sid, btn) {
       if (!sid) return;
       if (btn) { btn.disabled = true; btn.textContent = "Opening…"; }
-      const { error } = await supabaseClient.from("game_presence").update({ watch_at: new Date().toISOString() }).eq("session_id", sid);
+      // (6 Nov 2026) a one-time key for this watch: the player's game is handed the same token by its next
+      // heartbeat and will only accept a spectator - or a voice-of-god clip - that presents it.
+      const key = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/-/g, "");
+      const { error } = await supabaseClient.from("game_presence").update({ watch_at: new Date().toISOString(), watch_token: key }).eq("session_id", sid);
       if (error) {
         if (btn) { btn.disabled = false; btn.textContent = "👁 Watch"; }
-        alert("Could not flag that session for watching: " + error.message + (/watch_at|policy/i.test(error.message) ? " (run the 3 Nov part of supabase_game_presence.sql in the Supabase SQL editor once)" : ""));
+        alert("Could not flag that session for watching: " + error.message + (/watch_at|watch_token|policy/i.test(error.message) ? " (run supabase_rate_limits.sql in the Supabase SQL editor once)" : ""));
         return;
       }
-      window.open("https://spoonplatoon.vercel.app/ironflag.html?spectate=" + encodeURIComponent(sid), "_blank", "noopener");
+      window.open("https://spoonplatoon.vercel.app/ironflag.html?spectate=" + encodeURIComponent(sid) + "&k=" + encodeURIComponent(key), "_blank", "noopener");
       setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = "👁 Watch"; } }, 3000);
     }
 

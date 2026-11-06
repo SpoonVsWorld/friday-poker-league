@@ -37,7 +37,7 @@
     noCount=localStorage.getItem('ironflag.nocount')==='1'||!!localStorage.getItem('sb-kvdsmrlzsjzovbegdalq-auth-token');
   }catch(e){}
   window.__noCount=noCount;
-  if(!noCount)try{fetch('/api/log-view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:'spoonplatoon',name:(function(){try{return localStorage.getItem('ironflag.name')||null;}catch(e){return null;}})()}),keepalive:true}).catch(function(){});}catch(e){}
+  if(!noCount)try{fetch('/api/log-view',{method:'POST',headers:{'Content-Type':'application/json','X-SP-Key':'sp7f3a91c4e2'},body:JSON.stringify({page:'spoonplatoon',name:(function(){try{return localStorage.getItem('ironflag.name')||null;}catch(e){return null;}})()}),keepalive:true}).catch(function(){});}catch(e){}
 })();
 </script>
 <meta name="theme-color" content="#0d120e">
@@ -4729,7 +4729,7 @@ function hbTick(){
   let mode='In the menus',detail=null;
   if(G&&!G.demo&&(state==='play'||state==='over')){mode=G.op?`Operation ${opIndex+1} · ${G.op.name}`:G.net?'Online match':G.views&&G.views.length>1?'2-player skirmish':'Skirmish';detail=(state==='over'?'finished · ':'')+fmtTime(Math.floor(G.time))+' in'+(G.bodies?` · body count ${G.bodies[1]}`:'')+(devFor(0)||devFor(1)?' · dev mode':'');}
   else if(state==='online')mode='Online lobby';else if(state==='ops')mode='Choosing an operation';else if(state==='loading')mode='Loading';
-  try{fetch('/api/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:HB.sid,name,mode,detail,started:HB.t0,self:!!window.__noCount}),keepalive:true}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.watch&&!SPEC.on)specStart();}).catch(()=>{});}catch(e){}
+  try{fetch('/api/heartbeat',{method:'POST',headers:{'Content-Type':'application/json','X-SP-Key':'sp7f3a91c4e2'},body:JSON.stringify({sid:HB.sid,name,mode,detail,started:HB.t0,self:!!window.__noCount}),keepalive:true}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.watch){SPEC.key=j.token||null;if(!SPEC.on)specStart();}}).catch(()=>{});}catch(e){}
 }
 setInterval(hbTick,30000);setTimeout(hbTick,4000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')hbTick();});
 function loop(now){
@@ -4782,7 +4782,7 @@ function needCallSign(){const cs=$('#callSign');if(!cs)return;$('#csNeed').hidde
 function campaignWon(){
   if(DEV.on)return;const name=callSign();if(!name)return;const best=loadOps().best||{};if(Object.keys(best).length<OPS.length)return;
   let secs=0;for(let i=0;i<OPS.length;i++)secs+=best[i]||0;
-  try{fetch('/api/campaign-win',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,secs,diff:['easy','normal','hard'][opts.diff]||null,sid:HB.sid,self:!!window.__noCount,...tallyGet()}),keepalive:true}).then(()=>setTimeout(loadHall,1500)).catch(()=>{});}catch(e){}
+  try{fetch('/api/campaign-win',{method:'POST',headers:{'Content-Type':'application/json','X-SP-Key':'sp7f3a91c4e2'},body:JSON.stringify({name,secs,diff:['easy','normal','hard'][opts.diff]||null,sid:HB.sid,self:!!window.__noCount,...tallyGet()}),keepalive:true}).then(()=>setTimeout(loadHall,1500)).catch(()=>{});}catch(e){}
 }
 async function loadHall(){
   const h=$('#hall'),ol=$('#hallList'),more=$('#hallMore');if(!h)return;
@@ -5006,14 +5006,14 @@ function netApplySnapshot(snap){
 // when nobody is watching, and the player is never told. The watcher is this same page opened with ?spectate=<sid> on a
 // device with developer mode on: it builds the same world from the player's mode + seed and renders what it receives
 // (the online guest path), following the player's camera. It sends nothing back and never calls step().
-const SPEC={on:false,ch:null,acc:0,hello:0,full:false,watchers:0,idleT:0,watching:false,sid:null,wch:null,lastSnap:null,cam:null,camSnap:true,mid:0,dr:new Map(),jt:new Map(),mn:[],msl:null,started:false};
+const SPEC={on:false,ch:null,acc:0,hello:0,full:false,watchers:0,idleT:0,watching:false,sid:null,wch:null,lastSnap:null,cam:null,camSnap:true,mid:0,dr:new Map(),jt:new Map(),mn:[],msl:null,started:false,key:null};
 const _sc1=new V3(),_sc2=new V3(),_sc3=new V3();
 function netLive(){return !!(G&&!G.demo&&((G.net&&G.net.host)||SPEC.on));}
 function specStart(){
   if(SPEC.on||SPEC.watching)return;const sb=netSupa();if(!sb||!hbSid())return;
   const ch=sb.channel('ironflag-spec-'+HB.sid,{config:{presence:{key:'p'+netMyId()}}});SPEC.ch=ch;SPEC.on=true;SPEC.watchers=0;SPEC.idleT=0;SPEC.full=true;SPEC.hello=99;
-  ch.on('broadcast',{event:'vox'},({payload})=>voxRecv(payload)); // the voice of god, from whoever is watching
-  ch.on('presence',{event:'sync'},()=>{const st=ch.presenceState();let n=0;for(const k in st)for(const m of st[k])if(m.role==='spec')n++;if(n>SPEC.watchers){SPEC.full=true;SPEC.hello=99;}SPEC.watchers=n;if(n>0)SPEC.idleT=0;});
+  ch.on('broadcast',{event:'vox'},({payload})=>{if(SPEC.key&&payload&&payload.k===SPEC.key)voxRecv(payload);}); // only the Admin screen's token can talk through the game
+  ch.on('presence',{event:'sync'},()=>{const st=ch.presenceState();let n=0;for(const k in st)for(const m of st[k])if(m.role==='spec'&&SPEC.key&&m.k===SPEC.key)n++;if(n>SPEC.watchers){SPEC.full=true;SPEC.hello=99;}SPEC.watchers=n;if(n>0)SPEC.idleT=0;});
   ch.subscribe(status=>{if(status==='SUBSCRIBED')try{ch.track({role:'player'});}catch(e){}});
 }
 function specStop(){if(SPEC.ch){try{SPEC.ch.unsubscribe();}catch(e){}SPEC.ch=null;}SPEC.on=false;SPEC.watchers=0;}
@@ -5081,7 +5081,7 @@ async function voxSend(blob){
   let bin='';for(let i=0;i<buf.length;i+=8192)bin+=String.fromCharCode.apply(null,buf.subarray(i,i+8192));
   const b64=btoa(bin),id='v'+Date.now().toString(36),n=Math.ceil(b64.length/VOX_CH);
   if(n>6){specStatus('That clip is too long to send — keep it under about 20 seconds');return;}
-  for(let i=0;i<n;i++)try{SPEC.wch.send({type:'broadcast',event:'vox',payload:{id,i,n,mime:blob.type,d:b64.slice(i*VOX_CH,(i+1)*VOX_CH)}});}catch(e){console.warn('vox send',e);}
+  for(let i=0;i<n;i++)try{SPEC.wch.send({type:'broadcast',event:'vox',payload:{id,i,n,mime:blob.type,d:b64.slice(i*VOX_CH,(i+1)*VOX_CH),k:SPEC.key}});}catch(e){console.warn('vox send',e);}
   specStatus(`Transmission sent (${(buf.length/1024).toFixed(0)} KB) — it plays on their speakers`);
 }
 // ---- player side
@@ -5131,13 +5131,13 @@ async function voxPlay(b64,mime){
 }
 // ---- watcher side
 function specStatus(t){const b=$('#specBar');if(!b)return;b.hidden=false;$('#specTxt').textContent=t;}
-function specWatch(sid){
-  SPEC.watching=true;SPEC.sid=sid;$('#title').hidden=true;specStatus('Connecting to the player…');
+function specWatch(sid,key){
+  SPEC.watching=true;SPEC.sid=sid;SPEC.key=key||null;$('#title').hidden=true;specStatus('Connecting to the player…');
   const sb=netSupa();if(!sb){specStatus('Spectating needs the realtime library (no internet?)');return;}
   const ch=sb.channel('ironflag-spec-'+sid,{config:{presence:{key:'w'+netMyId()}}});SPEC.wch=ch;
   ch.on('broadcast',{event:'hello'},({payload})=>specOnHello(payload));
   ch.on('broadcast',{event:'snap'},({payload})=>{SPEC.lastSnap=payload;});
-  ch.subscribe(status=>{if(status==='SUBSCRIBED'){try{ch.track({role:'spec',name:callSign()||'Admin'});}catch(e){}specStatus('Waiting for the player (their game checks in every 30 s)…');
+  ch.subscribe(status=>{if(status==='SUBSCRIBED'){try{ch.track({role:'spec',name:callSign()||'Admin',k:SPEC.key});}catch(e){}specStatus('Waiting for the player (their game checks in every 30 s)…');
     const vb=$('#specVox');if(vb&&voxSupported()){vb.hidden=false;
       const dn=e=>{e.preventDefault();voxStart();},up=e=>{e.preventDefault();voxStop();};
       vb.addEventListener('pointerdown',dn);vb.addEventListener('pointerup',up);vb.addEventListener('pointercancel',up);vb.addEventListener('pointerleave',up);
@@ -5189,7 +5189,12 @@ $('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();
 $('#specQuit').onclick=()=>{voxStop();if(VOX.stream){VOX.stream.getTracks().forEach(t=>t.stop());VOX.stream=null;}if(SPEC.wch){try{SPEC.wch.unsubscribe();}catch(e){}SPEC.wch=null;}SPEC.watching=false;SPEC.started=false;$('#specBar').hidden=true;try{history.replaceState(null,'',location.pathname);}catch(e){}endGame();toTitle();};
-{const sid=new URLSearchParams(location.search).get('spectate');if(sid&&/^[A-Za-z0-9_-]{4,40}$/.test(sid)){const go=()=>{if(state==='loading'){setTimeout(go,300);return;}if(!DEV.on){$('#specBar').hidden=false;$('#specTxt').textContent='Spectating needs developer mode on this device (title screen › dev)';$('#specQuit').textContent='OK';return;}endGame();specWatch(sid);};setTimeout(go,500);}}
+{const qs=new URLSearchParams(location.search),sid=qs.get('spectate'),key=qs.get('k');
+ if(sid&&/^[A-Za-z0-9_-]{4,40}$/.test(sid)){const go=()=>{if(state==='loading'){setTimeout(go,300);return;}
+   const bar=t=>{$('#specBar').hidden=false;$('#specTxt').textContent=t;$('#specQuit').textContent='OK';};
+   if(!DEV.on){bar('Spectating needs developer mode on this device (title screen › dev)');return;}
+   if(!key||!/^[A-Za-z0-9_-]{8,64}$/.test(key)){bar('Open the spectator view from the Admin screen — the Watch button carries the key');return;}
+   endGame();specWatch(sid,key);};setTimeout(go,500);}}
 // Owner switch: 5 quick taps on the Spoon Lab logo toggles "don't count my visits on this device" (see head script).
 {const logo=document.querySelector('.brand .made img'),label=document.querySelector('.brand .made');let taps=[];
  const show=t=>{const old=label.lastChild.textContent;label.lastChild.textContent=t;label.style.color='var(--signal)';setTimeout(()=>{label.lastChild.textContent=old;label.style.color='';},2600);};
@@ -5277,7 +5282,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

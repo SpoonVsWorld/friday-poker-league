@@ -92,7 +92,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline
 .brand .made img{width:26px;height:26px;border-radius:50%;box-shadow:0 0 0 1px rgba(80,170,255,.35),0 0 12px rgba(70,160,255,.35)}
 .modes{display:grid;gap:10px}
 .mode{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;background:rgba(239,226,184,.06);border:1px solid var(--line);color:var(--sand);padding:14px 16px;border-radius:3px;font-size:17px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;transition:background .15s,border-color .15s}
-.mode small{display:block;font-weight:400;text-transform:none;letter-spacing:.02em;color:var(--khaki);font-size:13px;margin-top:2px}
+.mode.locked{opacity:.5;cursor:default}.mode small{display:block;font-weight:400;text-transform:none;letter-spacing:.02em;color:var(--khaki);font-size:13px;margin-top:2px}
 .mode:hover{background:rgba(242,182,50,.14);border-color:var(--signal)}
 .mode .k{font-family:var(--display);font-size:26px;color:var(--signal)}
 .opts{display:grid;gap:12px;font-size:13px}
@@ -359,6 +359,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
     </div>
     <div class="modes">
       <button class="mode" id="bOps"><div>Campaign<small>20 operations against fortified island bases</small></div><span class="k">OPS</span></button>
+      <button class="mode" id="bBT"><div>Black Tide<small>Coming soon</small></div><span class="k">II</span></button>
       <button class="mode" id="b1p"><div>Skirmish<small>You against a CPU commander with its own vehicles</small></div><span class="k">1P</span></button>
       <button class="mode" id="b2p"><div>Online<small>Open lobby — play a real opponent on the app</small></div><span class="k">NET</span></button>
     </div>
@@ -2639,7 +2640,7 @@ const ORB_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><rect x="3" y="9" wi
 const ORB_KINDS=new Set(['building','hospital','depot','gas','turret','gate','radio','tower','gen','fuel','tent']);
 const ORBS={scene:null,cam:null,earth:null,clouds:null,st:null,parts:null,glow:null};
 const ORBT={};
-function orbUnlocked(){if(DEV.on)return true;const b=loadOps().best||{};return b[OPS.length-1]!=null;}
+function orbUnlocked(){if(DEV.on)return true;const b=loadOpsK(CAMPS[1].key).best||{};return b[CAMPS[1].ops.length-1]!=null;}
 // (Matt, 5 Nov 2026) the first shot is the expensive one: once the platform has been fired, the uplink is
 // established and every later strike costs ORB.cost2 instead, so the orbital isn't a once-a-campaign thing
 function orbUsed(){return !!loadOps().orbUsed;}
@@ -2990,7 +2991,7 @@ function jetFly(v,inp,thr,turn,dt){
 const MSL_SLOT=VORDER.length,NUKE_SLOT=MSL_SLOT+1,ORB_SLOT=NUKE_SLOT+1; // bunker menu slots: missile strike, then the nuclear strike (after the vehicle cards)
 const CARRIER=v=>v.type==='jeep'||v.type==='truck'||v.type==='foot'; // vehicles that can pick up and run the objective home
 const TRUCK_LEN=6.2,TRUCK_ITEM={y:2.2,z:-2.55,s:.6},_tq=new V3();
-function truckUnlocked(){if(!A.truck)return false;if(DEV.on)return true;const b=loadOps().best||{};return b[9]!=null;}
+function truckUnlocked(){if(!A.truck)return false;if(DEV.on)return true;const b=loadOpsK(CAMPS[1].key).best||{};return b[9]!=null;} /* unlocked by Iron Curtain's Operation 10 */
 function truckTarget(v){ // roof gunner: nearest threat all round within MG range
   let best=null,bs=1e9;const consider=(x,z,y,w)=>{const d=Math.hypot(x-v.x,z-v.z);if(d>44)return;const sc=d*w;if(sc<bs){bs=sc;best={x,z,y};}};
   for(const o of G.vehicles)if(o.team!==v.team&&o.state==='active'&&!o.def.air)consider(o.x,o.z,o.y+1,.7);
@@ -3380,7 +3381,7 @@ function destroyVehicle(v,by){
 
 // ============================================================ flags
 function makeFlag(T){
-  const it=G.op&&T===1&&A.items&&A.items[opIndex+1]; // campaign: the enemy 'flag' is this operation's intel item
+  const it=G.op&&T===1&&CAMP===1&&A.items&&A.items[opIndex+1]; /* Black Tide objectives use the flag until their models exist */ // campaign: the enemy 'flag' is this operation's intel item
   const o=it?it.clone():tintObj(proto('flag',5.5).clone(),'team'+T,teamRecolor(T));o.visible=false;world.add(o);
   const f={team:T,state:'hidden',x:0,z:0,obj:o,carrier:null,bob:0,item:it?OBJECTIVES[opIndex]:null};return f;}
 function exposeFlag(f,x,z){musicSting();f.state='exposed';f.x=x;f.z=z;f.obj.visible=true;world.attach(f.obj);f.obj.position.set(x,groundAt(x,z),z);f.obj.scale.setScalar(1);
@@ -4055,7 +4056,7 @@ function spawnSoldier(T,x,z,mode){
   if(!A.soldier||soldierBlocked(x,z,T)){const p=patrolPoint(G.bases[T]);x=p[0];z=p[1];}
   const o=SkeletonUtils.clone(A.soldier.scene);o.scale.setScalar(SOLDIER_SCALE);
   const hv=A.troop?(Math.abs((x*73+z*131)|0)%3):-1; // which of the 3 faces this man gets (by spawn spot, so online clients agree)
-  o.traverse(m=>{if(m.isMesh){if(!A.troop)m.material=SOLDIER_MAT[T];else if(m.userData.team)m.material=TEAM_MAT[T];else if(CAMO_MAT[T]&&m.material.name==='Camo')m.material=CAMO_MAT[T];else if(CAMO_TINT[T]&&CAMO_TINT[T][m.material.uuid])m.material=CAMO_TINT[T][m.material.uuid];if(m.userData.head!==undefined)m.visible=m.userData.head===hv;m.castShadow=true;m.frustumCulled=false;}});
+  o.traverse(m=>{if(m.isMesh){if(!A.troop)m.material=SOLDIER_MAT[T];else if(m.userData.team)m.material=TEAM_MAT[T];else if(CAMO_MAT[T]&&m.material.name==='Camo')m.material=CAMO_MAT[T];else if(CAMO_TINT[T]&&CAMO_TINT[T][m.material.uuid])m.material=CAMO_TINT[T][m.material.uuid];if(G&&G.snowCamo&&(m.material===CAMO_MAT[T]||Object.values(CAMO_TINT[T]||{}).includes(m.material)))m.material=snowCamoOf(m.material,T);if(m.userData.head!==undefined)m.visible=m.userData.head===hv;m.castShadow=true;m.frustumCulled=false;}});
   const gun=rifleModel().clone();gun.scale.setScalar(GUN_MOUNT.scale);const chest=o.getObjectByName('mixamorigSpine2');if(chest&&GUN_MOUNT.pos){gun.position.copy(GUN_MOUNT.pos);gun.quaternion.copy(GUN_MOUNT.quat);chest.add(gun);}else o.add(gun);
   const bn=n=>o.getObjectByName('mixamorig'+n),arms={R:['RightArm','RightForeArm','RightHand'].map(bn),L:['LeftArm','LeftForeArm','LeftHand'].map(bn)};
   const head=o.getObjectByName('mixamorigHead');if(head&&!A.troop){const hp=new THREE.Mesh(HELMET_GEO,HELMET_MAT[T]);hp.position.set(0,21,0);head.add(hp);}
@@ -4568,7 +4569,7 @@ function newGame(mode,seed,demo=false){
   world=new THREE.Group();scene.add(world);FIRE.clear();SMOKE.clear();for(const p of DEB.p)p.life=0;for(const p of BLD.p)p.life=0;
   G={id:++MATCH_SEQ,mode,seed,demo,time:0,statics:[],hash:new Map(),vehicles:[],proj:[],mines:[],smokers:[],views:[],batches:{},soldiers:[],soldierT:[0,0],drones:[],droneT:[40,40],sub:{mesh:null,cool:0},over:false,netSeq:0,net:mode==='online'||SPEC.watching?NET:null,jets:[],bombs:[],air:null};
   const SK={buildings:6,turrets:['gun','cannon','gun','cannon'],outposts:['gun'],soldiers:7,soldierCap:9,drones:0,gates:true};
-  G.op=mode==='campaign'?OPS[opIndex]:null;
+  G.op=mode==='campaign'?OPS[opIndex]:null;G.snowCamo=!!(G.op&&CAMP===2&&(G.op.theme==='snow'||G.op.theme==='ice'));
   G.strikes=G.op&&!demo?strikesBanked():0;G.lost=0;G.bodies=[0,0];G.nukeBodies=0; // soldiers of each team killed this match (the HUD body count)G.strike=null;G.mslMap=false; // missile strikes banked / player vehicles lost this op (a flawless op banks a strike)
   if(G.op&&G.op.cfg.airStrikes&&!demo){const n=G.op.cfg.airStrikes;G.air={total:n,left:[n,n],enemyT:45+Math.random()*45};}
   if(G.op&&!demo&&mode!=='online')G.drop={t:rr(DROP.first[0],DROP.first[1]),left:2,run:null,pod:null}; // supply drops: two per operation
@@ -4596,9 +4597,10 @@ function newGame(mode,seed,demo=false){
   const humans=demo?[]:mode==='2p'||mode==='online'?[0,1]:[0];
   const d=opts.diff;
   G.aiErr=[0,0];G.dmgMul=[1,1];G.turMul=[1,1];G.vehMul=[1,1];
-  G.teams=[0,1].map(T=>({team:T,human:humans.includes(T),stock:G.op?(T===0?{...G.op.stock,truck:0,boat:0,jet:0}:{tank:0,heli:0,asv:0,jeep:0,truck:0,boat:0,jet:0}):{tank:3,heli:3,asv:2,jeep:4,truck:0,boat:0,jet:0},vehicle:null,respawnT:.5,input:{thr:0,turn:0},ai:{think:0,goal:null,aimJit:0}}));
-  {const t0=G.teams[0];t0.navyOn=!!(!demo&&t0.human&&!G.op&&!G.net&&mode==='1p'&&devActive()); /* Black Tide vehicles: dev-mode skirmish only until campaign 2 exists */
-    if(t0.navyOn){G.docks=[findDock(G.bases[0]),null];if(A.boat&&G.docks[0]){t0.stock.boat=2;dockBuoy(G.docks[0],0);}t0.stock.jet=2;}}
+  G.teams=[0,1].map(T=>({team:T,human:humans.includes(T),stock:G.op?(T===0?{truck:0,boat:0,jet:0,...G.op.stock}:{tank:0,heli:0,asv:0,jeep:0,truck:0,boat:0,jet:0}):{tank:3,heli:3,asv:2,jeep:4,truck:0,boat:0,jet:0},vehicle:null,respawnT:.5,input:{thr:0,turn:0},ai:{think:0,goal:null,aimJit:0}}));
+  {const t0=G.teams[0];t0.navyOn=!!(!demo&&t0.human&&!G.net&&(G.op?CAMP===2:mode==='1p'&&devActive())); /* Black Tide vehicles: the Black Tide campaign, plus a dev-mode skirmish */
+    if(t0.navyOn){G.docks=[findDock(G.bases[0]),null];const sb=G.op?G.op.stock:{boat:2,jet:2};t0.stock.boat=A.boat&&G.docks[0]?(sb.boat|0):0;if(t0.stock.boat)dockBuoy(G.docks[0],0);t0.stock.jet=sb.jet|0;}
+    else{t0.stock.boat=0;t0.stock.jet=0;}}
   {const t0=G.teams[0];t0.truckOn=!!(A.truck&&!demo&&t0.human&&(G.op?truckUnlocked():mode==='1p'&&devActive()));if(t0.truckOn)t0.stock.truck=1;}
   // Online: the other team is a real remote player, simulated right here on
   // the host, but fed by network input instead of readHuman()/AI - see the
@@ -4633,7 +4635,7 @@ function gameOver(winner,how){
     const human=G.views.map(v=>v.team.team);let title,text;
     $('#oNext').hidden=true;$('#oOps').hidden=!G.op;$('#oNew').hidden=!!G.op||!!G.net;$('#oAgain').textContent=G.op?'Replay operation':G.net?'Back to lobby':'Rematch';
     if(G.op){const won=winner===0;title=won?'Operation complete':'Operation failed';
-      if(won){const secs=Math.round(G.time);const newTruck=opIndex===9&&!truckUnlocked();text=`${G.op.name} taken in ${fmtTime(secs)}. Body count ${G.bodies?G.bodies[1]:0}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(opIndex===OPS.length-1)campaignWon();if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(newTruck&&truckUnlocked())text+=' NEW VEHICLE UNLOCKED: the Six-Wheeler, an armored 6×6 jeep with a roof gun, is in your bunker from now on.';if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else title=STORY.endTitle;confetti();}
+      if(won){const secs=Math.round(G.time);const newTruck=opIndex===9&&!truckUnlocked();text=`${G.op.name} taken in ${fmtTime(secs)}. Body count ${G.bodies?G.bodies[1]:0}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(opIndex===OPS.length-1)campaignWon();if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(newTruck&&truckUnlocked())text+=' NEW VEHICLE UNLOCKED: the Six-Wheeler, an armored 6×6 jeep with a roof gun, is in your bunker from now on.';if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else{title=STORY.endTitle;if(CAMP===1&&BT_READY)text+=' OPERATION BLACK TIDE UNLOCKED: find it on the title screen.';}confetti();}
       else text=(how==='nojeep'?`No jeeps left to carry the ${objName(G.flags[1]).toLowerCase()}.`:'You ran out of vehicles.')+` Body count ${G.bodies?G.bodies[1]:0}.`;}
     else if(G.views.length===1){const won=winner===human[0];title=won?'Victory':'Defeat';
       text=how==='flag'?(won?'You brought their flag home.':'The enemy ran your flag home.'):(won?'The enemy ran out of vehicles.':'You ran out of vehicles.');}
@@ -4646,7 +4648,7 @@ function checkLose(){
   if(G.op){const t=G.teams[0];const jeeps=t.stock.jeep+(t.stock.truck||0)+(t.vehicle&&CARRIER(t.vehicle)?1:0)+(t.parked&&t.parked.state==='active'&&CARRIER(t.parked)?1:0);const left=VORDER.reduce((a,k)=>a+t.stock[k],0);
     if(G.flags[1].state!=='carried'&&(jeeps===0||(!t.vehicle&&left===0)))gameOver(1,jeeps===0?'nojeep':'out');return;}
   for(const t of G.teams){const left=VORDER.reduce((a,k)=>a+t.stock[k],0);if(!t.vehicle&&left===0){gameOver(1-t.team,'out');return;}}}
-const OPS=(()=>{
+let OPS=(()=>{
   const names=[['Beachhead',4],['Sandbar',11],['Twin Bridges',23],['Palm Ridge',38],['Iron Gate',52],['Low Tide',67],['Crossfire',81],['Hornet Nest',95],['Breakwater',108],['Long Haul',126],
     ['Stormfront',141],['Dead Reckoning',159],['Gauntlet',172],['Red Shore',188],['Skyhook',203],['Firestorm',219],['Last Light',236],['Hammerfall',251],['Iron Curtain',268],['Final Flag',284]];
   return names.map(([name,seed],i)=>{const t=i/19;
@@ -4662,13 +4664,13 @@ const OPS=(()=>{
 let opIndex=0;
 // Campaign objectives: each operation hides its own intel item instead of the enemy flag (same hide / expose / carry / bring-home rules).
 // Models come from sp-data/items*.glb (A.items[n]); an op whose model isn't built yet still uses the flag.
-const OBJECTIVES=[['Communications Log','COMMS LOG'],['Supply Manifest','MANIFEST'],['Route Intelligence Map','ROUTE MAP'],['Encrypted Intelligence Drive','INTEL DRIVE'],['Security Authorization Key','SECURITY KEY'],
+let OBJECTIVES=[['Communications Log','COMMS LOG'],['Supply Manifest','MANIFEST'],['Route Intelligence Map','ROUTE MAP'],['Encrypted Intelligence Drive','INTEL DRIVE'],['Security Authorization Key','SECURITY KEY'],
   ['Submerged Cargo Container','CARGO'],['Command Orders','ORDERS'],['Research Archive Computer','ARCHIVE PC'],['Shipment Tracking Computer','TRACKER'],['Transport Dossier','DOSSIER'],
   ['Emergency Command Cipher','CIPHER'],['Guidance-System Module','GUIDANCE'],['Armored Project Container','CONTAINER'],['Assembly Coordinates Device','GPS DEVICE'],['Final Assembly Authorization Card','AUTH CARD'],
   ['Shielded Energy Assembly','ENERGY CELL'],['Weapon Control Core','CONTROL CORE'],['Final Weapons Assembly Crate','WEAPONS CRATE'],['Weapon Activation Key Device','ACTIVATION KEY'],['Nuclear Weapon Objective','WARHEAD']].map(([n,s])=>({n,s}));
 // Campaign story (Matt's "Operation Iron Curtain" script, 27 Oct 2026): intro the first time Operations opens (rereadable via Story),
 // a briefing before every operation, and the victory message after Operation 20.
-const STORY={
+let STORY={
   intro:['When enemy forces seize a chain of strategic islands, conventional military units struggle to break through their fortified bases.','Command has one option left: SPOON PLATOON.',
     'An elite mechanized strike force specializing in high-risk assaults, enemy intelligence recovery, and deep-territory operations, Spoon Platoon has been ordered to dismantle the enemy\'s military network one base at a time.',
     'What begins as a routine campaign quickly reveals a much greater threat. The enemy is secretly developing a nuclear weapon under a classified program known as IRON CURTAIN.',
@@ -4709,19 +4711,87 @@ function openStory(o){ST=o;$('#stKick').textContent=o.kick;$('#stTitle').textCon
     if(pad){for(const i of [0,1,9]){const d=!!pad.buttons[i]?.pressed;if(d&&pad0[i]===false){if(i===1&&o.back)storyBack();else if(i!==1)storyGo();return;}pad0[i]=d;}}requestAnimationFrame(poll);})();}
 function storyGo(){const o=ST;if(!o)return;ST=null;$('#story').hidden=true;o.go();}
 function storyBack(){const o=ST;if(!o||!o.back)return;ST=null;$('#story').hidden=true;o.back();}
-function showIntro(after){openStory({kick:'Spoon Platoon',title:'Operation Iron Curtain',paras:STORY.intro,goLabel:'Continue',go:()=>{const d=loadOps();d.intro=1;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}after();}});}
+function showIntro(after){openStory({kick:'Spoon Platoon',title:CAMPS[CAMP].title,paras:STORY.intro,goLabel:'Continue',go:()=>{const d=loadOps();d.intro=1;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}after();}});}
 function showBrief(i,back){const o=OPS[i];openStory({kick:`Operation ${String(i+1).padStart(2,'0')}`,title:o.name,obj:OBJECTIVES[i].n,paras:[STORY.ops[i]],intel:o.brief,goLabel:'Deploy',go:()=>startOp(i),back:back||showOps});}
 addEventListener('keydown',e=>{if(!ST||$('#story').hidden||e.repeat)return;if(e.key==='Escape'){e.preventDefault();storyBack();}else if(e.key==='Enter'&&document.activeElement?.id!=='stBack'){e.preventDefault();storyGo();}},true);
 const ITEM_SIZE=1.7; // metres across when lying out (x1.5 while exposed, x0.7 in the jeep)
 function objOf(f){return f&&f.item?f.item:null;}
 function objName(f){const o=objOf(f);return o?o.n:'flag';}
-const OPKEY='ironflag.ops.v1';
+let OPKEY='ironflag.ops.v1';
+// ============================================================ OPERATION BLACK TIDE (Matt, 8 Nov 2026): the second campaign
+// Twenty more operations with their own progress (OPKEY 'ironflag.ops.bt1'), story, objectives and difficulty curve, plus the patrol
+// boat and the flyable jet in every bunker. Unlocked by finishing all 20 Iron Curtain operations (dev mode: always). setCamp() swaps
+// OPS / OBJECTIVES / STORY / OPKEY, so every Iron Curtain path runs exactly as before while CAMP is 1. Until its own maps are built
+// (BT_READY) only dev mode can open it.
+const BT_READY=false;
+const OPS2=(()=>{
+  const names=[['Counterstrike',313,'burning'],['Broken Supply',327,'burning'],['Prisoners of War',342,'burning'],['Retake the Bridge',356,'burning'],['The Second Warhead',371,'burning'],
+    ['White Out',389,'snow'],['Thin Ice',402,'snow'],['Silent Night',418,'snow'],['Ghost Walk',433,'snow'],['Signal Fire',447,'snow'],
+    ['Moving Target',462,'storm'],['Ambush Alley',478,'storm'],['Decoys',493,'storm'],['Air Superiority',507,'storm'],['Cornered',524,'storm'],
+    ['Turncoat',538,'ice'],['Fortress Glacier',553,'ice'],['Countdown',569,'ice'],['Last Convoy',584,'ice'],['Black Tide',599,'sea']];
+  return names.map(([name,seed,theme],i)=>{const t=.45+i/19*.55; // picks up where Iron Curtain's later operations left off
+    const guns=1+Math.round(t*3),cannons=1+Math.round(t*3),missiles=1+Math.round(t*3);const turrets=[];
+    for(let k=0;k<Math.max(guns,cannons,missiles);k++){if(k<guns)turrets.push('gun');if(k<cannons)turrets.push('cannon');if(k<missiles)turrets.push('missile');}
+    const outposts=i<4?['gun']:i<10?['gun','missile']:['missile','cannon'];
+    const drones=Math.min(6,1+Math.floor(i/3)),airStrikes=2;
+    const cfg={buildings:4+Math.round(t*5),turrets,outposts,soldiers:4+Math.round(t*10),soldierCap:6+Math.round(t*11),drones,gates:true,airStrikes};
+    const stock=i<10?{tank:2,heli:2,asv:2,jeep:3,boat:2,jet:2}:{tank:2,heli:2,asv:1,jeep:3,boat:2,jet:2};
+    const bits=[`${cfg.buildings} buildings`,`${turrets.length+outposts.length*2} turrets`,'missile turrets',drones+(drones>1?' drones':' drone'),'gated walls',airStrikes+' enemy air strikes'];
+    return {name,seed,theme,cfg,stock,turMul:.95+t*.35,aim:.08-t*.05,brief:'Intel: '+bits.join(', ')+`. You have ${airStrikes} air strikes (F), a patrol boat and a jet.`};});})();
+const OBJECTIVES2=[['Enemy Assault Orders','ORDERS'],['Medical Supply Crate','MEDICAL'],['Prisoner Roster','ROSTER'],['Bridge Control Codes','BRIDGE CODES'],['Hammerfall Production Order','PRODUCTION ORDER'],
+  ['Navigation Beacon','BEACON'],['Frozen Supply Sled','SLED'],['Enemy Patrol Logs','PATROL LOGS'],['Convoy Tracker','TRACKER'],['Signal Codebook','CODEBOOK'],
+  ['Launcher Route Map','ROUTE MAP'],['Survivor Beacon','SURVIVOR BEACON'],['Launcher Telemetry','TELEMETRY'],['Airfield Flight Records','FLIGHT RECORDS'],['Launcher Ignition Key','IGNITION KEY'],
+  ['Engineer\'s Dossier','DOSSIER'],['Arming Codes','ARMING CODES'],['Launch Site Control Core','CONTROL CORE'],['Warhead Transport Manifest','MANIFEST'],['The Second Warhead','WARHEAD']].map(([n,s])=>({n,s}));
+const STORY2={
+  intro:['Three weeks after Hammerfall fell, Spoon Platoon was still celebrating on the islands they had liberated.','The enemy came at night.',
+    'Half the platoon died before sunrise. The survivors fell back to a single burning base and found something in the wreckage of the attack: an enemy order that should never have existed. Hammerfall had built two warheads. The second one was never found.',
+    'It is now on a mobile launcher, hidden in a frozen island chain to the north, guarded by what is left of the enemy\'s high command. They are not trying to win the war anymore. They want revenge.',
+    'Command has given the order: find the second warhead. Whatever it costs.','Spoon Platoon is no longer the hunter.','*THE TIDE IS COMING IN.'],
+  ops:["The islands we won are burning. Enemy forces have overrun our outposts and are closing on the last base still standing. Hold the line until dawn. There are no reinforcements coming.",
+    "Our wounded are dying and our medical supplies were lost in the attack. Escort the Six-Wheeler convoy to the abandoned field hospital and bring back what you can. Not everyone will last until you return.",
+    "Some of our people were taken alive during the attack. Intelligence says they're being held at a coastal prison camp, and the enemy is executing one every hour. Get them out. Move fast.",
+    "The enemy controls the only crossing between us and the northern islands. Take it back. The soldiers who held it before us didn't retreat. Their positions are still there.",
+    "An enemy officer died trying to destroy this document. Recover it. If the intelligence is right, everything we fought for in Iron Curtain was only half finished.",
+    "The northern islands are buried in snow, and the storm hides everything, including the enemy. Establish a foothold and recover their navigation beacon. Stay close. In this weather, a soldier who gets separated doesn't come back.",
+    "The enemy moves its cargo across the frozen lakes. So will we. The ice won't hold heavy armor for long, and the water below it is cold enough to kill a man in minutes.",
+    "We attack at night. No lights until the shooting starts. The enemy has stopped taking prisoners, and so has Command.",
+    "No vehicles, no support. One soldier goes in on foot to plant a tracker on the enemy convoy. If you're caught, we can't come for you.",
+    "The tracker data has to reach Command. Hold the radio tower until the transmission finishes. The enemy knows exactly where you are, and every soldier they have is coming.",
+    "For the first time, we've seen the launcher. It never stops moving. Hit its escort and recover the route map. The truck carries a weapon that can erase a city. Do not let it get away.",
+    "The route map was a trap. A recon team walked into it an hour ago and some of them are still alive. Get them out before the enemy finishes what it started.",
+    "Three trucks. Three launchers. Only one is carrying the warhead. Pick wrong and the real one escapes. Choose carefully.",
+    "Enemy jets have been hunting our convoys for days. Destroy their airfield. The flight records show the planes weren't just enemy aircraft. Some of them were ours.",
+    "We've trapped the launcher between destroyed bridges. The enemy will defend it to the last man. Take the ignition key. Command wants the warhead intact. Command hasn't said why.",
+    "An enemy engineer from Hammerfall is trying to defect. He says he has something we need to hear about Command. Get him out alive, whatever he says.",
+    "The engineer told us the truth. Command knew about the second warhead from the beginning. They sent Spoon Platoon after it not to destroy it, but to deliver it. We're going after the arming codes anyway, and this time we're doing it our way.",
+    "The enemy has started the launch sequence. Command has ordered us to stand down. We are not standing down. Destroy the launch site before the countdown reaches zero.",
+    "The warhead is being moved one last time, and both the enemy and Command want it. Stop the convoy. Trust no one outside this platoon.",
+    "The warhead is on a ship heading out to sea. It can't be disarmed in time, but it can be sunk where it will never hurt anyone. Someone has to go with it."],
+  endTitle:'The tide goes out',
+  end:['All twenty operations complete.','The second warhead rests at the bottom of the northern sea.','The enemy\'s high command is gone. So are the files that proved what Command did.',
+    '#COMMAND:','"Spoon Platoon is hereby disbanded. Your service is appreciated. This operation never happened."',
+    'In Iron Curtain, they didn\'t leave anyone behind.','This time, someone had to stay.','The survivors still meet on the beach every year, at the spot where the ship went down.',
+    '*ONE PLATOON. FORTY MISSIONS. NO ONE CAME HOME THE SAME.']};
+const CAMPS={1:{ops:OPS,obj:OBJECTIVES,story:STORY,key:OPKEY,title:'Operation Iron Curtain',head:'Operations'},2:{ops:OPS2,obj:OBJECTIVES2,story:STORY2,key:'ironflag.ops.bt1',title:'Operation Black Tide',head:'Black Tide'}};
+let CAMP=1;
+function setCamp(n){CAMP=CAMPS[n]?n:1;const c=CAMPS[CAMP];OPS=c.ops;OBJECTIVES=c.obj;STORY=c.story;OPKEY=c.key;}
+function loadOpsK(k){try{return JSON.parse(localStorage.getItem(k))||{};}catch(e){return {};}}
+function c1Done(){const b=loadOpsK(CAMPS[1].key).best||{};return CAMPS[1].ops.every((o,i)=>b[i]!=null);}
+function btOpen(){return DEV.on||(BT_READY&&c1Done());}
+function btButton(){const b=$('#bBT');if(!b)return;const open=btOpen();b.classList.toggle('locked',!open);
+  b.querySelector('small').textContent=open?'The sequel: 20 darker operations, with a patrol boat and a jet':!BT_READY?'Coming soon':'Beat all 20 Iron Curtain operations to unlock';}
+// snow camo for the frozen Black Tide operations: the fatigue texture's light/dark pattern re-read as white / grey
+const SNOW_CAMO=[{},{}];
+function snowCamoOf(m,T){let c=SNOW_CAMO[T][m.uuid];if(c)return c;c=m.clone();const prev=m.onBeforeCompile;
+  c.onBeforeCompile=(sh,r)=>{if(prev)prev(sh,r);sh.fragmentShader=sh.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n{float _l=dot(diffuseColor.rgb,vec3(.299,.587,.114));diffuseColor.rgb=mix(vec3(.5,.53,.57),vec3(.9,.92,.95),smoothstep(.06,.22,_l))*'+(T===0?'vec3(.94,.97,1.06)':'vec3(1.06,.97,.94)')+';}');};
+  c.customProgramCacheKey=()=>'snowcamo'+T;c.color.setRGB(1,1,1);SNOW_CAMO[T][m.uuid]=c;return c;}
 function loadOps(){try{return JSON.parse(localStorage.getItem(OPKEY))||{};}catch(e){return {};}}
 function saveOp(i,secs){const d=loadOps();d.best=d.best||{};if(!d.best[i]||secs<d.best[i])d.best[i]=secs;try{localStorage.setItem(OPKEY,JSON.stringify(d));}catch(e){}}
 function fmtTime(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
-function showOps(){
+function showOps(n){
+  if(n!=null)setCamp(n);$('#ops h2').textContent=CAMPS[CAMP].head;
   const d=loadOps(),best=d.best||{};const unlocked=DEV.on?OPS.length-1:Math.min(OPS.length-1,Math.max(-1,...Object.keys(best).map(Number))+1);
-  $('#opsSub').textContent=`${Object.keys(best).length} of ${OPS.length} operations complete. Each base is defended by turrets, soldiers and later drones. There are no enemy vehicles, just their defenses. Difficulty: ${['Easy','Normal','Hard'][opts.diff]} (change it on the title screen; Hard is the original's one-hit jeep).`;
+  $('#opsSub').textContent=CAMP===2?`${Object.keys(best).length} of ${OPS.length} operations complete. The enemy is counterattacking: tougher bases, more drones, and a patrol boat and jet in your bunker. Difficulty: ${['Easy','Normal','Hard'][opts.diff]}.`:`${Object.keys(best).length} of ${OPS.length} operations complete. Each base is defended by turrets, soldiers and later drones. There are no enemy vehicles, just their defenses. Difficulty: ${['Easy','Normal','Hard'][opts.diff]} (change it on the title screen; Hard is the original's one-hit jeep).`;
   $('#opsGrid').innerHTML=OPS.map((o,i)=>{const done=best[i]!=null,lock=i>unlocked;return `<button class="op${done?' done':''}${i===unlocked&&!done?' next':''}" data-i="${i}" ${lock?'disabled':''}><span class="no">OPERATION ${String(i+1).padStart(2,'0')}</span><span class="nm">${o.name}</span><span class="ob">${OBJECTIVES[i].n}</span><span class="st">${lock?'Locked':done?'Complete · best '+fmtTime(best[i]):'Map '+o.seed+' · ready'}</span></button>`;}).join('');
   $('#opsGrid').querySelectorAll('.op').forEach(b=>b.onclick=()=>{if(b.disabled)return;showBrief(+b.dataset.i);});
   // The grid's scroll position otherwise carries over from the last time
@@ -4743,7 +4813,7 @@ function confetti(){const cv=$('#confetti');const W=cv.width=innerWidth,H=cv.hei
     x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.w/2,-p.h/2,p.w,p.h*Math.abs(Math.cos(p.r*2)));x.restore();}
     if(!reduce&&now-t0<14000&&!$('#over').hidden)requestAnimationFrame(f);else x.clearRect(0,0,W,H);})(last);}
 function startDemo(){const keep=MUS.track;newGame('1p',(Math.random()*99999|0)+1,true);state='title';if(keep&&AU.ctx)musicPlay(keep);}
-function startMatch(mode,seed){$('#title').hidden=true;$('#ops').hidden=true;$('#online').hidden=true;musicStop();$('#over').hidden=true;$('#pause').hidden=true;paused=false;audioInit();newGame(mode,seed);state='play';G.lastMode=mode;}
+function startMatch(mode,seed){if(mode!=='campaign')setCamp(1);$('#title').hidden=true;$('#ops').hidden=true;$('#online').hidden=true;musicStop();$('#over').hidden=true;$('#pause').hidden=true;paused=false;audioInit();newGame(mode,seed);state='play';G.lastMode=mode;}
 function togglePause(){paused=!paused;$('#pause').hidden=!paused;$('#pRestart').hidden=!!(G&&G.net);if(paused)musicStop();else{const v=G.views[0]?.team.vehicle;if(v)musicPlay(v.carrying?'tell':VEH_MUSIC[v.type]);}}
 
 // ============================================================ main loop
@@ -4876,7 +4946,7 @@ function needCallSign(){const cs=$('#callSign');if(!cs)return;$('#csNeed').hidde
 // (Matt, 3 Nov 2026) "Campaign conquered by": beating Operation 20 posts the call sign to /api/campaign-win (never in dev mode, which unlocks
 // every op); the title screen shows the public roll in the order they first did it, with each one's best total time across the 20 ops
 function campaignWon(){
-  if(DEV.on)return;const name=callSign();if(!name)return;const best=loadOps().best||{};if(Object.keys(best).length<OPS.length)return;
+  if(DEV.on||CAMP!==1)return; /* the hall of fame is Iron Curtain's */const name=callSign();if(!name)return;const best=loadOps().best||{};if(Object.keys(best).length<OPS.length)return;
   let secs=0;for(let i=0;i<OPS.length;i++)secs+=best[i]||0;
   try{fetch('/api/campaign-win',{method:'POST',headers:{'Content-Type':'application/json','X-SP-Key':'sp7f3a91c4e2'},body:JSON.stringify({name,secs,diff:['easy','normal','hard'][opts.diff]||null,sid:HB.sid,self:!!window.__noCount,...tallyGet()}),keepalive:true}).then(()=>setTimeout(loadHall,1500)).catch(()=>{});}catch(e){}
 }
@@ -5116,7 +5186,7 @@ function specStop(){if(SPEC.ch){try{SPEC.ch.unsubscribe();}catch(e){}SPEC.ch=nul
 function specHello(){
   if(!G||G.demo||!(state==='play'||state==='over'))return {idle:true,mid:0,name:callSign()||null,where:state==='online'?'Online lobby':state==='ops'?'Choosing an operation':'In the menus'};
   const me=G.net?G.net.myTeam:0;
-  return {mid:G.id||0,mode:G.mode,seed:G.seed,op:G.op?opIndex:null,diff:opts.diff,team:me,name:callSign()||null,touch:!!opts.touch};
+  return {mid:G.id||0,mode:G.mode,seed:G.seed,op:G.op?opIndex:null,camp:CAMP,diff:opts.diff,team:me,name:callSign()||null,touch:!!opts.touch};
 }
 function specExtras(){
   const r1=n=>Math.round(n*100)/100,r2=n=>Math.round(n*1000)/1000,x={};
@@ -5246,7 +5316,7 @@ function specOnHello(h){
   if(SPEC.started&&SPEC.mid===h.mid)return;
   try{mslBuildUI();}catch(e){}
   SPEC.mid=h.mid;SPEC.started=true;SPEC.lastSnap=null;SPEC.dr.clear();SPEC.jt.clear();SPEC.mn=[];SPEC.msl=null;SPEC.cam=null;SPEC.camSnap=true;
-  if(h.op!=null)opIndex=h.op;opts.diff=h.diff??1;NET.host=false;NET.myTeam=h.team||0;NET.seed=h.seed;NET.lastRecv=performance.now()+1e9;
+  if(h.op!=null){opIndex=h.op;setCamp(h.camp||1);}opts.diff=h.diff??1;NET.host=false;NET.myTeam=h.team||0;NET.seed=h.seed;NET.lastRecv=performance.now()+1e9;
   const label=h.op!=null?`Operation ${h.op+1}: ${OPS[h.op]?OPS[h.op].name:''}`:h.mode==='online'?'Online match':h.mode==='2p'?'2-player skirmish':'Skirmish';
   specStatus(`👁 Watching ${who} — ${label}`);
   try{startMatch(h.mode==='2p'?'1p':h.mode,h.seed);}catch(e){console.warn('spectate start',e);specStatus('Could not build their map: '+e.message);}
@@ -5278,9 +5348,10 @@ function specWatchTick(dt){
 // ============================================================ UI wiring
 function seedVal(){return clamp(parseInt($('#seed').value)||1,1,99999);}
 $('#b1p').onclick=()=>startMatch('1p',seedVal());
-$('#bOps').onclick=()=>{if(!callSign()){needCallSign();return;}showOps();};
+$('#bOps').onclick=()=>{if(!callSign()){needCallSign();return;}showOps(1);};
+$('#bBT').onclick=()=>{btButton();if(!btOpen())return;if(!callSign()){needCallSign();return;}showOps(2);};btButton();
 $('#opsStory').onclick=()=>showIntro(showOps);$('#stGo').onclick=()=>storyGo();$('#stBack').onclick=()=>storyBack();
-$('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state='title';};
+$('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state='title';setCamp(1);btButton();};
 $('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();

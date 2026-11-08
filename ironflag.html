@@ -1543,18 +1543,37 @@ function missionSetup(m){
     const b0=G.bases[0],b1=G.bases[1];let best=null;
     for(const c of G.corr){const pts=[...c].reverse(); /* from the enemy base outward */const a=pts.findIndex(p=>Math.hypot(p[0]-b1.x,p[1]-b1.z)>85);let bI=-1;for(let i=pts.length-1;i>a;i--){if(Math.hypot(pts[i][0]-b0.x,pts[i][1]-b0.z)>150){bI=i;break;}}
       if(a>=0&&bI>a+20&&(!best||bI-a>best.b-best.a))best={pts,a,b:bI};}
-    if(best){const {pts,a,b}=best;const i0=Math.min(b,a+((b-a)*.6|0));const p=pts[i0],q=pts[Math.min(b,i0+1)];const def=VDEF.tel;const {g,parts}=buildVehicleObj('tel',1);
-      const v={type:'tel',def,team:1,x:p[0],z:p[1],y:groundAt(p[0],p[1]),heading:Math.atan2(q[0]-p[0],q[1]-p[1]),speed:0,vx:0,vz:0,turret:0,hp:def.hp,fuel:def.fuel,ammo:0,ammo2:0,cd:0,cd2:0,
-        state:'active',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:def.r,alt:0,smokeT:0,scuttle:0,strafe:0,steer:0,wheelRot:0,lowFuelWarned:true,dustT:0,path:pts,pa:a,pb:b,pi:i0,pdir:1,auto:{thr:0,turn:0}};
-      g.position.set(v.x,v.y,v.z);g.rotation.y=v.heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);M.tel=v;M.telPos=[v.x,v.z];
+    if(best){const {pts,a,b}=best;const i0=Math.min(b,a+((b-a)*.6|0));const p=pts[i0],q=pts[Math.min(b,i0+1)];const hd=Math.atan2(q[0]-p[0],q[1]-p[1]);
+      const v=spawnAuto('tel',1,p[0],p[1],hd);Object.assign(v,{path:pts,pa:a,pb:b,pi:i0,pdir:1});M.tel=v;M.telPos=[v.x,v.z];
+      M.escorts=[];(m.escort||[]).forEach((kind,k)=>{const back=14+k*13;const j=Math.max(a,i0-Math.round(back/3));const pp=pts[j];const e=spawnAuto(kind,1,pp[0],pp[1],hd);e.escortOf=v;e.slot=k;e.back=back;M.escorts.push(e);});
       for(const st of G.statics)if(st.hasFlag)st.hasFlag=false; /* nothing in the base holds the objective: the truck does */
       setTimeout(()=>{if(G&&G.mission===M)note(0,'Enemy launcher on the move — destroy it to get the '+(G.flags[1].item?G.flags[1].item.n.toLowerCase():'intel'),'warn',true);},5200);}}
 }
-function missionTick(dt){const M=G.mission;if(!M||G.over)return;const m=M.m;
+function spawnAuto(type,T,x,z,heading){ // an enemy vehicle that is not the AI commander's: driven by its own v.auto input (missionTick)
+  const def=VDEF[type];const {g,parts}=buildVehicleObj(type,T);
+  const v={type,def,team:T,x,z,y:groundAt(x,z),heading,speed:0,vx:0,vz:0,turret:0,hp:def.hp,fuel:1e9,ammo:def.ammo,ammo2:def.ammo2,cd:0,cd2:0,
+    state:'active',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:def.r,alt:0,smokeT:0,scuttle:0,strafe:0,steer:0,wheelRot:0,lowFuelWarned:true,dustT:0,auto:{thr:0,turn:0,tur:0,fire:false,aimYaw:null},aimJit:0};
+  g.position.set(v.x,v.y,v.z);g.rotation.y=v.heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);return v;}
+function autoSteer(v,tx,tz,stopAt){const want=Math.atan2(tx-v.x,tz-v.z),d=angDiff(v.heading,want),dist=Math.hypot(tx-v.x,tz-v.z);v.auto.turn=-clamp(d*2.2,-1,1);
+  v.auto.thr=dist<stopAt?0:Math.abs(d)>1.2?-.4:Math.abs(d)>.6?.35:dist<stopAt+10?.5:1;
+  v.stuckT=Math.abs(v.speed)<.8&&v.auto.thr>0?(v.stuckT||0)+dt_:0;if(v.stuckT>3){v.unstick=1.5;v.stuckT=0;}if(v.unstick>0){v.unstick-=dt_;v.auto.thr=-1;v.auto.turn=-v.auto.turn;}}
+let dt_=1/60;
+function escortTick(e,dt){const a=e.auto;a.fire=false;a.aimYaw=null;const L=e.escortOf;const pl=G.teams[0].vehicle;const tg=pl&&pl.state==='active'&&!(pl.def.air&&e.type!=='asv'&&e.type!=='tank')?pl:null;
+  const dT=tg?Math.hypot(tg.x-e.x,tg.z-e.z):1e9;const range={tank:74,asv:85,jeep:18,heli:34}[e.type]||40;
+  if(L&&L.state==='active'){const j=clamp(L.pi-L.pdir*Math.round(e.back/3),L.pa,L.pb),p=L.path[j];autoSteer(e,p[0],p[1],3);const dd=Math.hypot(p[0]-e.x,p[1]-e.z);if(dd<30&&a.thr>0)a.thr=Math.min(a.thr,clamp((Math.abs(L.speed)+(dd>12?4:1))/e.def.speed,.15,1)); /* convoy pace: never run up the launcher's back */
+    const rx=e.x-L.x,rz=e.z-L.z,ahead=rx*fwdX(L.heading)+rz*fwdZ(L.heading),side=rx*fwdZ(L.heading)-rz*fwdX(L.heading);
+    if(ahead>-2&&ahead<22&&Math.abs(side)<7){const sgn=side>=0?1:-1;autoSteer(e,L.x+fwdX(L.heading)*ahead+fwdZ(L.heading)*sgn*11,L.z+fwdZ(L.heading)*ahead-fwdX(L.heading)*sgn*11,2);} /* in the launcher's way (it just turned round): pull off to the side and let it pass */
+    if(tg&&dT<range+20&&e.type!=='tank')autoSteer(e,tg.x,tg.z,e.type==='jeep'?10:25);}
+  else if(tg)autoSteer(e,tg.x,tg.z,e.type==='jeep'?10:25);else{a.thr=0;a.turn=0;}
+  if(tg&&dT<range+30){const sp=e.type==='tank'?80:60,lt=dT/sp;const lx=tg.x+(tg.vx||0)*lt,lz=tg.z+(tg.vz||0)*lt;if(Math.random()<dt*2)e.aimJit=rr(-.05,.05);const aim=Math.atan2(lx-e.x,lz-e.z)+e.aimJit;
+    if(e.type==='tank'){a.aimYaw=aim;if(Math.abs(angDiff(e.heading+e.turret,aim))<.08&&dT<range)a.fire=true;}
+    else{const ad=Math.abs(angDiff(e.heading,aim));if(e.type==='asv'&&ad<.4&&dT<range)a.fire=true;if(e.type==='jeep'&&ad<.3&&dT<range)a.fire=true;}}}
+function missionTick(dt){const M=G.mission;if(!M||G.over)return;const m=M.m;dt_=dt;
+  if(M.escorts)for(const e of M.escorts)if(e.state==='active')escortTick(e,dt);
   if(m.limit&&!devActive()){const left=m.limit-G.time;if(left<=0){gameOver(1,'time');return;}if(!M.warn60&&left<60){M.warn60=1;note(0,'ONE MINUTE TO LAUNCH','bad',true);}else if(!M.warn180&&left<180){M.warn180=1;note(0,'Three minutes to launch','warn',true);}}
   if(M.tel){const v=M.tel;if(v.state==='active'){M.telPos=[v.x,v.z];const P=v.path;let t=P[v.pi];if(Math.hypot(t[0]-v.x,t[1]-v.z)<9){v.pi+=v.pdir*3;if(v.pi>=v.pb){v.pi=v.pb;v.pdir=-1;}else if(v.pi<=v.pa){v.pi=v.pa;v.pdir=1;}t=P[v.pi];}
       const want=Math.atan2(t[0]-v.x,t[1]-v.z),d=angDiff(v.heading,want);v.auto.turn=-clamp(d*2.2,-1,1);v.auto.thr=Math.abs(d)>1.2?-.4:Math.abs(d)>.6?.35:1;
-      v.stuckT=Math.abs(v.speed)<.8?(v.stuckT||0)+dt:0;if(v.stuckT>4){v.pdir=-v.pdir;v.stuckT=0;} /* boxed in: go back the other way */}
+      v.stuckT=Math.abs(v.speed)<.8?(v.stuckT||0)+dt:0;if(v.stuckT>12){v.pdir=-v.pdir;v.stuckT=0;} /* boxed in for good: go back the other way (escorts in the way clear within a few seconds) */}
     else if(!M.telDone){M.telDone=1;const f=G.flags[1];if(f.state==='hidden'){let x=M.telPos[0],z=M.telPos[1];for(let k=0;k<24&&!(passable(x,z)&&H(x,z)>.5);k++){const a=k/24*TAU;x=M.telPos[0]+Math.sin(a)*6;z=M.telPos[1]+Math.cos(a)*6;}
       exposeFlag(f,x,z);note(0,'Launcher destroyed — '+(f.item?f.item.n:'the objective')+' is in the wreck','good',true);}}}
   if(M.jets.length&&!M.jetsDone&&M.jets.every(j=>!j.alive)){M.jetsDone=1;note(0,'Airfield neutralized — every jet is burning','good',true);}
@@ -3868,7 +3887,7 @@ function updateVehicle(v,inp,dt){
       v.speed*=-.25;}}
     v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;
     // separate overlapping vehicles
-    for(const o of G.vehicles){if(o===v||o.def.air||o.state!=='active'||o.type==='foot')continue;const dx=v.x-o.x,dz=v.z-o.z,d=Math.hypot(dx,dz),r=v.r+o.r*.9;if(d<r&&d>.01){const push=(r-d)*.5;v.x+=dx/d*push;v.z+=dz/d*push;}} // (a man on foot never pushes a vehicle: he is stopped by it instead)
+    if(v.type!=='tel')for(const o of G.vehicles){if(o===v||o.def.air||o.state!=='active'||o.type==='foot')continue;const dx=v.x-o.x,dz=v.z-o.z,d=Math.hypot(dx,dz),r=v.r+o.r*.9;if(d<r&&d>.01){const push=(r-d)*(o.type==='tel'?1:.5);v.x+=dx/d*push;v.z+=dz/d*push;}} /* the launcher truck shoves, it is never shoved */ // (a man on foot never pushes a vehicle: he is stopped by it instead)
     v.y=lerp(v.y,v.type==='boat'?Math.sin(G.time*1.4+v.x*.07)*.14:v.floats&&shallow?Math.max(vehGround(v.x,v.z),-.35+Math.sin(G.time*3+v.x)*.12):vehGround(v.x,v.z),1-Math.exp(-dt*14));
     if(v.type==='boat')boatCrew(v,dt);
     else if(Math.abs(v.speed)>3){v.dustT-=dt;if(v.dustT<0){v.dustT=v.type==='jeep'||v.type==='truck'?.05:.08;const g=groundAt(v.x,v.z);
@@ -4952,9 +4971,9 @@ const OPS2=(()=>{
   const MISSION={0:{active:true,enemyStock:{tank:3,heli:2,asv:1,jeep:3},tip:'The enemy is attacking: it will come for your orders if you leave them unguarded.'},
     2:{pows:4,tip:'Four of our men are held in the camp. Pull a jeep up slowly beside them and they will climb in. Bring them home.'},
     9:{active:true,enemyStock:{tank:2,heli:2,jeep:2},tip:'The enemy knows where you are and is coming for your codebook.'},
-    10:{launcher:true,tip:'The launcher never stops moving. Find it on the roads, destroy it, and the route map is yours.'},
+    10:{launcher:true,escort:['jeep'],tip:'The launcher never stops moving and travels with an escort. Find it on the roads, destroy it, and the route map is yours.'},
     11:{pows:3,tip:'Three survivors of the recon team are still alive out there. Pick them up with a jeep.'},
-    18:{launcher:true,tip:'The warhead convoy is on the move. Hunt the launcher down to take the manifest.'},
+    18:{launcher:true,escort:['tank','asv','tank','jeep'],tip:'The warhead convoy is on the move under heavy escort: tanks, an ASV and a gun jeep. Break the escort, then hunt the launcher down for the manifest.'},
     12:{decoys:true,tip:'Three launchers on three islands. Only one island holds the telemetry.'},
     13:{jets:4,tip:'Their jets are parked on the runway. Destroy all four.'},
     14:{active:true,enemyStock:{tank:2,asv:2,jeep:2},tip:'Cornered, the enemy will throw everything at you.'},

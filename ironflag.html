@@ -1451,7 +1451,7 @@ const BT_LAYOUTS=[
   (R,n)=>({bases:[{x:-40,z:320,team:0},{x:0,z:-300,team:1}],
     field:(x,z)=>{let v=Math.max(1-Math.hypot(x/235,(z+220)/205),1-Math.hypot(x/235,(z-200)/225));const pl=1-Math.hypot(x/175,(z+240)/135);if(pl>0)v+=.55*smooth(0,.18,pl);
       const bay=1-Math.hypot((x-205)/120,(z+10)/200);if(bay>0)v=Math.min(v,-.65*smooth(0,.25,bay));return v;},
-    corr:[[[-40,320],[-130,120],[-160,-100],[-80,-220],[0,-300]],[[-40,320],[80,150],[110,-60],[60,-200],[0,-300]]],roads:[[[-120,-245],[120,-245]]],islets:[[190,80,14,'gun'],[215,-120,14,'missile']],harbor:[[[170,170],[80,240],[55,290]]]}),
+    corr:[[[-40,320],[-130,120],[-160,-100],[-80,-220],[0,-300]],[[-40,320],[80,150],[110,-60],[60,-200],[0,-300]]],roads:[[[-120,-200],[120,-200]]],islets:[[190,80,14,'gun'],[215,-120,14,'missile']],harbor:[[[170,170],[80,240],[55,290]]]}),
   // 15 Cornered: three channels cut the island into four bands; every road crossing is a bridge, and the sea joins them all at the edges.
   (R,n)=>({bases:[{x:-100,z:330,team:0},{x:100,z:-330,team:1}],
     field:(x,z)=>{let v=1-Math.hypot(x/215,z/430);for(const zc of [-120,40,200]){const d=Math.abs(z-zc-Math.sin(x*.02+zc)*14);if(d<34)v=Math.min(v,lerp(-.7,v,smooth(16,34,d)));}return v;},
@@ -1506,6 +1506,7 @@ function generate2(seed,op,idx){
     for(const il of islets)if(il.r>0){const d=Math.hypot(x-il.x,z-il.z);if(d<il.r*.8)h=lerp(h,Math.max(h,2.2),smooth(il.r*.8,il.r*.45,d));}
     const cd=corrD[k];if(cd<18&&raw[k]>-2.6){const tt=smooth(18,7,cd);h=lerp(h,clamp(h,1.1,7),tt);}
     for(const ic of Ly.ice||[]){const rx=ic[2],rz=ic[3]||ic[2];const d=Math.hypot((x-ic[0])/rx,(z-ic[1])/rz);if(d<1&&raw[k]>-2.6&&bd>95){h=lerp(h,.8,smooth(1,.82,d));}}
+    if(roadD[k]<24)h=lerp(h,13,smooth(24,14,roadD[k])); /* runways are flat */
     const rd=Math.min(cd,roadD[k]);t.h[k]=h;t.road[k]=smooth(7,3,rd);t.base[k]=smooth(70,55,bd);
   }
   G.terr=t;G.corr=corr;G.corrD=corrD;
@@ -1522,6 +1523,28 @@ function generate2(seed,op,idx){
     if(corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)]<9)continue;G.burn.push({x,z,y:h,s:rr(.7,1.6),t:RND()*5});}}
   return bases;
 }
+const MPROP=[];
+function parkProp(model,cx,cz,T,name,len,wid,hp,opt={}){ // find a clear spot near (cx,cz) and park a model there as a destructible prop
+  const clear=(x,z,hd)=>{for(let k=-3;k<=3;k++){const px=x+Math.sin(hd)*k*len/6,pz=z+Math.cos(hd)*k*len/6;if(H(px,pz)<1.2)return false;
+      if(!opt.onRoad){const cd=G.corrD[Math.round((pz-Z0)/CELL)*NX+Math.round((px-X0)/CELL)];if(cd<6)return false;}
+      for(const st of G.statics){if(!st.alive)continue;for(const p of st.pts)if(Math.hypot(p[0]-px,p[1]-pz)<p[2]+wid/2+1.5)return false;}}return true;};
+  let best=null;if(opt.exact&&clear(cx,cz,opt.hd||0))best={x:cx,z:cz,hd:opt.hd||0};if(opt.only&&!best)return null;
+  for(const rad of [0,8,14,20,26,32,40])for(let i=0;i<16&&!best;i++){const a=i*TAU/16;const x=cx+Math.cos(a)*rad,z=cz+Math.sin(a)*rad,hd=opt.hd!=null?opt.hd:RND()*TAU;if(clear(x,z,hd))best={x,z,hd};}
+  if(!best)return null;const {x,z,hd}=best;const o=model;const y=Math.max(H(x,z),0);o.position.set(x,y,z);o.rotation.y=hd;world.add(o);
+  const st=addStatic({kind:'prop',team:T,x,z,y0:y,h:opt.h||4,hp,r:wid/2,obj:o,name,explosive:opt.explosive||0,pts:rectFootprint(x,z,wid,len,hd,.95)});MPROP.push(st);return st;}
+function missionSetup(m){
+  const M=G.mission={m,pows:[],jets:[],t0:G.time};
+  if(m.pows){const b=G.bases[1];let n=0;for(let tr=0;tr<60&&n<m.pows;tr++){const p=patrolPoint(b);if(Math.hypot(p[0]-b.x,p[1]-b.z)<24)continue;const sd=spawnSoldier(0,p[0],p[1],'pow');if(!sd)break;sd.pow=true;sd.mode='pow';sd.wp=null;sd.idleT=1e9;G.mission.pows.push(sd);n++;}
+    if(n)setTimeout(()=>{if(G&&G.mission===M)note(0,`${n} of our men are held in the enemy camp — pick them up with a jeep`,'warn');},5200);}
+  if(m.decoys&&A.launcher){for(const [cx,cz] of [[-160,-200],[160,-200],[0,-215]]){const o=tintObj(A.launcher.clone(),'tel1',teamMark(1));parkProp(o,cx,cz,1,'decoy',18,3.4,320,{h:5});}}
+  if(m.jets){const used=[];for(let i=0;i<m.jets;i++){const o=makeJetObj(1);let st=null;for(let dx=0;dx<=60&&!st;dx+=6)for(const sgn of [1,-1]){const x=-75+i*50+dx*sgn;if(st||used.some(u=>Math.abs(u-x)<16))continue;st=parkProp(o,x,-192,1,'jetp',14,9,70,{hd:Math.PI/2,h:4,explosive:1.6,onRoad:true,exact:true,only:true});if(st)used.push(x);}if(st)M.jets.push(st);}
+    if(M.jets.length)setTimeout(()=>{if(G&&G.mission===M)note(0,`${M.jets.length} enemy jets on the runway — destroy them all`,'warn');},5200);}
+}
+function missionTick(dt){const M=G.mission;if(!M||G.over)return;const m=M.m;
+  if(m.limit&&!devActive()){const left=m.limit-G.time;if(left<=0){gameOver(1,'time');return;}if(!M.warn60&&left<60){M.warn60=1;note(0,'ONE MINUTE TO LAUNCH','bad',true);}else if(!M.warn180&&left<180){M.warn180=1;note(0,'Three minutes to launch','warn',true);}}
+  if(M.jets.length&&!M.jetsDone&&M.jets.every(j=>!j.alive)){M.jetsDone=1;note(0,'Airfield neutralized — every jet is burning','good',true);}
+  if(M.pows.length){for(const sd of M.pows){if(sd.ride&&!sd.aboardNoted){sd.aboardNoted=1;note(0,'Prisoner aboard','good');}}}}
+function powsHome(){const M=G.mission;if(!M||!M.pows.length)return null;const b=G.bases[0];const home=M.pows.filter(sd=>sd.alive&&((sd.ride&&sd.ride.team===0)||Math.hypot(sd.x-b.x,sd.z-b.z)<70)).length;return [home,M.pows.length];}
 function themeTick(dt){ // burning islands: standing fires and smoke columns at the burn sites
   if(!G.burn||!G.burn.length)return;const cam=G.views[0]&&G.views[0].cam;
   for(const b of G.burn){if(cam&&Math.hypot(cam.position.x-b.x,cam.position.z-b.z)>330)continue;
@@ -4310,7 +4333,7 @@ function crewUnload(v){ // stowed in the bunker / driver bailed out: riders clim
     crewLeave(sd,p.x+rr(-1,1),p.z+rr(-1,1),v.heading+side*Math.PI/2);}
 }
 function crewBoardable(sd){ // a slow friendly jeep with a free seat nearby
-  if(!A.crew||sd.goHome||sd.mode==='flee')return null;let best=null,bd=14;
+  if(!A.crew||sd.goHome||sd.mode==='flee')return null;let best=null,bd=sd.pow?18:14;
   for(const v of G.vehicles){if(v.type!=='jeep'||v.team!==sd.team||v.state!=='active'||crewSeatFree(v)<0)continue;
     if(Math.hypot(v.vx||0,v.vz||0)>3.5)continue;const d=Math.hypot(v.x-sd.x,v.z-sd.z);if(d<bd){bd=d;best=v;}}
   return best;
@@ -4387,7 +4410,8 @@ function updateSoldiers(dt){
     sd.think-=dt;
     if(sd.think<=0){sd.think=.4;
       let best=null,bd=38;for(const v of G.vehicles){if(v.team===sd.team||v.state!=='active')continue;const d=Math.hypot(v.x-sd.x,v.z-sd.z);if(d<bd){bd=d;best=v;}}
-      sd.target=sd.goHome?null:best;if(best&&!sd.goHome&&sd.mode!=='flee')sd.mode='attack';else if(!best&&sd.mode==='attack')sd.mode='patrol';
+      if(sd.mode==='pow'){sd.target=null;sd.wp=null;best=null;}
+      else{sd.target=sd.goHome?null:best;if(best&&!sd.goHome&&sd.mode!=='flee')sd.mode='attack';else if(!best&&sd.mode==='attack')sd.mode='patrol';}
       if(sd.mode==='attack'){const d=bd,ang=Math.atan2(sd.x-best.x,sd.z-best.z);
         if(d<13){sd.wp=[sd.x+Math.sin(ang)*8,sd.z+Math.cos(ang)*8];}else if(d>26){sd.wp=[best.x+Math.sin(ang)*20,best.z+Math.cos(ang)*20];}else sd.wp=null;}
       else if(sd.mode==='patrol'&&(!sd.wp||sd.wpT>14)){if(!sd.wp&&RND()<.35){sd.idleT=rr(1,4);}else{sd.wp=patrolPoint(G.bases[sd.team]);sd.wpT=0;}}
@@ -4699,7 +4723,7 @@ function updateHud(view){
   if(lastHud.get(q.stock)!==st){q.stock.innerHTML=st;lastHud.set(q.stock,st);}
   const bc=String(G.bodies?G.bodies.reduce((a,n,i)=>a+(i===t.team?0:n),0):0);if(lastHud.get(q.bodies)!==bc){q.bodies.textContent=bc;lastHud.set(q.bodies,bc);}
   const lab={hidden:'HIDDEN',exposed:'EXPOSED',carried:'TAKEN',captured:'CAPTURED'};const ef=G.flags[1-t.team],mf=G.flags[t.team];
-  const dv=devFor(t.team);const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.air||(t.team===0&&onFoot())?`<div>AIR STRIKES <b style="color:${(t.team===0?airLeft():G.air.left[t.team])?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':t.team===0?airLeft():G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
+  const dv=devFor(t.team);const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.mission&&G.mission.m.limit?`<div style="color:#ff6b57;font-weight:700">LAUNCH IN ${fmtTime(Math.max(0,Math.ceil(G.mission.m.limit-G.time)))}</div>`:'')+(G.air||(t.team===0&&onFoot())?`<div>AIR STRIKES <b style="color:${(t.team===0?airLeft():G.air.left[t.team])?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':t.team===0?airLeft():G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
   if(lastHud.get(q.flag)!==fl){q.flag.innerHTML=fl;lastHud.set(q.flag,fl);}
 }
 function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat in front
@@ -4763,12 +4787,13 @@ function newGame(mode,seed,demo=false){
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}
   try{placeCarrier();}catch(e){console.warn('carrier',e);}
+  if(G.op&&G.op.mission&&!demo)try{missionSetup(G.op.mission);}catch(e){console.warn('mission',e);}
   if(!demo&&mode!=='online'&&!SPEC.watching)try{paradeSetup(0);}catch(e){console.warn('parade',e);}
   for(const b of bases)for(let i=0;i<G.cfg[b.team].drones;i++)spawnDrone(b.team);
   const humans=demo?[]:mode==='2p'||mode==='online'?[0,1]:[0];
   const d=opts.diff;
   G.aiErr=[0,0];G.dmgMul=[1,1];G.turMul=[1,1];G.vehMul=[1,1];
-  G.teams=[0,1].map(T=>({team:T,human:humans.includes(T),stock:G.op?(T===0?{truck:0,boat:0,jet:0,...G.op.stock}:{tank:0,heli:0,asv:0,jeep:0,truck:0,boat:0,jet:0}):{tank:3,heli:3,asv:2,jeep:4,truck:0,boat:0,jet:0},vehicle:null,respawnT:.5,input:{thr:0,turn:0},ai:{think:0,goal:null,aimJit:0}}));
+  G.teams=[0,1].map(T=>({team:T,human:humans.includes(T),stock:G.op?(T===0?{truck:0,boat:0,jet:0,...G.op.stock}:{tank:0,heli:0,asv:0,jeep:0,truck:0,boat:0,jet:0,...((G.op.mission&&G.op.mission.enemyStock)||{})}):{tank:3,heli:3,asv:2,jeep:4,truck:0,boat:0,jet:0},vehicle:null,respawnT:.5,input:{thr:0,turn:0},ai:{think:0,goal:null,aimJit:0}}));
   {const t0=G.teams[0];t0.navyOn=!!(!demo&&t0.human&&!G.net&&(G.op?CAMP===2:mode==='1p'&&devActive())); /* Black Tide vehicles: the Black Tide campaign, plus a dev-mode skirmish */
     if(t0.navyOn){G.docks=[findDock(G.bases[0]),null];const sb=G.op?G.op.stock:{boat:2,jet:2};t0.stock.boat=A.boat&&G.docks[0]?(sb.boat|0):0;if(t0.stock.boat)dockBuoy(G.docks[0],0);t0.stock.jet=sb.jet|0;}
     else{t0.stock.boat=0;t0.stock.jet=0;}}
@@ -4780,7 +4805,7 @@ function newGame(mode,seed,demo=false){
   if(G.net){G.teams[1-G.net.myTeam].net=true;G.devTeams=G.net.host?[DEV.on,!!NET.guestDev]:[false,DEV.on];}
   for(const T of [0,1])if(!G.teams[T].human){G.aiErr[T]=[.14,.07,.03][d];G.dmgMul[T]=[1.25,1,.85][d];G.turMul[T]=[.8,1,1.15][d];if(mode==='1p'&&!demo)G.turMul[1-T]=[1.15,1,.9][d];}
   if(demo){G.aiErr=[.06,.06];}
-  if(G.op){G.turMul=[1,G.op.turMul*[.5,.65,1][dd]];G.aiErr=[0,G.op.aim+[.09,.04,0][dd]];G.slow=[1,[1.6,1.4,1][dd]];G.infMul=[1,[.4,.7,1][dd]];G.dmgMul=[[.7,.85,1][dd],1];G.teams[1].passive=true;}
+  if(G.op){G.turMul=[1,G.op.turMul*[.5,.65,1][dd]];G.aiErr=[0,G.op.aim+[.09,.04,0][dd]];G.slow=[1,[1.6,1.4,1][dd]];G.infMul=[1,[.4,.7,1][dd]];G.dmgMul=[[.7,.85,1][dd],1];G.teams[1].passive=!(G.op.mission&&G.op.mission.active);if(!G.teams[1].passive){G.aiErr[1]=[.14,.07,.03][dd];}}
   else if(!demo&&mode==='1p'){G.slow=[1,[1.35,1.1,1][dd]];G.infMul=[1,[.5,.8,1][dd]];G.infMul[0]=1;}
   // Online: each client only ever builds a camera/HUD for its OWN team, never
   // both (that's what local split-screen 2P does) - so only one view exists
@@ -4806,8 +4831,8 @@ function gameOver(winner,how){
     const human=G.views.map(v=>v.team.team);let title,text;
     $('#oNext').hidden=true;$('#oOps').hidden=!G.op;$('#oNew').hidden=!!G.op||!!G.net;$('#oAgain').textContent=G.op?'Replay operation':G.net?'Back to lobby':'Rematch';
     if(G.op){const won=winner===0;title=won?'Operation complete':'Operation failed';
-      if(won){const secs=Math.round(G.time);const newTruck=opIndex===9&&!truckUnlocked();text=`${G.op.name} taken in ${fmtTime(secs)}. Body count ${G.bodies?G.bodies[1]:0}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'');saveOp(opIndex,secs);if(opIndex===OPS.length-1)campaignWon();if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(newTruck&&truckUnlocked())text+=' NEW VEHICLE UNLOCKED: the Six-Wheeler, an armored 6×6 jeep with a roof gun, is in your bunker from now on.';if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else{title=STORY.endTitle;if(CAMP===1&&BT_READY)text+=' OPERATION BLACK TIDE UNLOCKED: find it on the title screen.';}confetti();}
-      else text=(how==='nojeep'?`No jeeps left to carry the ${objName(G.flags[1]).toLowerCase()}.`:'You ran out of vehicles.')+` Body count ${G.bodies?G.bodies[1]:0}.`;}
+      if(won){const secs=Math.round(G.time);const newTruck=opIndex===9&&!truckUnlocked();text=`${G.op.name} taken in ${fmtTime(secs)}. Body count ${G.bodies?G.bodies[1]:0}.`+(G.flags[1].item?` ${G.flags[1].item.n} recovered.`:'')+(powsHome()?` Prisoners brought home: ${powsHome()[0]} of ${powsHome()[1]}.`:'')+(G.mission&&G.mission.jets.length?(G.mission.jetsDone?' Airfield destroyed.':` ${G.mission.jets.filter(j=>j.alive).length} enemy jets escaped.`):'');saveOp(opIndex,secs);if(opIndex===OPS.length-1)campaignWon();if(flawless){const n=strikesBanked();text+=` Flawless, no vehicles lost: missile strike banked (${n} ready, fire it from the bunker).`;}if(newTruck&&truckUnlocked())text+=' NEW VEHICLE UNLOCKED: the Six-Wheeler, an armored 6×6 jeep with a roof gun, is in your bunker from now on.';if(opIndex<OPS.length-1){$('#oNext').hidden=false;text+=' Next: '+OPS[opIndex+1].name+'.';}else{title=STORY.endTitle;if(CAMP===1&&BT_READY)text+=' OPERATION BLACK TIDE UNLOCKED: find it on the title screen.';}confetti();}
+      else text=(how==='time'?'The enemy launched before you could stop them.':how==='flag'?`The enemy took your ${objName(G.flags[0]).toLowerCase()}.`:how==='nojeep'?`No jeeps left to carry the ${objName(G.flags[1]).toLowerCase()}.`:'You ran out of vehicles.')+` Body count ${G.bodies?G.bodies[1]:0}.`;}
     else if(G.views.length===1){const won=winner===human[0];title=won?'Victory':'Defeat';
       text=how==='flag'?(won?'You brought their flag home.':'The enemy ran your flag home.'):(won?'The enemy ran out of vehicles.':'You ran out of vehicles.');}
     else{title=`Player ${winner+1} wins`;text=how==='flag'?`${TEAMS[winner].name} captured the flag.`:`${TEAMS[1-winner].name} ran out of vehicles.`;}
@@ -4901,6 +4926,20 @@ const OPS2=(()=>{
     ['Moving Target',462,'storm'],['Ambush Alley',478,'storm'],['Decoys',493,'storm'],['Air Superiority',507,'storm'],['Cornered',524,'storm'],
     ['Turncoat',538,'ice'],['Fortress Glacier',553,'ice'],['Countdown',569,'ice'],['Last Convoy',584,'ice'],['Black Tide',599,'sea']];
   const ENV={5:'whiteout',7:'night',17:'burning'};
+  // BLACK TIDE MISSIONS (Matt, 8 Nov 2026): what makes each operation play differently.
+  //  active: the enemy fights back with its own vehicles (and will take YOUR objective if you let it) - counterattack ops
+  //  pows: friendly prisoners held in the enemy camp; drive a slow jeep up to them and they climb in - bring them home
+  //  decoys: launcher trucks parked on every island, only one of them matters     jets: enemy jets parked on the runway, blow them up
+  //  limit: seconds before the enemy launches and the operation is lost
+  const MISSION={0:{active:true,enemyStock:{tank:3,heli:2,asv:1,jeep:3},tip:'The enemy is attacking: it will come for your orders if you leave them unguarded.'},
+    2:{pows:4,tip:'Four of our men are held in the camp. Pull a jeep up slowly beside them and they will climb in. Bring them home.'},
+    9:{active:true,enemyStock:{tank:2,heli:2,jeep:2},tip:'The enemy knows where you are and is coming for your codebook.'},
+    11:{pows:3,tip:'Three survivors of the recon team are still alive out there. Pick them up with a jeep.'},
+    12:{decoys:true,tip:'Three launchers on three islands. Only one island holds the telemetry.'},
+    13:{jets:4,tip:'Their jets are parked on the runway. Destroy all four.'},
+    14:{active:true,enemyStock:{tank:2,asv:2,jeep:2},tip:'Cornered, the enemy will throw everything at you.'},
+    17:{limit:480,tip:'Launch in 8 minutes. Recover the control core before the clock runs out.'},
+    19:{active:true,enemyStock:{heli:3,asv:2,jeep:2},tip:'Their final stand. Expect everything they have left.'}};
   return names.map(([name,seed,theme],i)=>{const t=.45+i/19*.55; // picks up where Iron Curtain's later operations left off
     const guns=1+Math.round(t*3),cannons=1+Math.round(t*3),missiles=1+Math.round(t*3);const turrets=[];
     for(let k=0;k<Math.max(guns,cannons,missiles);k++){if(k<guns)turrets.push('gun');if(k<cannons)turrets.push('cannon');if(k<missiles)turrets.push('missile');}
@@ -4909,7 +4948,7 @@ const OPS2=(()=>{
     const cfg={buildings:4+Math.round(t*5),turrets,outposts,soldiers:4+Math.round(t*10),soldierCap:6+Math.round(t*11),drones,gates:true,airStrikes};
     const stock=i<10?{tank:2,heli:2,asv:2,jeep:3,boat:2,jet:2}:{tank:2,heli:2,asv:1,jeep:3,boat:2,jet:2};
     const bits=[`${cfg.buildings} buildings`,`${turrets.length+outposts.length*2} turrets`,'missile turrets',drones+(drones>1?' drones':' drone'),'gated walls',airStrikes+' enemy air strikes'];
-    return {name,seed,theme,env:ENV[i]||theme,cfg,stock,turMul:.95+t*.35,aim:.08-t*.05,brief:'Intel: '+bits.join(', ')+`. You have ${airStrikes} air strikes (F), a patrol boat and a jet.`};});})();
+    const mission=MISSION[i]||null;return {name,seed,theme,env:ENV[i]||theme,cfg,stock,mission,turMul:.95+t*.35,aim:.08-t*.05,brief:'Intel: '+bits.join(', ')+`. You have ${airStrikes} air strikes (F), a patrol boat and a jet.`+(mission?' '+mission.tip:'')};});})();
 const OBJECTIVES2=[['Enemy Assault Orders','ORDERS'],['Medical Supply Crate','MEDICAL'],['Prisoner Roster','ROSTER'],['Bridge Control Codes','BRIDGE CODES'],['Hammerfall Production Order','PRODUCTION ORDER'],
   ['Navigation Beacon','BEACON'],['Frozen Supply Sled','SLED'],['Enemy Patrol Logs','PATROL LOGS'],['Convoy Tracker','TRACKER'],['Signal Codebook','CODEBOOK'],
   ['Launcher Route Map','ROUTE MAP'],['Survivor Beacon','SURVIVOR BEACON'],['Launcher Telemetry','TELEMETRY'],['Airfield Flight Records','FLIGHT RECORDS'],['Launcher Ignition Key','IGNITION KEY'],
@@ -4992,7 +5031,7 @@ function togglePause(){paused=!paused;$('#pause').hidden=!paused;$('#pRestart').
 let last=performance.now();
 const _ft=new V3();
 function step(dt){
-  G.time+=dt;if(G.burn)themeTick(dt);
+  G.time+=dt;if(G.burn)themeTick(dt);if(G.mission)missionTick(dt);
   if(G.water){if(G.water.tex){G.water.tex.offset.x+=dt*.012;G.water.tex.offset.y+=dt*.008;}if(G.water.u)G.water.u.uT.value+=dt;}
   for(const t of G.teams){
     if(t.respawnT>0)t.respawnT-=dt;
@@ -5621,7 +5660,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  if(DEV.on)window.__game={H,passable,onBridge,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,damage,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

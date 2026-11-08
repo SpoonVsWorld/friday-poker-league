@@ -1364,6 +1364,172 @@ function generate(seed){
   return bases;
 }
 
+// ============================================================ BLACK TIDE MAPS (Matt, 8 Nov 2026): "totally different layout, nothing like
+// the first campaign, and water the boat can really use". Iron Curtain's generate() is one island recipe with two ground corridors; every
+// Black Tide operation below is its own hand-designed layout (field of land/sea, deep navigable channels, corridors, sea forts on islets,
+// frozen lakes, burn sites) plus a theme that recolours the ground, trees, fog and light. generate() itself is untouched.
+const BT_THEME={
+  burning:{grass:0x55583a,grass2:0x3b3a2a,sand:0xb9a37a,wet:0x8e7f5e,deep:0x203f45,rock:0x66605a,dirt:0x8d7a55,base:0x7f7566,scorch:0x24201d,fog:0x6e665c,fogN:120,fogF:380,hemi:.9,sun:1.9,sunC:0xffd0a0,trees:['treeD','treeD','treeD','oak','tree'],cover:false},
+  snow:{grass:0xe9eef3,grass2:0xd3dbe3,sand:0xd6e6f0,wet:0xbfd3df,deep:0x1d3744,rock:0x7c848c,dirt:0x9ea6ad,base:0xb3b9be,fog:0xcbd4dc,fogN:110,fogF:360,hemi:1.05,sun:1.7,sunC:0xeaf2ff,trees:['pine','pine','pine','treeD'],cover:false},
+  whiteout:{grass:0xe9eef3,grass2:0xd3dbe3,sand:0xd6e6f0,wet:0xbfd3df,deep:0x1d3744,rock:0x7c848c,dirt:0x9ea6ad,base:0xb3b9be,fog:0xdfe5ea,fogN:60,fogF:230,hemi:1.0,sun:1.1,sunC:0xf2f6ff,trees:['pine','pine','treeD'],cover:false},
+  night:{grass:0xdfe6ee,grass2:0xc8d2dc,sand:0xcddde8,wet:0xaabfcc,deep:0x0c1a26,rock:0x6e767e,dirt:0x8d959c,base:0xa3a9ae,fog:0x0b1322,fogN:90,fogF:320,hemi:.28,sun:.5,sunC:0x9fb4ff,trees:['pine','pine','treeD'],cover:false},
+  storm:{grass:0x5c7a48,grass2:0x40593a,sand:0xa89a7c,wet:0x7f7a66,deep:0x16282f,rock:0x55585a,dirt:0x8f7d5b,base:0x8c8470,fog:0x4b5661,fogN:110,fogF:350,hemi:.75,sun:1.2,sunC:0xcfd8e4,trees:['pine','oak','tree','treeD'],cover:true},
+  ice:{grass:0xeaf1f6,grass2:0xd8e3ec,sand:0xd2e4ef,wet:0xb9d0dd,deep:0x15303f,rock:0x8a9299,dirt:0xa5acb2,base:0xb7bdc2,fog:0xc2d2df,fogN:130,fogF:400,hemi:1.1,sun:1.9,sunC:0xf4f8ff,trees:['treeD','pine'],cover:false},
+  sea:{grass:0x6f8f4a,grass2:0x56773c,sand:0xd0bc88,wet:0x9e8f66,deep:0x1a3440,rock:0x7d776c,dirt:0x9f875a,base:0x938668,fog:0x55707c,fogN:120,fogF:380,hemi:.9,sun:1.6,sunC:0xe8eef5,trees:['palm','palmBend','treeD'],cover:true}};
+function splinePts(ctrl){const pts=[];for(let i=0;i<ctrl.length-1;i++){const p0=ctrl[Math.max(0,i-1)],p1=ctrl[i],p2=ctrl[i+1],p3=ctrl[Math.min(ctrl.length-1,i+2)];
+    const seg=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]),n=Math.ceil(seg/3);
+    for(let k=0;k<n;k++){const u=k/n,u2=u*u,u3=u2*u;const f=(a,b,c,d)=>.5*((2*b)+(-a+c)*u+(2*a-5*b+4*c-d)*u2+(-a+3*b-3*c+d)*u3);pts.push([f(p0[0],p1[0],p2[0],p3[0]),f(p0[1],p1[1],p2[1],p3[1])]);}}
+  pts.push(ctrl[ctrl.length-1].slice());return pts;}
+function dSeg(x,z,a,b){const dx=b[0]-a[0],dz=b[1]-a[1],l2=dx*dx+dz*dz||1;let t=((x-a[0])*dx+(z-a[1])*dz)/l2;t=clamp(t,0,1);return Math.hypot(x-a[0]-dx*t,z-a[1]-dz*t);}
+function dPoly(x,z,pts){let d=1e9;for(let i=0;i<pts.length-1;i++){const v=dSeg(x,z,pts[i],pts[i+1]);if(v<d)d=v;}return d;}
+const BT_LAYOUTS=[
+  // 1 Counterstrike: your base in the middle of a round island, a deep moat lagoon all the way round, the enemy on the crescent beyond it.
+  (R,n)=>({bases:[{x:0,z:40,team:0},{x:0,z:-330,team:1}],
+    field:(x,z)=>{const d=Math.hypot(x,z-40);let v=1-d/140;const ang=Math.atan2(x,z-40);const cf=smooth(.55,1.3,-Math.cos(ang)+.9),outer=(1-Math.abs(d-262)/58)*cf-(1-cf)*.6;v=Math.max(v,outer,1-Math.hypot(x,z+330)/120);
+      const moat=1-Math.abs(d-182)/40;if(moat>0)v=Math.min(v,-.65*smooth(0,.4,moat));return v;},
+    corr:[[[0,40],[70,-80],[120,-200],[0,-330]],[[0,40],[-70,-80],[-120,-200],[0,-330]]],
+    islets:[[-182,40,14,'gun'],[182,40,14,'gun'],[0,222,14,'missile']],burn:40}),
+  // 2 Broken Supply: a Y-shaped estuary splits the land; the trunk reaches the sea beside your base, a branch runs up toward the enemy.
+  (R,n)=>({bases:[{x:-140,z:290,team:0},{x:140,z:-290,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot((x+90)/190,(z-60)/360),1-Math.hypot((x-120)/190,(z+60)/360));
+      v=Math.max(v,1-Math.hypot(x/245,z/430)*1.02);
+      const riv=[[-250,-130],[-100,-40],[-10,70],[30,210],[10,420]],br=[[-10,70],[110,-60],[200,-200],[250,-310]];
+      const d=Math.min(dPoly(x,z,riv),dPoly(x,z,br)*1.15);if(d<48)v=Math.min(v,lerp(-.7,v,smooth(26,48,d)));return v;},
+    corr:[[[-140,290],[-60,120],[60,0],[140,-130],[140,-290]],[[-140,290],[-120,60],[-40,-110],[80,-210],[140,-290]]],islets:[[-130,-80,16,'gun'],[70,120,16,'missile']],burn:36}),
+  // 3 Prisoners of War: the camp sits on a long barrier island; a 60 m sound separates it from your mainland, with one bridge near the top.
+  (R,n)=>({bases:[{x:-120,z:280,team:0},{x:175,z:-220,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot((x+95)/185,z/440),1-Math.hypot((x-190)/42,(z+120)/290));
+      const d=dPoly(x,z,[[122,-420],[118,-200],[126,0],[120,170],[160,330]]);if(d<40)v=Math.min(v,lerp(-.7,v,smooth(18,40,d)));return v;},
+    corr:[[[-120,280],[-30,120],[50,-40],[125,-110],[175,-220]],[[-120,280],[20,230],[115,150],[175,30],[175,-220]]],islets:[[150,-330,13,'cannon'],[150,-40,13,'gun'],[158,90,13,'missile']],burn:30}),
+  // 4 Retake the Bridge: two landmasses, one 120 m strait between them, one bridge. Islets in the strait carry enemy guns.
+  (R,n)=>({bases:[{x:0,z:330,team:0},{x:0,z:-330,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot(x/240,(z-235)/200),1-Math.hypot(x/240,(z+235)/200));
+      const d=Math.abs(z-Math.sin(x*.012)*18);if(d<75)v=Math.min(v,lerp(-.75,v,smooth(45,75,d)));return v;},
+    corr:[[[0,330],[0,200],[0,0],[0,-200],[0,-330]]],islets:[[-150,10,19,'cannon'],[150,-12,19,'cannon'],[-70,-30,12,'gun'],[80,25,12,'gun']],burn:30}),
+  // 5 The Second Warhead: an archipelago, seven islands hopped by bridges, channels between all of them.
+  (R,n)=>({bases:[{x:-60,z:310,team:0},{x:20,z:-310,team:1}],
+    field:(x,z)=>{const I=[[-60,310,125],[120,150,72],[-110,100,78],[30,-40,82],[160,-150,62],[-120,-180,72],[20,-310,118]];let v=-.7;for(const [cx,cz,r] of I)v=Math.max(v,1-Math.hypot(x-cx,z-cz)/r);return v;},
+    corr:[[[-60,310],[120,150],[30,-40],[160,-150],[20,-310]],[[-60,310],[-110,100],[30,-40],[-120,-180],[20,-310]]],islets:[[-210,0,16,'gun'],[210,30,16,'missile'],[0,90,14,'gun'],[-20,-200,14,'cannon']]}),
+  // 6 White Out: a frozen bay bitten out of the coast, snow everywhere, lakes frozen solid, the storm hiding everything past 200 m.
+  (R,n)=>({bases:[{x:140,z:300,team:0},{x:90,z:-320,team:1}],
+    field:(x,z)=>{let v=1-Math.hypot((x-50)/205,z/430);const bay=1-Math.hypot((x+120)/190,(z+40)/180);if(bay>0)v=Math.min(v,-.6*smooth(0,.25,bay));return v;},
+    corr:[[[140,300],[185,120],[175,-100],[90,-320]],[[140,300],[60,150],[20,0],[40,-180],[90,-320]]],islets:[[-100,-40,16,'gun'],[-60,60,14,'missile']],ice:[[175,10,42],[120,200,30],[190,-220,34]],harbor:[[[-20,420],[20,320],[50,230]]]}),
+  // 7 Thin Ice: one huge frozen lake with an open river cutting through it; armor drives the ice, the boat owns the river.
+  (R,n)=>({bases:[{x:-80,z:320,team:0},{x:80,z:-320,team:1}],
+    field:(x,z)=>{let v=1-Math.hypot(x/245,z/430);const d=dPoly(x,z,[[0,420],[30,250],[-40,100],[20,-60],[-30,-250],[0,-420]]);if(d<42)v=Math.min(v,lerp(-.7,v,smooth(22,42,d)));return v;},
+    corr:[[[-80,320],[-60,180],[60,60],[90,-150],[80,-320]],[[-80,320],[-150,120],[-120,-120],[-60,-250],[80,-320]]],ice:[[0,0,200,240]],islets:[[-110,-20,12,'gun'],[90,180,12,'gun']]}),
+  // 8 Silent Night: a fjord at night, cliffs either side, the only bridge halfway up. Keep your lights off.
+  (R,n)=>({bases:[{x:-150,z:300,team:0},{x:150,z:-300,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot((x+150)/120,z/440),1-Math.hypot((x-150)/120,z/440),.55-Math.hypot(x/250,(z+400)/70));
+      v+=Math.max(0,.9-Math.abs(Math.abs(x)-165)/60)*smooth(.1,.4,v);const d=dPoly(x,z,[[0,420],[-15,200],[10,0],[-10,-200],[0,-310]]);if(d<52)v=Math.min(v,lerp(-.75,v,smooth(30,52,d)));return v;},
+    corr:[[[-150,300],[-120,120],[0,0],[120,-120],[150,-300]],[[-150,300],[-130,-100],[-60,-370],[60,-370],[150,-300]]],islets:[[20,150,13,'gun'],[-20,-150,13,'missile']]}),
+  // 9 Ghost Walk: a mountain wall across the island with a single pass; a sea lane down the west coast flanks it.
+  (R,n)=>({bases:[{x:60,z:320,team:0},{x:-40,z:-320,team:1}],
+    field:(x,z)=>{let v=1-Math.hypot((x-20)/230,z/430);const wall=Math.max(0,1-Math.abs(z-x*.12)/70)*(1-smooth(70,25,Math.abs(x+20)));v+=wall*1.1*smooth(.05,.3,v);
+      const d=dPoly(x,z,[[-215,420],[-205,100],[-235,-200],[-205,-420]]);if(d<48)v=Math.min(v,lerp(-.7,v,smooth(24,48,d)));return v;},
+    corr:[[[60,320],[0,150],[-20,0],[-30,-150],[-40,-320]],[[60,320],[-110,250],[-150,0],[-140,-220],[-40,-320]]],islets:[[-215,250,13,'gun'],[-230,-60,13,'cannon']],ice:[[150,120,36],[150,-150,30]]}),
+  // 10 Signal Fire: your platoon on a small island, the tower on the big northern land, islets strung between.
+  (R,n)=>({bases:[{x:0,z:320,team:0},{x:0,z:-300,team:1}],
+    field:(x,z)=>{const I=[[0,320,118],[-70,150,42],[60,40,46],[140,60,36],[-120,-10,34]];let v=1-Math.hypot(x/245,(z+200)/225);for(const [cx,cz,r] of I)v=Math.max(v,1-Math.hypot(x-cx,z-cz)/r);return v;},
+    corr:[[[0,320],[-70,150],[60,40],[0,-120],[0,-300]],[[0,320],[90,200],[140,60],[60,-120],[0,-300]]],islets:[[-170,120,14,'gun'],[180,-40,14,'missile'],[-40,-70,12,'gun']],ice:[[120,-240,36]]}),
+  // 11 Moving Target: a river delta fans out below the enemy's shore; four braided channels, low marsh between them.
+  (R,n)=>({bases:[{x:40,z:320,team:0},{x:0,z:-300,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot(x/250,(z+230)/210),.35-Math.hypot(x/250,(z-150)/300)*.35);
+      const C=[[[0,-60],[-120,120],[-180,420]],[[0,-60],[-40,150],[-70,420]],[[0,-60],[80,120],[140,420]],[[0,-60],[170,100],[240,420]]];let d=1e9;for(const c of C)d=Math.min(d,dPoly(x,z,c));
+      if(d<36)v=Math.min(v,lerp(-.7,v,smooth(16,36,d)));return v;},
+    corr:[[[40,320],[20,150],[0,-60],[0,-300]],[[40,320],[180,250],[200,60],[100,-120],[0,-300]]],islets:[[-200,200,13,'gun'],[210,230,13,'gun'],[-30,-110,14,'missile']]}),
+  // 12 Ambush Alley: one narrow land corridor between two cliff walls, flooded inlets on either flank reaching the enemy coast.
+  (R,n)=>({bases:[{x:0,z:320,team:0},{x:0,z:-320,team:1}],
+    field:(x,z)=>{let v=1-Math.hypot(x/245,z/430);v+=Math.max(0,1-Math.abs(Math.abs(x)-58)/22)*1.2*smooth(230,150,Math.abs(z));
+      for(const [cx,cz,o] of [[-150,0,[[-150,-200],[-205,-420]]],[150,0,[[150,200],[205,420]]]]){const b=1-Math.hypot((x-cx)/95,(z-cz)/225);if(b>0)v=Math.min(v,-.65*smooth(0,.2,b));const d=dPoly(x,z,o);if(d<34)v=Math.min(v,lerp(-.7,v,smooth(16,34,d)));}return v;},
+    corr:[[[0,320],[8,150],[-8,0],[8,-150],[0,-320]],[[0,320],[215,240],[235,0],[215,-240],[0,-320]]],islets:[[-150,120,13,'cannon'],[150,-120,13,'cannon']]}),
+  // 13 Decoys: three northern islands, only the middle one holds the real launcher; stepping-stone islets lead to the outer two.
+  (R,n)=>({bases:[{x:0,z:320,team:0},{x:0,z:-260,team:1}],
+    field:(x,z)=>{const I=[[-160,-200,95],[0,-260,100],[160,-200,95],[-90,0,36],[90,0,36]];let v=1-Math.hypot(x/235,(z-250)/175);for(const [cx,cz,r] of I)v=Math.max(v,1-Math.hypot(x-cx,z-cz)/r);return v;},
+    corr:[[[0,320],[-60,150],[-90,0],[-120,-130],[0,-260]],[[0,320],[60,150],[90,0],[120,-130],[0,-260]]],islets:[[0,-90,16,'missile'],[-220,-60,13,'gun'],[220,-60,13,'gun']],harbor:[[[-250,340],[-140,335],[-95,310]]]}),
+  // 14 Air Superiority: the enemy airfield on a high plateau with a runway, cliffs down to a bay you can sail right into.
+  (R,n)=>({bases:[{x:-40,z:320,team:0},{x:0,z:-300,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot(x/235,(z+220)/205),1-Math.hypot(x/235,(z-200)/225));const pl=1-Math.hypot(x/175,(z+240)/135);if(pl>0)v+=.55*smooth(0,.18,pl);
+      const bay=1-Math.hypot((x-205)/120,(z+10)/200);if(bay>0)v=Math.min(v,-.65*smooth(0,.25,bay));return v;},
+    corr:[[[-40,320],[-130,120],[-160,-100],[-80,-220],[0,-300]],[[-40,320],[80,150],[110,-60],[60,-200],[0,-300]]],roads:[[[-120,-245],[120,-245]]],islets:[[190,80,14,'gun'],[215,-120,14,'missile']],harbor:[[[170,170],[80,240],[55,290]]]}),
+  // 15 Cornered: three channels cut the island into four bands; every road crossing is a bridge, and the sea joins them all at the edges.
+  (R,n)=>({bases:[{x:-100,z:330,team:0},{x:100,z:-330,team:1}],
+    field:(x,z)=>{let v=1-Math.hypot(x/215,z/430);for(const zc of [-120,40,200]){const d=Math.abs(z-zc-Math.sin(x*.02+zc)*14);if(d<34)v=Math.min(v,lerp(-.7,v,smooth(16,34,d)));}return v;},
+    corr:[[[-100,330],[-160,120],[-120,-40],[-170,-200],[100,-330]],[[-100,330],[60,230],[140,80],[180,-120],[100,-330]]],islets:[[0,200,12,'gun'],[-60,40,12,'missile'],[60,-120,12,'cannon']]}),
+  // 16 Turncoat: an ice shelf split by deep crevasses; the boat runs the crevasses, the convoy crosses them on bridges.
+  (R,n)=>({bases:[{x:-80,z:320,team:0},{x:60,z:-320,team:1}],
+    field:(x,z)=>{let v=1-Math.hypot(x/235,z/430)*.95;const C=[[[-250,100],[-120,60],[-40,120],[60,40],[180,90],[250,30]],[[-250,-150],[-150,-100],[-30,-170],[90,-110],[250,-160]],[[-40,120],[-60,-20],[-30,-170]],[[180,90],[200,-40],[250,-160]]];
+      let d=1e9;for(const c of C)d=Math.min(d,dPoly(x,z,c));if(d<30)v=Math.min(v,lerp(-.75,v,smooth(12,30,d)));return v;},
+    corr:[[[-80,320],[-110,160],[-90,-10],[-110,-230],[60,-320]],[[-80,320],[80,200],[130,0],[100,-230],[60,-320]]],islets:[[20,-150,11,'gun'],[-5,80,11,'gun']],ice:[[150,250,34],[-170,-280,30]]}),
+  // 17 Fortress Glacier: the enemy citadel on its own island behind a rampart ridge with two gates; stepping stones across the moat.
+  (R,n)=>({bases:[{x:0,z:320,team:0},{x:0,z:-250,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot(x/235,(z-230)/200),1-Math.hypot(x,z+250)/155,1-Math.hypot(x+120,z+50)/32,1-Math.hypot(x-120,z+50)/32);
+      const d=Math.hypot(x,z+250),a=Math.atan2(x,z+250);const gate=Math.min(Math.abs(angDiff(a,2.5)),Math.abs(angDiff(a,-2.5)));v+=Math.max(0,1-Math.abs(d-112)/16)*1.3*smooth(.25,.6,gate);return v;},
+    corr:[[[0,320],[-120,50],[-110,-130],[-80,-175],[0,-250]],[[0,320],[120,50],[110,-130],[80,-175],[0,-250]]],islets:[[0,-70,15,'cannon'],[-200,-200,13,'gun'],[200,-200,13,'gun']],harbor:[[[250,340],[140,335],[95,315]]]}),
+  // 18 Countdown: the launch site inside a volcanic crater; a lagoon on the south-east shore gets the boat to its foot.
+  (R,n)=>({bases:[{x:-60,z:320,team:0},{x:0,z:-250,team:1}],
+    field:(x,z)=>{let v=Math.max(1-Math.hypot(x/235,(z-200)/230),1-Math.hypot(x,z+230)/205);const d=Math.hypot(x,z+230),a=Math.atan2(x,z+230);
+      const gate=Math.min(Math.abs(angDiff(a,Math.PI)),Math.abs(angDiff(a,-1.6)));v+=Math.max(0,1-Math.abs(d-115)/26)*1.4*smooth(.22,.5,gate);
+      const lk=1-Math.hypot(x-70,z+190)/40;if(lk>0)v=Math.min(v,-.6*smooth(0,.3,lk));const lag=1-Math.hypot((x-160)/100,(z-80)/125);if(lag>0)v=Math.min(v,-.65*smooth(0,.22,lag));return v;},
+    corr:[[[-60,320],[-20,130],[0,-30],[0,-130],[0,-250]],[[-60,320],[-170,150],[-200,-100],[-115,-235],[0,-250]]],islets:[[200,150,13,'gun'],[120,0,13,'missile']],burn:26}),
+  // 19 Last Convoy: a coast road under cliffs, open sea to the east, and a chain of gun islets covering every bend.
+  (R,n)=>({bases:[{x:-60,z:320,team:0},{x:-60,z:-320,team:1}],
+    field:(x,z)=>{let v=1-Math.hypot((x+105)/165,z/440);v+=Math.max(0,1-Math.abs(x+180)/45)*1.0*smooth(.1,.35,v);for(const [cx,cz,r] of [[120,-300,30],[150,-150,36],[140,0,30],[160,150,36],[120,300,30]])v=Math.max(v,1-Math.hypot(x-cx,z-cz)/r);return v;},
+    corr:[[[-60,320],[0,200],[-20,80],[10,-40],[-30,-160],[0,-240],[-60,-320]],[[-60,320],[-140,180],[-150,0],[-140,-180],[-60,-320]]],islets:[[120,-300,0,'cannon'],[150,-150,0,'missile'],[140,0,0,'gun'],[160,150,0,'missile'],[120,300,0,'gun']]}),
+  // 20 Black Tide: open sea. Your island, their rock, and a reef chain between; the bridge is the only road and it is very long.
+  (R,n)=>({bases:[{x:0,z:300,team:0},{x:0,z:-320,team:1}],
+    field:(x,z)=>{const I=[[0,300,120],[0,-320,92],[-120,120,27],[90,20,27],[-60,-110,27],[130,-190,27]];let v=-.75;for(const [cx,cz,r] of I)v=Math.max(v,1-Math.hypot(x-cx,z-cz)/r);return v;},
+    corr:[[[0,300],[-120,120],[90,20],[-60,-110],[130,-190],[0,-320]]],islets:[[-120,120,0,'gun'],[90,20,0,'missile'],[-60,-110,0,'cannon'],[130,-190,0,'missile'],[-200,-250,14,'gun'],[200,-280,14,'gun']]})];
+function generate2(seed,op,idx){
+  RND=mulberry32(seed*1013+7);const n1=makeNoise(seed),n2=makeNoise(seed+99);
+  const t={h:new Float32Array(NX*NZ),road:new Float32Array(NX*NZ),base:new Float32Array(NX*NZ)};
+  const Ly=BT_LAYOUTS[idx%BT_LAYOUTS.length](RND,n1);const bases=Ly.bases;
+  const corr=Ly.corr.map(splinePts);
+  const corrD=new Float32Array(NX*NZ).fill(1e9),baseD=new Float32Array(NX*NZ).fill(1e9),roadD=new Float32Array(NX*NZ).fill(1e9);
+  const stamp=(arr,x,z,R)=>{const i0=Math.max(0,Math.floor((x-R-X0)/CELL)),i1=Math.min(NX-1,Math.ceil((x+R-X0)/CELL)),j0=Math.max(0,Math.floor((z-R-Z0)/CELL)),j1=Math.min(NZ-1,Math.ceil((z+R-Z0)/CELL));
+    for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const d=Math.hypot(X0+i*CELL-x,Z0+j*CELL-z);const k=j*NX+i;if(d<arr[k])arr[k]=d;}};
+  for(const c of corr)for(const p of c)stamp(corrD,p[0],p[1],20);
+  for(const b of bases)stamp(baseD,b.x,b.z,95);
+  for(const r of Ly.roads||[])for(const p of splinePts(r))stamp(roadD,p[0],p[1],20);
+  const islets=(Ly.islets||[]).map(([x,z,r,kind])=>({x,z,r,kind}));
+  const raw=new Float32Array(NX*NZ);
+  for(let j=0;j<NZ;j++)for(let i=0;i<NX;i++){
+    const x=X0+i*CELL,z=Z0+j*CELL,k=j*NX+i;
+    let v=Ly.field(x,z);
+    for(const hb of Ly.harbor||[]){const d=dPoly(x,z,hb);if(d<34)v=Math.min(v,lerp(-.65,v,smooth(16,34,d)));}
+    for(const il of islets)if(il.r>0)v=Math.max(v,1-Math.hypot(x-il.x,z-il.z)/il.r);
+    for(const l of Ly.lakes||[])v-=.9*Math.exp(-((x-l[0])**2+(z-l[1])**2)/(2*l[2]*l[2]));
+    const e=Math.pow(Math.abs(x)/222,10)+Math.pow(Math.abs(z)/392,10);if(e>.4)v=lerp(v,-.75,smooth(.4,1,e)); // a deep lane of open sea rings every map, so the boat can always go round
+    const land=smooth(0,.25,v);v+=((n1(x*.007+30,z*.007+30)-.5)*.5+(n2(x*.03,z*.03)-.5)*.28)*land+(n2(x*.05,z*.05)-.5)*.05;
+    let h=v>0?v*13:v*12;h=clamp(h,-9,17);raw[k]=h;
+    const bd=baseD[k];if(bd<95){const tt=smooth(95,62,bd);h=lerp(h,3,tt);}
+    for(const il of islets)if(il.r>0){const d=Math.hypot(x-il.x,z-il.z);if(d<il.r*.8)h=lerp(h,Math.max(h,2.2),smooth(il.r*.8,il.r*.45,d));}
+    const cd=corrD[k];if(cd<18&&raw[k]>-2.6){const tt=smooth(18,7,cd);h=lerp(h,clamp(h,1.1,7),tt);}
+    for(const ic of Ly.ice||[]){const rx=ic[2],rz=ic[3]||ic[2];const d=Math.hypot((x-ic[0])/rx,(z-ic[1])/rz);if(d<1&&raw[k]>-2.6&&bd>95){h=lerp(h,.8,smooth(1,.82,d));}}
+    const rd=Math.min(cd,roadD[k]);t.h[k]=h;t.road[k]=smooth(7,3,rd);t.base[k]=smooth(70,55,bd);
+  }
+  G.terr=t;G.corr=corr;G.corrD=corrD;
+  const segs=[],runs=[];
+  for(const c of corr){let run=null;for(let i=0;i<c.length;i++){const wet=H(c[i][0],c[i][1])<.6;if(wet){if(!run){run={c,a:Math.max(0,i-2)};}run.b=Math.min(c.length-1,i+2);}else if(run&&i>run.b){runs.push(run);run=null;}}if(run)runs.push(run);}
+  const spans=[];
+  for(const r of runs){let span=null;for(let i=r.a;i<r.b;i++){const a=r.c[i],b=r.c[i+1];const dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz)||1;
+    if(!span||span.segs.length>=5){span={hp:120,maxHp:120,alive:true,segs:[],meshes:[],corrIdx:corr.indexOf(r.c)};spans.push(span);}
+    const sg={ax:a[0],az:a[1],ux:dx/len,uz:dz/len,len,cx:(a[0]+b[0])/2,cz:(a[1]+b[1])/2,reach:len/2+5,span,pillar:(i-r.a)%3===0};span.segs.push(sg);segs.push(sg);}}
+  for(const sp of spans){sp.x=sp.segs.reduce((a,q)=>a+q.cx,0)/sp.segs.length;sp.z=sp.segs.reduce((a,q)=>a+q.cz,0)/sp.segs.length;}
+  G.bridgeSegs=segs;G.bridgeRuns=runs;G.bridgeSpans=spans;G.corrBroken=corr.map(()=>false);G.bridgeSpans.forEach((sp,i)=>sp.netIdx=i);
+  G.forts=islets.map(il=>({x:il.x,z:il.z,kind:il.kind,team:1}));
+  G.burn=[];if(Ly.burn){const b0=bases[0];for(let tr=0;tr<Ly.burn*12&&G.burn.length<Ly.burn;tr++){const x=rr(X0+25,-X0-25),z=rr(Z0+25,-Z0-25);const h=H(x,z);if(h<1.2||h>12)continue;if(Math.hypot(x-b0.x,z-b0.z)<40||Math.hypot(x-bases[1].x,z-bases[1].z)<110)continue;
+    if(corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)]<9)continue;G.burn.push({x,z,y:h,s:rr(.7,1.6),t:RND()*5});}}
+  return bases;
+}
+function themeTick(dt){ // burning islands: standing fires and smoke columns at the burn sites
+  if(!G.burn||!G.burn.length)return;const cam=G.views[0]&&G.views[0].cam;
+  for(const b of G.burn){if(cam&&Math.hypot(cam.position.x-b.x,cam.position.z-b.z)>330)continue;
+    if(Math.random()<dt*7*b.s){FIRE.spawn(b.x+rr(-1.5,1.5)*b.s,b.y+.3,b.z+rr(-1.5,1.5)*b.s,rr(-.4,.4),rr(1.5,3.5),rr(-.4,.4),rr(.5,.9),1.2*b.s,.3,C_FIRE0,C_FIRE1);}
+    if(Math.random()<dt*2.2*b.s){SMOKE.spawn(b.x+rr(-1,1),b.y+1.5,b.z+rr(-1,1),rr(-.6,.6)+.9,rr(2,3.5),rr(-.6,.6)+.4,rr(5,9),1.6*b.s,7*b.s,[.18,.17,.16],[.42,.4,.38],.5,0,.3);}}}
+function applyTheme(th){G.theme=th||null;const T=th||{fog:FOG,fogN:150,fogF:430,hemi:1.15,sun:2.5,sunC:0xffffff};
+  scene.fog.color.set(T.fog);scene.background.set(T.fog);scene.fog.near=T.fogN;scene.fog.far=T.fogF;hemi.intensity=T.hemi;sun.intensity=T.sun;sun.color.set(T.sunC);}
+
 // ---- realistic building exteriors: one shader patch for every structure. From the existing albedo it sorts each pixel into
 // light wall (-> weathered concrete), dark trim/roof (-> corrugated metal / tar-gravel), glass (-> dark, glossy, reflects the sky)
 // or painted (keeps its colour, light wear); then adds grime at the foot of the walls, rain streaks and large stains, all in
@@ -1492,14 +1658,15 @@ vTpP=(tpM*vec4(position,1.0)).xyz;vTpN=normalize(mat3(tpM)*normal);`);
 }
 function buildTerrain(){
   const t=G.terr;const g=new THREE.BufferGeometry();const pos=new Float32Array(NX*NZ*3),col=new Float32Array(NX*NZ*3),spl=new Float32Array(NX*NZ*4),gm=new Float32Array(NX*NZ);const n3=makeNoise(G.seed+5);
-  const c=new THREE.Color(),sand=new THREE.Color(0xd8c48c),wet=new THREE.Color(0xa99566),deep=new THREE.Color(0x2c5a5c),grass=new THREE.Color(0x76984a),grass2=new THREE.Color(0x5a7c3c),
-    rock=new THREE.Color(0x8a8270),dirt=new THREE.Color(0xa88d5d),base=new THREE.Color(0x9a8c6c);
+  const TH=G.theme||{},C_=(k,d)=>new THREE.Color(TH[k]!=null?TH[k]:d);const c=new THREE.Color(),sand=C_('sand',0xd8c48c),wet=C_('wet',0xa99566),deep=C_('deep',0x2c5a5c),grass=C_('grass',0x76984a),grass2=C_('grass2',0x5a7c3c),
+    rock=C_('rock',0x8a8270),dirt=C_('dirt',0xa88d5d),base=C_('base',0x9a8c6c),scorch=TH.scorch!=null?new THREE.Color(TH.scorch):null;
   for(let j=0;j<NZ;j++)for(let i=0;i<NX;i++){const k=j*NX+i,x=X0+i*CELL,z=Z0+j*CELL,h=t.h[k];pos[k*3]=x;pos[k*3+1]=h;pos[k*3+2]=z;
     if(h<0){c.copy(wet).lerp(deep,smooth(0,-6,h));}
     else if(h<1.0){c.copy(sand);}
     else{c.copy(grass).lerp(grass2,n3(x*.02,z*.02));c.lerp(sand,smooth(1.8,1.0,h));
       const sl=Math.abs(H(x+2,z)-H(x-2,z))+Math.abs(H(x,z+2)-H(x,z-2));c.lerp(rock,smooth(2.5,5,sl)*.8+smooth(10,13,h)*.6);}
     if(h>0){c.lerp(dirt,t.road[k]*.75);c.lerp(base,t.base[k]*.7);}
+    if(scorch&&h>.9&&t.base[k]<.3){const bn=n3(x*.035+9,z*.035+9),br=smooth(.5,.68,bn)*.9;c.lerp(scorch,br);}
     const jit=(n3(x*.15,z*.15)-.5)*.08;col[k*3]=c.r+jit;col[k*3+1]=c.g+jit;col[k*3+2]=c.b+jit;
     { /* texture weights follow the same blend as the colours above: grass -> sand -> rock -> dirt road / base */
       let w=[1,0,0,0];const to=(i,a)=>{if(a<=0)return;for(let q=0;q<4;q++)w[q]*=1-a;w[i]+=a;};
@@ -2862,7 +3029,7 @@ function scatterNature(){
   for(let i=0;i<tries;i++){const x=rr(X0+20,-X0-20),z=rr(Z0+20,-Z0-20);const h=H(x,z);if(h<.9||h>13)continue;
     const cd=G.corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)];if(cd<10)continue;if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<75))continue;
     const forest=n4(x*.012,z*.012);const r=RND();
-    if(r<.55&&forest>.5||r<.12){let nm;if(h<2.6)nm=['palm','palmBend','palmShort'][(RND()*3)|0];else nm=['tree','oak','pine','treeD','palm'][(RND()*5)|0];
+    if(r<.55&&forest>.5||r<.12){let nm;if(G.theme&&G.theme.trees){const L=G.theme.trees;nm=L[(RND()*L.length)|0];}else if(h<2.6)nm=['palm','palmBend','palmShort'][(RND()*3)|0];else nm=['tree','oak','pine','treeD','palm'][(RND()*5)|0];
       const sc=kinds.find(k=>k[0]===nm)[1]*rr(.65,1);const yaw=RND()*TAU;const bt=treeVariant(B,nm,x,z);const idx=bt.add(x,h-.1,z,yaw,sc);if(idx<0)continue;
       addStatic({kind:'tree',team:-1,x,z,y0:h,h:9,hp:22,r:1.1,batch:bt,idx});}
     else if(r<.6){const idx=(bushB?bushPick(x,z):B.bush).add(x,h-.1,z,RND()*TAU,rr(5,8));}
@@ -2870,7 +3037,7 @@ function scatterNature(){
       const sz=proto(nm,1).userData.size;addStatic({kind:'rock',team:-1,x,z,y0:h,h:sz.y*sc,hp:Infinity,batch:B[nm],idx,pts:footprint(x,z,sz.x*sc*.8,sz.z*sc*.8,yaw,1)});}
   }
   for(const k in B)B[k].done();if(bushB)bushB.forEach(b=>b.done());
-  scatterGroundCover();scatterLilies();
+  if(!G.theme||G.theme.cover){scatterGroundCover();scatterLilies();}
 }
 // forest variety: grasslands pines / bushy trees mixed in with the Retro trees; picked by position hash so the seeded layout is unchanged
 const TREE_VAR={tree:['G_Bushy-tree-bright','G_Pine-tree-bright_alt'],oak:['G_Bushy-tree-dark','G_Bushy-tree-bright-straight'],pine:['G_Pine-tree-dark','G_Pine-tree-bright'],treeD:['G_Pine-tree-dark_alt','G_Bushy-tree-dark-straight'],palm:['G_Pine-tree-bright_alt']};
@@ -2930,14 +3097,14 @@ const VORDER=['tank','heli','asv','jeep','truck','boat','jet'];
 // in a dev-mode skirmish (navyOn) - never in Operations 1-20, never online. The boat launches from a dock (nearest open water to your
 // bunker, marked by a buoy) and returns there to stow; the jet catapults off your carrier, always flies forward, banks to turn, turns
 // itself back at the edge of the area and lands when you brake over the carrier deck.
-const BOAT={len:12,wl:1.6,deep:-1.4};const JETF={min:26,cruise:38,alt:20};
+const BOAT={len:12,wl:1.6,deep:-1.1,hull:[[5.4,0],[-5,0],[0,0],[1.5,2],[1.5,-2],[-3,1.9],[-3,-1.9]]};const JETF={min:26,cruise:38,alt:20};
 function navyCard(k){return k==='boat'||k==='jet';}
 function cardShown(t,k){return (k!=='truck'||t.truckOn)&&(!navyCard(k)||t.navyOn);}
 function findDock(b){ // nearest open water to a base that is deep and roomy enough for the patrol boat
   const ok=(x,z)=>x>X0+22&&x<-X0-22&&z>Z0+22&&z<-Z0-22&&H(x,z)<-2.4&&!onBridge(x,z);
   for(let r=16;r<260;r+=4){const n=Math.max(12,(r*.6)|0);for(let i=0;i<n;i++){const a=i/n*TAU,x=b.x+Math.sin(a)*r,z=b.z+Math.cos(a)*r;if(!ok(x,z))continue;
     let good=true;for(let k=0;k<10&&good;k++){const aa=k/10*TAU;if(!ok(x+Math.sin(aa)*9,z+Math.cos(aa)*9))good=false;}if(!good)continue;
-    let hd=0,bd=-1e9;for(let k=0;k<16;k++){const aa=k/16*TAU,d=-H(x+Math.sin(aa)*30,z+Math.cos(aa)*30);if(d>bd){bd=d;hd=aa;}}return {x,z,hd};}}
+    const e=G.bases[1-b.team]||b,ea=Math.atan2(e.x-x,e.z-z);let hd=0,bd=-1e9;for(let k=0;k<24;k++){const aa=k/24*TAU;let d=1e9;for(const r of [20,40,60])d=Math.min(d,-H(x+Math.sin(aa)*r,z+Math.cos(aa)*r));const sc=Math.min(d,4)*(2.2+Math.cos(angDiff(aa,ea)));if(sc>bd){bd=sc;hd=aa;}}return {x,z,hd};}} /* point the boat out along the deepest water, preferring the enemy's direction */
   return null;}
 function dockBuoy(d,T){const g=new THREE.Group();const m=new THREE.MeshStandardMaterial({color:TEAMS[T].color,roughness:.5,emissive:TEAMS[T].color,emissiveIntensity:.25});
   const body=new THREE.Mesh(new THREE.CylinderGeometry(.55,.75,1.6,12),m);body.position.y=.5;g.add(body);const top=new THREE.Mesh(new THREE.ConeGeometry(.45,.9,12),new THREE.MeshStandardMaterial({color:0xe8e2cf,roughness:.6}));top.position.y=1.75;g.add(top);
@@ -3594,7 +3761,8 @@ function staticPen(v,x,z,hd=v.heading){ // how deep the hull capsule overlaps bu
   return p;
 }
 function blockedAt(v,x,z,hd=v.heading){
-  if(v.type==='boat'){if(x<X0+14||x>-X0-14||z<Z0+14||z>-Z0-14)return true;const fx=Math.sin(hd),fz=Math.cos(hd),sx=fz,sz=-fx;for(const [a,c] of [[5.4,0],[-5,0],[0,0],[1.5,2],[1.5,-2],[-3,1.9],[-3,-1.9]])if(H(x+fx*a+sx*c,z+fz*a+sz*c)>BOAT.deep)return true;}
+  if(v.type==='boat'){if(x<X0+14||x>-X0-14||z<Z0+14||z>-Z0-14)return true;const ground=(px,pz,h)=>{const fx=Math.sin(h),fz=Math.cos(h),sx=fz,sz=-fx;let g=0;for(const [a,c] of BOAT.hull)g+=Math.max(0,H(px+fx*a+sx*c,pz+fz*a+sz*c)-BOAT.deep);return g;};
+    const g1=ground(x,z,hd);if(g1>0&&g1>ground(v.x,v.z,v.heading)+1e-4)return true;} /* a grounded hull may always move toward deeper water */
   else if(!v.def.air&&!(v.floats?(x>X0+12&&x<-X0-12&&z>Z0+12&&z<-Z0-12):passable(x,z)))return true;
   if(v.def.air)return x<X0+10||x>-X0-10||z<Z0+10||z>-Z0-10;
   // the hull is a capsule along its heading (half-width ~0.55 r), not one fat circle, so a vehicle fits through any gap
@@ -4467,9 +4635,10 @@ function note(T,text,kind='info',big=false){
   view.q.msgs.appendChild(d);while(view.q.msgs.children.length>4)view.q.msgs.firstChild.remove();setTimeout(()=>d.remove(),3700);
 }
 function miniBase(){ // terrain image for minimap
+  const TH=G.theme||{},cv=(k,d)=>{const v=TH[k]!=null?TH[k]:d;return [(v>>16)&255,(v>>8)&255,v&255];},MC={sand:cv('sand',0xaa9868),grass:cv('grass',0x50703a),rock:cv('rock',0x78907c)};
   const c=document.createElement('canvas');c.width=112;c.height=188;const x=c.getContext('2d');const img=x.createImageData(112,188);
   for(let j=0;j<188;j++)for(let i=0;i<112;i++){const wx=X0+(i+.5)/112*W,wz=Z0+(j+.5)/188*L;const h=H(wx,wz);let r,g,b;
-    if(h<-2.5){r=14;g=48;b=66;}else if(h<0){r=30;g=86;b=104;}else if(h<1.3){r=170;g=152;b=104;}else{r=80;g=112;b=58;const k=clamp(h/14,0,1);r+=k*40;g+=k*30;b+=k*30;}
+    if(h<-2.5){r=14;g=48;b=66;}else if(h<0){r=30;g=86;b=104;}else if(h<1.3){[r,g,b]=MC.sand;}else{[r,g,b]=MC.grass;const k=clamp(h/14,0,1);r+=k*(MC.rock[0]-r);g+=k*(MC.rock[1]-g);b+=k*(MC.rock[2]-b);}
     const k=(j*112+i)*4;img.data[k]=r;img.data[k+1]=g;img.data[k+2]=b;img.data[k+3]=255;}
   x.putImageData(img,0,0);x.strokeStyle='rgba(239,226,184,.35)';x.lineWidth=1;for(const c2 of G.corr){x.beginPath();c2.forEach((p,i)=>{const px=(p[0]-X0)/W*112,py=(p[1]-Z0)/L*188;i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();}
   G.miniImg=c;
@@ -4565,7 +4734,7 @@ const opts={diff:1,shadows:true,mouse:true,touch:false};
 const TOUCH={ax:0,ay:0,active:false,fire:false,special:false,id:null,ox:0,oy:0};
 function newGame(mode,seed,demo=false){
   endGame();
-  scene.fog.color.set(FOG);scene.background.set(FOG);hemi.intensity=1.15;sun.intensity=2.5; // (ash rain from a nuke in the last match darkened these)
+  scene.fog.color.set(FOG);scene.background.set(FOG);scene.fog.near=150;scene.fog.far=430;hemi.intensity=1.15;sun.intensity=2.5;sun.color.set(0xffffff); // (ash rain from a nuke in the last match darkened these)
   world=new THREE.Group();scene.add(world);FIRE.clear();SMOKE.clear();for(const p of DEB.p)p.life=0;for(const p of BLD.p)p.life=0;
   G={id:++MATCH_SEQ,mode,seed,demo,time:0,statics:[],hash:new Map(),vehicles:[],proj:[],mines:[],smokers:[],views:[],batches:{},soldiers:[],soldierT:[0,0],drones:[],droneT:[40,40],sub:{mesh:null,cool:0},over:false,netSeq:0,net:mode==='online'||SPEC.watching?NET:null,jets:[],bombs:[],air:null};
   const SK={buildings:6,turrets:['gun','cannon','gun','cannon'],outposts:['gun'],soldiers:7,soldierCap:9,drones:0,gates:true};
@@ -4581,10 +4750,12 @@ function newGame(mode,seed,demo=false){
   G.cfg=G.op?[{buildings:4,turrets:['gun','gun'],outposts:[],soldiers:4,soldierCap:5,drones:0,gates:true},{...G.op.cfg,drones:Math.round(G.op.cfg.drones*[.5,.8,1][dd]),soldiers:Math.round(G.op.cfg.soldiers*[.6,.85,1][dd])}]:[SK,SK];
   VDEF.jeep.hp=[30,18,10][dd]; // the original's one-hit jeep on Hard
   G.slow=[1,1];G.infMul=[1,1];
-  const bases=generate(seed);G.bases=bases;
+  applyTheme(G.op&&CAMP===2?BT_THEME[G.op.env||G.op.theme]:null);
+  const bases=G.op&&CAMP===2?generate2(seed,G.op,opIndex):generate(seed);G.bases=bases;
   buildTerrain();
   G.batches.wall=new Batch(proto('barrierB',1),400);G.batches.hedge=new Batch(proto('hedgehog',1),100);G.batches.crate=new Batch(proto('crate',1),200);G.batches.barrel=new Batch(proto('barrel',1),200);
   for(const b of bases)buildBase(b);
+  for(const f of G.forts||[])if(H(f.x,f.z)>.8&&!G.statics.some(s=>s.alive&&Math.hypot(s.x-f.x,s.z-f.z)<6))addTurret(f.team,f.x,f.z,f.kind); /* Black Tide sea forts */
   for(const k of ['wall','hedge','crate','barrel'])G.batches[k].done();
   realifyStructures();
   if((G.op||(DEV.on&&mode==='1p'))&&!demo)parkLauncher(bases[0]);
@@ -4723,12 +4894,13 @@ let OPKEY='ironflag.ops.v1';
 // boat and the flyable jet in every bunker. Unlocked by finishing all 20 Iron Curtain operations (dev mode: always). setCamp() swaps
 // OPS / OBJECTIVES / STORY / OPKEY, so every Iron Curtain path runs exactly as before while CAMP is 1. Until its own maps are built
 // (BT_READY) only dev mode can open it.
-const BT_READY=false;
+const BT_READY=true;
 const OPS2=(()=>{
   const names=[['Counterstrike',313,'burning'],['Broken Supply',327,'burning'],['Prisoners of War',342,'burning'],['Retake the Bridge',356,'burning'],['The Second Warhead',371,'burning'],
     ['White Out',389,'snow'],['Thin Ice',402,'snow'],['Silent Night',418,'snow'],['Ghost Walk',433,'snow'],['Signal Fire',447,'snow'],
     ['Moving Target',462,'storm'],['Ambush Alley',478,'storm'],['Decoys',493,'storm'],['Air Superiority',507,'storm'],['Cornered',524,'storm'],
     ['Turncoat',538,'ice'],['Fortress Glacier',553,'ice'],['Countdown',569,'ice'],['Last Convoy',584,'ice'],['Black Tide',599,'sea']];
+  const ENV={5:'whiteout',7:'night',17:'burning'};
   return names.map(([name,seed,theme],i)=>{const t=.45+i/19*.55; // picks up where Iron Curtain's later operations left off
     const guns=1+Math.round(t*3),cannons=1+Math.round(t*3),missiles=1+Math.round(t*3);const turrets=[];
     for(let k=0;k<Math.max(guns,cannons,missiles);k++){if(k<guns)turrets.push('gun');if(k<cannons)turrets.push('cannon');if(k<missiles)turrets.push('missile');}
@@ -4737,7 +4909,7 @@ const OPS2=(()=>{
     const cfg={buildings:4+Math.round(t*5),turrets,outposts,soldiers:4+Math.round(t*10),soldierCap:6+Math.round(t*11),drones,gates:true,airStrikes};
     const stock=i<10?{tank:2,heli:2,asv:2,jeep:3,boat:2,jet:2}:{tank:2,heli:2,asv:1,jeep:3,boat:2,jet:2};
     const bits=[`${cfg.buildings} buildings`,`${turrets.length+outposts.length*2} turrets`,'missile turrets',drones+(drones>1?' drones':' drone'),'gated walls',airStrikes+' enemy air strikes'];
-    return {name,seed,theme,cfg,stock,turMul:.95+t*.35,aim:.08-t*.05,brief:'Intel: '+bits.join(', ')+`. You have ${airStrikes} air strikes (F), a patrol boat and a jet.`};});})();
+    return {name,seed,theme,env:ENV[i]||theme,cfg,stock,turMul:.95+t*.35,aim:.08-t*.05,brief:'Intel: '+bits.join(', ')+`. You have ${airStrikes} air strikes (F), a patrol boat and a jet.`};});})();
 const OBJECTIVES2=[['Enemy Assault Orders','ORDERS'],['Medical Supply Crate','MEDICAL'],['Prisoner Roster','ROSTER'],['Bridge Control Codes','BRIDGE CODES'],['Hammerfall Production Order','PRODUCTION ORDER'],
   ['Navigation Beacon','BEACON'],['Frozen Supply Sled','SLED'],['Enemy Patrol Logs','PATROL LOGS'],['Convoy Tracker','TRACKER'],['Signal Codebook','CODEBOOK'],
   ['Launcher Route Map','ROUTE MAP'],['Survivor Beacon','SURVIVOR BEACON'],['Launcher Telemetry','TELEMETRY'],['Airfield Flight Records','FLIGHT RECORDS'],['Launcher Ignition Key','IGNITION KEY'],
@@ -4820,7 +4992,7 @@ function togglePause(){paused=!paused;$('#pause').hidden=!paused;$('#pRestart').
 let last=performance.now();
 const _ft=new V3();
 function step(dt){
-  G.time+=dt;
+  G.time+=dt;if(G.burn)themeTick(dt);
   if(G.water){if(G.water.tex){G.water.tex.offset.x+=dt*.012;G.water.tex.offset.y+=dt*.008;}if(G.water.u)G.water.u.uT.value+=dt;}
   for(const t of G.teams){
     if(t.respawnT>0)t.respawnT-=dt;
@@ -5449,7 +5621,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  if(DEV.on)window.__game={VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

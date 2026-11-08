@@ -230,6 +230,8 @@ body.touchui .sel{gap:9px}body.touchui .sel h2{font-size:clamp(16px,2.6vw,24px)}
 #vox.on .vt{transform:scale(1)}
 #vox .vb{width:min(46vw,380px);height:3px;background:rgba(246,227,180,.18);border-radius:2px;overflow:hidden}
 #vox .vb i{display:block;height:100%;width:30%;background:linear-gradient(90deg,transparent,#ffcf72,transparent);transform:translateX(-100%)}
+#specMsg{font:500 13px var(--ui);background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:3px;color:var(--sand);padding:6px 9px;width:min(34vw,300px);outline:none}#specMsg:focus{border-color:#c9a45c}
+#vox .vm{font:500 clamp(18px,3.4vw,34px) var(--ui);color:#fff3d6;text-shadow:0 0 18px rgba(255,205,110,.6),0 2px 0 rgba(0,0,0,.6);text-align:center;max-width:min(86vw,900px);line-height:1.3;letter-spacing:.03em;padding:0 var(--sal);white-space:pre-wrap}#vox .vm[hidden]{display:none}
 #specVox{border-color:#7a5a2a}#specVox.rec{background:#c0392b;border-color:#e5544a;color:#fff;animation:voxpulse 1s infinite}
 @keyframes voxpulse{0%,100%{opacity:1}50%{opacity:.6}}
 /* strike cinematic (truck / sub / nuke / orbital): nothing but the animation and the letterbox - HUD, minimap, touch controls, messages all hidden (Matt, 3 Nov 2026) */
@@ -345,8 +347,8 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <body>
 <div id="stage"></div>
 <div id="huds"><div class="divider" id="divider"></div></div>
-<div id="vox" hidden><div class="vt">Voice of God</div><div class="vb"><i></i></div></div>
-<div id="specBar" hidden><span id="specTxt">Connecting…</span><button id="specVox" type="button" hidden>🎤 Hold to speak</button><button id="specQuit" type="button">Stop watching</button></div>
+<div id="vox" hidden><div class="vt">Voice of God</div><div class="vb"><i></i></div><div class="vm" hidden></div></div>
+<div id="specBar" hidden><span id="specTxt">Connecting…</span><button id="specVox" type="button" hidden>🎤 Hold to speak</button><input id="specMsg" type="text" maxlength="160" placeholder="Type to them… Enter sends" autocomplete="off" hidden><button id="specSend" type="button" hidden>Send</button><button id="specQuit" type="button">Stop watching</button></div>
 
 <div id="title" class="screen">
   <div class="rail">
@@ -5518,7 +5520,8 @@ async function voxSend(blob){
 }
 // ---- player side
 function voxRecv(p){
-  if(!p||!p.id)return;let e=VOX.inbox.get(p.id);
+  if(!p||!p.id)return;
+  if(typeof p.txt==='string'){voxText(p.txt);return;} // (Matt, 8 Nov 2026) typed message from the watcherlet e=VOX.inbox.get(p.id);
   if(!e){e=
 {parts:new Array(p.n).fill(null),n:p.n,mime:p.mime,t:performance.now()};VOX.inbox.set(p.id,e);
     for(const [k,v] of VOX.inbox)if(performance.now()-v.t>60000)VOX.inbox.delete(k);}
@@ -5561,6 +5564,29 @@ async function voxPlay(b64,mime){
     src.start();
   }catch(e){console.warn('vox play',e);}
 }
+// the typed voice of god: same overlay, the words appear letter by letter under the title with a low pulse per character
+let VOXT=null;
+function voxText(txt){
+  txt=String(txt).slice(0,160).trim();if(!txt)return;
+  const el=$('#vox'),vm=el&&el.querySelector('.vm'),bar=el&&el.querySelector('.vb i');if(!el||!vm)return;
+  if(VOXT){clearInterval(VOXT.iv);clearTimeout(VOXT.end);}
+  const c=AU.ctx,now=c?c.currentTime:0,hold=2.2+txt.length*.065,dur=txt.length*.045+hold;
+  if(c){const duck=(g,v)=>{if(!g)return;g.gain.cancelScheduledValues(now);g.gain.setValueAtTime(g.gain.value,now);g.gain.linearRampToValueAtTime(v,now+.18);
+      g.gain.setValueAtTime(v,now+dur);g.gain.linearRampToValueAtTime(g===AU.mus?(AU.music?MUSIC_GAIN:0):.6,now+dur+.7);};
+    duck(AU.mus,AU.music?MUSIC_GAIN*.2:0);duck(AU.sfx,.3);sample('s_power',.5,.7);}
+  el.hidden=false;vm.hidden=false;vm.textContent='';if(bar){bar.style.width='100%';bar.style.opacity='.6';bar.style.transform='translateX(0)';}
+  setTimeout(()=>el.classList.add('on'),16);
+  let i=0;const t0=performance.now();const iv=setInterval(()=>{const want=Math.min(txt.length,Math.floor((performance.now()-t0)/45)+1);if(want===i)return;i=want;vm.textContent=txt.slice(0,i); // paced by the clock, not by tick count
+    if(c&&i%2===1){try{const o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.value=110+Math.random()*20;g.gain.setValueAtTime(.0001,c.currentTime);g.gain.exponentialRampToValueAtTime(.09,c.currentTime+.01);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+.08);o.connect(g);g.connect(AU.master);o.start();o.stop(c.currentTime+.1);}catch(e){}}
+    if(i>=txt.length){clearInterval(iv);VOXT.end=setTimeout(done,hold*1000);}},40);
+  const done=()=>{el.classList.remove('on');setTimeout(()=>{el.hidden=true;vm.hidden=true;vm.textContent='';},600);VOXT=null;};
+  VOXT={iv,end:setTimeout(done,(dur+20)*1000)}; // safety net if the typing never finishes
+}
+function voxSendText(){
+  const inp=$('#specMsg');if(!inp||!SPEC.wch)return;const txt=inp.value.trim().slice(0,160);if(!txt)return;
+  try{SPEC.wch.send({type:'broadcast',event:'vox',payload:{id:'t'+Date.now().toString(36),txt,k:SPEC.key}});specStatus('Message sent — it is on their screen now');}catch(e){console.warn('vox text',e);specStatus('Could not send that message');}
+  inp.value='';
+}
 // ---- watcher side
 function specStatus(t){const b=$('#specBar');if(!b)return;b.hidden=false;$('#specTxt').textContent=t;}
 function specWatch(sid,key){
@@ -5570,6 +5596,10 @@ function specWatch(sid,key){
   ch.on('broadcast',{event:'hello'},({payload})=>specOnHello(payload));
   ch.on('broadcast',{event:'snap'},({payload})=>{SPEC.lastSnap=payload;});
   ch.subscribe(status=>{if(status==='SUBSCRIBED'){try{ch.track({role:'spec',name:callSign()||'Admin',k:SPEC.key});}catch(e){}specStatus('Waiting for the player (their game checks in every 30 s)…');
+    const mi=$('#specMsg'),sb=$('#specSend');if(mi&&!mi.dataset.wired){mi.dataset.wired='1';
+      for(const ev of ['keydown','keyup','keypress'])mi.addEventListener(ev,e=>{e.stopPropagation();if(ev==='keydown'&&e.key==='Enter'){e.preventDefault();voxSendText();}if(ev==='keydown'&&e.key==='Escape')mi.blur();});
+      sb.onclick=()=>{voxSendText();mi.focus();};}
+    if(mi){mi.hidden=false;sb.hidden=false;}
     const vb=$('#specVox');if(vb&&voxSupported()){vb.hidden=false;
       const dn=e=>{e.preventDefault();voxStart();},up=e=>{e.preventDefault();voxStop();};
       vb.addEventListener('pointerdown',dn);vb.addEventListener('pointerup',up);vb.addEventListener('pointercancel',up);vb.addEventListener('pointerleave',up);
@@ -5621,7 +5651,7 @@ $('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state=
 $('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();
-$('#specQuit').onclick=()=>{voxStop();if(VOX.stream){VOX.stream.getTracks().forEach(t=>t.stop());VOX.stream=null;}if(SPEC.wch){try{SPEC.wch.unsubscribe();}catch(e){}SPEC.wch=null;}SPEC.watching=false;SPEC.started=false;$('#specBar').hidden=true;try{history.replaceState(null,'',location.pathname);}catch(e){}endGame();toTitle();};
+$('#specQuit').onclick=()=>{voxStop();{const mi=$('#specMsg'),sb=$('#specSend');if(mi){mi.hidden=true;mi.value='';}if(sb)sb.hidden=true;}if(VOX.stream){VOX.stream.getTracks().forEach(t=>t.stop());VOX.stream=null;}if(SPEC.wch){try{SPEC.wch.unsubscribe();}catch(e){}SPEC.wch=null;}SPEC.watching=false;SPEC.started=false;$('#specBar').hidden=true;try{history.replaceState(null,'',location.pathname);}catch(e){}endGame();toTitle();};
 {const qs=new URLSearchParams(location.search),sid=qs.get('spectate'),key=qs.get('k');
  if(sid&&/^[A-Za-z0-9_-]{4,40}$/.test(sid)){const go=()=>{if(state==='loading'){setTimeout(go,300);return;}
    const bar=t=>{$('#specBar').hidden=false;$('#specTxt').textContent=t;$('#specQuit').textContent='OK';};
@@ -5715,7 +5745,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

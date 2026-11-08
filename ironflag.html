@@ -496,6 +496,7 @@ PRE.m4=fetchBin('m4.glb').catch(e=>{console.warn('m4',e);return null;}); // (Mat
 PRE.props=fetchBin('props.glb').catch(e=>{console.warn('props',e);return null;}); // Blender ordnance (29 Oct 2026): M67 grenade, M15 anti-tank mine, Mk 82 bomb
 PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
 PRE.hero=fetchBin('hero.glb').catch(e=>{console.warn('hero',e);return null;}); // ON FOOT: Matt's own soldier (Male Military Soldier, Mixamo) + first-person arms/carbine posed from it (FPView)
+PRE.jet2=fetchBin('jet.glb').catch(e=>{console.warn('jet skin',e);return null;}); // (Matt, 8 Nov 2026) realistic two-tone grey 'Have Glass' skin baked in Blender, spoon emblems on the tail fins; Black Tide player/runway jets only
 PRE.boat=fetchBin('boat.glb').catch(e=>{console.warn('boat',e);return null;}); // (Matt, 7 Nov 2026) patrol boat for the Black Tide campaign (Kenney\Boat.blend -> SpoonPlatoon_Buildings\boat: hull + GunRoof/GunL/GunR pivots)
 PRE.truck=fetchBin('truck.glb').catch(e=>{console.warn('truck',e);return null;}); // six-wheeler (Matt's 6x6, Kenney\blend.blend, reduced to ~31k tris: TruckBody, TruckGun on the roof ring, Wheel_F/M/B L/R)
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
@@ -533,6 +534,9 @@ async function loadAssets(){
     tg.scene.traverse(o=>{if(o.isMesh){o.material.roughness=Math.max(o.material.roughness,.55);if(/^Head\d/.test(o.name))o.userData.head=+o.name[4];if(o.name==='HelmetBand'||/^ArmBand/.test(o.name)||o.name==='GoggleStrap')o.userData.team=true;}});}}catch(e){console.warn('troop model',e);}
   try{const jb=await PRE.jeepOpen;if(jb){const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
   try{const tb=await PRE.truck;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));const tr=tg.scene.getObjectByName('truck')||tg.scene;tr.traverse(o=>{if(o.isMesh&&o.material){const m=o.material;m.envMapIntensity=.8;m.metalness=Math.min(m.metalness,.3);m.roughness=Math.max(m.roughness,.42);if(m.emissiveIntensity>1)m.emissiveIntensity=1;}});A.truck=tr; /* the showroom clearcoat paint reads black under the game's sky light: tone it down */}}catch(e){console.warn('truck model',e);}
+  try{const jb2=await PRE.jet2;if(jb2){const jg2=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(jb2,'',res,rej));
+    jg2.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;const m=o.material,n=m.name||'';if(/^Decal/.test(n)){m.transparent=true;m.depthWrite=false;m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=1;o.castShadow=false;}
+      else if(n==='Canopy'){m.color.setHex(0x16222e);m.emissive.setHex(0x000000);m.transparent=true;m.opacity=.88;m.roughness=.2;m.metalness=.5;m.envMapIntensity=.5;m.depthWrite=true;}else{m.envMapIntensity=.9;}m.needsUpdate=true;});A.jet2=jg2.scene;}}catch(e){console.warn('jet skin model',e);}
   try{const bb=await PRE.boat;if(bb){const bg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(bb,'',res,rej));const gm=new THREE.MeshStandardMaterial({color:0x2b2d2a,roughness:.45,metalness:.6});
     bg.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;if(/^Gun/.test(o.name)||!o.geometry.attributes.uv)o.material=gm;else{const m=o.material;m.normalMap=null;m.color.setScalar(1.5);m.envMapIntensity=.7;m.roughness=Math.max(m.roughness,.6);m.metalness=Math.min(m.metalness,.3);m.side=THREE.FrontSide;m.needsUpdate=true;}});A.boat=bg.scene; /* the old .blend wired the paint texture into the normal slot too */}}catch(e){console.warn('boat model',e);}
   try{const sb=await PRE.sub;if(sb){const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));const sr=sg.scene.getObjectByName('sub')||sg.scene;sr.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(sr);sr.scale.setScalar(NUKE.subLen/Math.max(1,bb.max.z-bb.min.z));sr.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.7;}});A.sub=sr;const nm=sg.scene.getObjectByName('NukeMissile');if(nm){nm.position.set(0,0,0);nm.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.8;}});A.nukeMissile=nm;}}}catch(e){console.warn('sub model',e);}
@@ -777,6 +781,7 @@ function sfx(kind,x,z){
     case 'click':tone(.15,.05,1200,900,'square');break;
     case 'jet':if(!sample('s_jet',1.15*g,1)){noiseHit(.75*g,2.4,500,2600,'bandpass',.9);noiseHit(.5*g,2.2,2600,400,'bandpass',1.1,.6);tone(.12*g,2,160,60,'sawtooth');}break; // F-106 fly-by recording (Matt, 27 Oct 2026); synth roar if it hasn't loaded
     case 'whistle':tone(.1*g,.75,1900,420,'sine');break; // falling bomb
+    case 'ab':noiseHit(.6*g,1.4,300,2400,'bandpass',.7);tone(.18*g,1.2,90,180,'sawtooth');break; // afterburner lighting: rising roar
     case 'spinout':tone(.2*g,2.8,1100,170,'sawtooth');noiseHit(.35*g,2.6,2600,300,'bandpass',1.2);[0,1,2,3,4].forEach(i=>tone(.1*g,.12,1500,1500,'square',i*.28));break; // stricken helicopter: falling whine + warning beeps
     case 'collapse':noiseHit(1.1*g,3.4,420,32,'lowpass',.8,.15);tone(.55*g,2.6,58,24,'sine',.18);noiseHit(.5*g,2.4,1800,160,'lowpass',.7,.3); // building coming down: long rumble
       for(let i=0;i<9;i++)noiseHit(mr(.18,.42)*g,mr(.12,.3),mr(700,2600),mr(150,400),'bandpass',mr(.6,1.4),.3+i*mr(.12,.26));break; // + crunching concrete
@@ -802,7 +807,7 @@ function updateEngine(view){
   if(e.rec){const sc=G.views.length>1?.6:1;const sp=v?Math.abs(v.speed)/v.def.speed:0;
     const want={heavy:0,fast:0,heli:0};let rate={heavy:1,fast:1,heli:1};
     if(!off){if(v.type==='heli'){want.heli=.55*sc;rate.heli=.95+sp*.15;}
-      else if(v.type==='jet'){want.fast=.3*sc;rate.fast=1.45+sp*.5;}else if(v.type==='boat'){want.heavy=(.2+sp*.3)*sc;rate.heavy=.68+sp*.5;}
+      else if(v.type==='jet'){const ab=v.ab||0;want.fast=(.3+ab*.25)*sc;rate.fast=1.45+sp*.5+ab*.25;}else if(v.type==='boat'){want.heavy=(.2+sp*.3)*sc;rate.heavy=.68+sp*.5;}
       else if(v.type==='jeep'){want.fast=(.16+sp*.3)*sc;rate.fast=.85+sp*.45;}else if(v.type==='truck'){want.fast=(.2+sp*.3)*sc;rate.fast=.62+sp*.38;}
       else{want.heavy=(.22+sp*.3)*sc;rate.heavy=(v.type==='asv'?.82:.9)+sp*.35;}}
     for(const k in e.L){e.L[k].g.gain.setTargetAtTime(want[k],t,.12);e.L[k].s.playbackRate.setTargetAtTime(rate[k],t,.15);}
@@ -1537,7 +1542,7 @@ function missionSetup(m){
   if(m.pows){const b=G.bases[1];let n=0;for(let tr=0;tr<60&&n<m.pows;tr++){const p=patrolPoint(b);if(Math.hypot(p[0]-b.x,p[1]-b.z)<24)continue;const sd=spawnSoldier(0,p[0],p[1],'pow');if(!sd)break;sd.pow=true;sd.mode='pow';sd.wp=null;sd.idleT=1e9;G.mission.pows.push(sd);n++;}
     if(n)setTimeout(()=>{if(G&&G.mission===M)note(0,`${n} of our men are held in the enemy camp — pick them up with a jeep`,'warn');},5200);}
   if(m.decoys&&A.launcher){for(const [cx,cz] of [[-160,-200],[160,-200],[0,-215]]){const o=tintObj(A.launcher.clone(),'tel1',teamMark(1));parkProp(o,cx,cz,1,'decoy',18,3.4,320,{h:5});}}
-  if(m.jets){const used=[];for(let i=0;i<m.jets;i++){const o=makeJetObj(1);let st=null;for(let dx=0;dx<=60&&!st;dx+=6)for(const sgn of [1,-1]){const x=-75+i*50+dx*sgn;if(st||used.some(u=>Math.abs(u-x)<16))continue;st=parkProp(o,x,-192,1,'jetp',14,9,70,{hd:Math.PI/2,h:4,explosive:1.6,onRoad:true,exact:true,only:true});if(st)used.push(x);}if(st)M.jets.push(st);}
+  if(m.jets){const used=[];for(let i=0;i<m.jets;i++){const o=makeJetObj(1,true);let st=null;for(let dx=0;dx<=60&&!st;dx+=6)for(const sgn of [1,-1]){const x=-75+i*50+dx*sgn;if(st||used.some(u=>Math.abs(u-x)<16))continue;st=parkProp(o,x,-192,1,'jetp',14,9,70,{hd:Math.PI/2,h:4,explosive:1.6,onRoad:true,exact:true,only:true});if(st)used.push(x);}if(st)M.jets.push(st);}
     if(M.jets.length)setTimeout(()=>{if(G&&G.mission===M)note(0,`${M.jets.length} enemy jets on the runway — destroy them all`,'warn');},5200);}
   if(m.launcher&&A.launcher){ // the objective rides on a launcher truck that patrols the enemy's roads; it is exposed where the truck dies
     const b0=G.bases[0],b1=G.bases[1];let best=null;
@@ -3155,7 +3160,7 @@ const VORDER=['tank','heli','asv','jeep','truck','boat','jet'];
 // in a dev-mode skirmish (navyOn) - never in Operations 1-20, never online. The boat launches from a dock (nearest open water to your
 // bunker, marked by a buoy) and returns there to stow; the jet catapults off your carrier, always flies forward, banks to turn, turns
 // itself back at the edge of the area and lands when you brake over the carrier deck.
-const BOAT={len:12,wl:1.6,deep:-1.1,edge:80,hull:[[5.4,0],[-5,0],[0,0],[1.5,2],[1.5,-2],[-3,1.9],[-3,-1.9]]};const JETF={min:26,cruise:38,alt:20};
+const BOAT={len:12,wl:1.6,deep:-1.1,edge:80,hull:[[5.4,0],[-5,0],[0,0],[1.5,2],[1.5,-2],[-3,1.9],[-3,-1.9]]};const JETF={min:26,cruise:38,alt:20,ab:.4};
 function navyCard(k){return k==='boat'||k==='jet';}
 function cardShown(t,k){return (k!=='truck'||t.truckOn)&&(!navyCard(k)||t.navyOn);}
 function findDock(b){ // nearest open water to a base that is deep and roomy enough for the patrol boat
@@ -3191,7 +3196,13 @@ function boatCrew(v,dt){ // the two deck gunners pick their own targets on their
       fire('tbullet',v.team,mx,my,mz,t.x+rr(-.4,.4)-mx,t.y-my,t.z+rr(-.4,.4)-mz,{mul:G.vehMul[v.team]});gs.cd=gs.burst++%7===6?.9:.12;sfx('mg',mx,mz);FIRE.spawn(mx,my,mz,ax*2,0,az*2,.05,1.2,.4,C_FIRE0,C_FIRE1);}}}
 function jetFly(v,inp,thr,turn,dt){
   const def=v.def,b=G.bases[v.team],C=v.team===0&&G.carrier;
-  const tgtSp=JETF.cruise+(thr>0?thr*(def.speed-JETF.cruise):thr*(JETF.cruise-JETF.min));v.speed=lerp(v.speed,tgtSp,1-Math.exp(-dt*.9));
+  // afterburner (Matt, 8 Nov 2026): hold forward and the burner lights after a moment — ~40% more speed, 3x fuel burn, blue-white flame
+  const abWant=thr>.55&&v.fuel>0?1:0;v.ab=lerp(v.ab||0,abWant,1-Math.exp(-dt*(abWant?1.6:3)));
+  if(abWant&&!v.abOn&&v.ab>.5){v.abOn=true;sfx('ab',v.x,v.z);}else if(!abWant&&v.ab<.3)v.abOn=false;
+  const top=def.speed*(1+JETF.ab*v.ab);
+  const tgtSp=JETF.cruise+(thr>0?thr*(top-JETF.cruise):thr*(JETF.cruise-JETF.min));v.speed=lerp(v.speed,tgtSp,1-Math.exp(-dt*(.9+v.ab*.6)));
+  v.fuel=Math.max(0,v.fuel-dt*2*v.ab);
+  if(v.parts.flame){const f=v.parts.flame;f.scale.set(.6+v.ab*.5,.6+v.ab*.5,Math.max(.01,v.ab*(.9+Math.random()*.25)));f.material.opacity=.25+v.ab*.25;f.visible=v.ab>.04;}
   const nearC=C&&Math.hypot(v.x-C.x,v.z-C.z)<300,far=Math.hypot(v.x,v.z)>1100;
   const out=v.x<X0-50||v.x>-X0+50||v.z<Z0-50||v.z>-Z0+50;let tn=turn;
   if((out&&!nearC)||far){const want=Math.atan2(-v.x,-v.z);tn=clamp(-angDiff(v.heading,want)*2,-1,1);if(!v.edgeWarn){v.edgeWarn=1;note(v.team,'Edge of the area — turning back','warn');}}else v.edgeWarn=0;
@@ -3200,7 +3211,7 @@ function jetFly(v,inp,thr,turn,dt){
   let floor=0;for(const k of [0,15,35])floor=Math.max(floor,groundAt(v.x+fx*k,v.z+fz*k));staticsNear(v.x+fx*15,v.z+fz*15,_vn);for(const s of _vn)floor=Math.max(floor,s.y0+s.h);
   if(C&&Math.hypot(v.x-C.x,v.z-C.z)<170)floor=Math.max(floor,C.deckY+4);
   const want=floor+JETF.alt;v.climb=want-v.y;v.y=lerp(v.y,want,1-Math.exp(-dt*(v.y<want?1.5:.7)));
-  if(v.parts.glow)v.parts.glow.scale.setScalar(.45+v.speed/def.speed*.5+Math.random()*.12);
+  if(v.parts.glow){v.parts.glow.scale.setScalar((.45+v.speed/def.speed*.5+Math.random()*.12)*(1-.45*(v.ab||0)));if(v.parts.flame)v.parts.glow.material.color.setHex(v.ab>.5?0x4f86ff:0xffa040);} // the glow blooms hard; it shrinks as the burner flame takes over
   if(Math.random()<dt*28)SMOKE.spawn(v.x-fx*6.5,v.y+.3,v.z-fz*6.5,0,0,0,.22,.6,1.3,[.9,.9,.9],[.75,.75,.75],.3,0,1);
   if(v.launchT>0)v.launchT-=dt;
   const L=C?{x:C.x,z:C.z,y:C.deckY+1.3,r:75,c:true}:{x:b.x,z:b.z,y:b.padY+.3,r:18};const inL=!(v.launchT>0)&&Math.hypot(v.x-L.x,v.z-L.z)<L.r;v.landHint=inL;
@@ -3554,7 +3565,7 @@ function buildVehicleObj(type,T){
   else if(type==='boat'){const wrap=new THREE.Group(),src=A.boat.clone(true);src.position.y=BOAT.wl;wrap.add(src);wrap.rotation.y=Math.PI;wrap.scale.setScalar(BOAT.len/14.33);tintObj(src,'veh'+T,teamMark(T));g.add(wrap);
     parts.gun=src.getObjectByName('GunRoof');parts.side=['GunL','GunR'].map(n=>{const o=src.getObjectByName(n);return {o,yaw0:o?o.rotation.y:0,cd:Math.random()*.5,think:Math.random()*.3,burst:0};});
     teamPanels(g,T,{w:2.2,d:.7,x:0,y:1.2,z:-4.2});}
-  else if(type==='jet'){const m=makeJetObj(T);g.add(m);parts.glow=m.children[m.children.length-1];}
+  else if(type==='jet'){const m=makeJetObj(T,true);g.add(m);parts.glow=m.children[m.children.length-1];parts.flame=m.getObjectByName('flame')||null;}
   else if(type==='truck'){const pr=proto('truck',1);const m=tintObj(proto('truck',TRUCK_LEN/pr.userData.size.z).clone(),'veh'+T,teamMark(T));g.add(m);parts.wheels=[];
     m.traverse(o=>{if(/^Wheel_[FMB][LR]$/.test(o.name)){o.rotation.order='YXZ';parts.wheels.push(o);}});parts.front=parts.wheels.filter(w=>/^Wheel_F/.test(w.name)); /* pivots (the meshes sit under Wheel_xx_mesh children: meshopt keeps its dequantize scale on those) */parts.gun=m.getObjectByName('TruckGun');}
   else{const m=tintObj(proto('jeep',1).clone(),'veh'+T,teamTint(T));g.add(m);parts.wheels=[];m.traverse(o=>{if(/^Wheel/.test(o.name)){o.rotation.order='YXZ';parts.wheels.push(o);}});
@@ -3949,9 +3960,14 @@ function jetMats(T){if(_jetMat[T])return _jetMat[T];
   return _jetMat[T]={body:new THREE.MeshStandardMaterial({color:T===0?0x52627a:0x7a5650,roughness:.55,metalness:.35}),
     trim:new THREE.MeshStandardMaterial({color:T===0?0x3b6fd6:0xc8443a,roughness:.5,metalness:.3}),
     glass:new THREE.MeshStandardMaterial({color:0x1d2a36,roughness:.15,metalness:.6})};}
-function makeJetObj(T){
+function makeJetObj(T,skin){
   const g=new THREE.Group();const M=jetMats(T);
-  if(A.jet){const c=A.jet.clone(true);c.scale.setScalar(4.2);
+  if(skin&&A.jet2){const c=A.jet2.clone(true);c.scale.setScalar(4.2); // Black Tide skin: keep the baked materials, only the team bands take the team colour
+    c.traverse(o=>{if(!o.isMesh)return;if((o.material.name||'')==='TeamBand')o.material=M.trim;else if(o.material.name==='JetSkin'&&!o.material.envMap){o.material=o.material.clone();o.material.envMap=skyEnv();o.material.envMapIntensity=.6;}});g.add(c);
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(.5,3.4,12,1,true).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x4f8cff,transparent:true,opacity:.4,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+    const core=new THREE.Mesh(new THREE.ConeGeometry(.24,2.3,10,1,true).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffd890,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+    core.position.z=.5;fl.add(core);fl.position.set(0,.2,-7.2);fl.scale.set(1,1,.01);fl.renderOrder=2;fl.name='flame';g.add(fl);} // cone apex trails behind the nozzle
+  else if(A.jet){const c=A.jet.clone(true);c.scale.setScalar(4.2);
     c.traverse(o=>{if(!o.isMesh)return;const n=o.name||'';o.material=/Canopy|Cockpit/i.test(n)?M.glass:/Vertical/i.test(n)?M.trim:M.body;o.castShadow=true;});g.add(c);}
   else{const b=new THREE.Mesh(new THREE.ConeGeometry(2.2,11,4).rotateX(Math.PI/2),M.body);b.scale.y=.25;g.add(b);} // fallback dart
   const glow=new THREE.Mesh(new THREE.SphereGeometry(.55,8,6),new THREE.MeshBasicMaterial({color:0xffa040}));glow.position.set(0,.2,-5.6);g.add(glow);

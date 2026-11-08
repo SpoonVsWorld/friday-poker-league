@@ -1539,9 +1539,24 @@ function missionSetup(m){
   if(m.decoys&&A.launcher){for(const [cx,cz] of [[-160,-200],[160,-200],[0,-215]]){const o=tintObj(A.launcher.clone(),'tel1',teamMark(1));parkProp(o,cx,cz,1,'decoy',18,3.4,320,{h:5});}}
   if(m.jets){const used=[];for(let i=0;i<m.jets;i++){const o=makeJetObj(1);let st=null;for(let dx=0;dx<=60&&!st;dx+=6)for(const sgn of [1,-1]){const x=-75+i*50+dx*sgn;if(st||used.some(u=>Math.abs(u-x)<16))continue;st=parkProp(o,x,-192,1,'jetp',14,9,70,{hd:Math.PI/2,h:4,explosive:1.6,onRoad:true,exact:true,only:true});if(st)used.push(x);}if(st)M.jets.push(st);}
     if(M.jets.length)setTimeout(()=>{if(G&&G.mission===M)note(0,`${M.jets.length} enemy jets on the runway — destroy them all`,'warn');},5200);}
+  if(m.launcher&&A.launcher){ // the objective rides on a launcher truck that patrols the enemy's roads; it is exposed where the truck dies
+    const b0=G.bases[0],b1=G.bases[1];let best=null;
+    for(const c of G.corr){const pts=[...c].reverse(); /* from the enemy base outward */const a=pts.findIndex(p=>Math.hypot(p[0]-b1.x,p[1]-b1.z)>85);let bI=-1;for(let i=pts.length-1;i>a;i--){if(Math.hypot(pts[i][0]-b0.x,pts[i][1]-b0.z)>150){bI=i;break;}}
+      if(a>=0&&bI>a+20&&(!best||bI-a>best.b-best.a))best={pts,a,b:bI};}
+    if(best){const {pts,a,b}=best;const i0=Math.min(b,a+((b-a)*.6|0));const p=pts[i0],q=pts[Math.min(b,i0+1)];const def=VDEF.tel;const {g,parts}=buildVehicleObj('tel',1);
+      const v={type:'tel',def,team:1,x:p[0],z:p[1],y:groundAt(p[0],p[1]),heading:Math.atan2(q[0]-p[0],q[1]-p[1]),speed:0,vx:0,vz:0,turret:0,hp:def.hp,fuel:def.fuel,ammo:0,ammo2:0,cd:0,cd2:0,
+        state:'active',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:def.r,alt:0,smokeT:0,scuttle:0,strafe:0,steer:0,wheelRot:0,lowFuelWarned:true,dustT:0,path:pts,pa:a,pb:b,pi:i0,pdir:1,auto:{thr:0,turn:0}};
+      g.position.set(v.x,v.y,v.z);g.rotation.y=v.heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);M.tel=v;M.telPos=[v.x,v.z];
+      for(const st of G.statics)if(st.hasFlag)st.hasFlag=false; /* nothing in the base holds the objective: the truck does */
+      setTimeout(()=>{if(G&&G.mission===M)note(0,'Enemy launcher on the move — destroy it to get the '+(G.flags[1].item?G.flags[1].item.n.toLowerCase():'intel'),'warn',true);},5200);}}
 }
 function missionTick(dt){const M=G.mission;if(!M||G.over)return;const m=M.m;
   if(m.limit&&!devActive()){const left=m.limit-G.time;if(left<=0){gameOver(1,'time');return;}if(!M.warn60&&left<60){M.warn60=1;note(0,'ONE MINUTE TO LAUNCH','bad',true);}else if(!M.warn180&&left<180){M.warn180=1;note(0,'Three minutes to launch','warn',true);}}
+  if(M.tel){const v=M.tel;if(v.state==='active'){M.telPos=[v.x,v.z];const P=v.path;let t=P[v.pi];if(Math.hypot(t[0]-v.x,t[1]-v.z)<9){v.pi+=v.pdir*3;if(v.pi>=v.pb){v.pi=v.pb;v.pdir=-1;}else if(v.pi<=v.pa){v.pi=v.pa;v.pdir=1;}t=P[v.pi];}
+      const want=Math.atan2(t[0]-v.x,t[1]-v.z),d=angDiff(v.heading,want);v.auto.turn=-clamp(d*2.2,-1,1);v.auto.thr=Math.abs(d)>1.2?-.4:Math.abs(d)>.6?.35:1;
+      v.stuckT=Math.abs(v.speed)<.8?(v.stuckT||0)+dt:0;if(v.stuckT>4){v.pdir=-v.pdir;v.stuckT=0;} /* boxed in: go back the other way */}
+    else if(!M.telDone){M.telDone=1;const f=G.flags[1];if(f.state==='hidden'){let x=M.telPos[0],z=M.telPos[1];for(let k=0;k<24&&!(passable(x,z)&&H(x,z)>.5);k++){const a=k/24*TAU;x=M.telPos[0]+Math.sin(a)*6;z=M.telPos[1]+Math.cos(a)*6;}
+      exposeFlag(f,x,z);note(0,'Launcher destroyed — '+(f.item?f.item.n:'the objective')+' is in the wreck','good',true);}}}
   if(M.jets.length&&!M.jetsDone&&M.jets.every(j=>!j.alive)){M.jetsDone=1;note(0,'Airfield neutralized — every jet is burning','good',true);}
   if(M.pows.length){for(const sd of M.pows){if(sd.ride&&!sd.aboardNoted){sd.aboardNoted=1;note(0,'Prisoner aboard','good');}}}}
 function powsHome(){const M=G.mission;if(!M||!M.pows.length)return null;const b=G.bases[0];const home=M.pows.filter(sd=>sd.alive&&((sd.ride&&sd.ride.team===0)||Math.hypot(sd.x-b.x,sd.z-b.z)<70)).length;return [home,M.pows.length];}
@@ -3113,6 +3128,7 @@ const VDEF={
   jeep:{name:'Jeep',hp:10,speed:27,turn:2.3,fuel:110,ammo:30,ammo2:0,r:2.3,h:2,air:false,desc:'Carries the flag and 3 riflemen. Very fragile. Floats with tires inflated.',w1:'Grenades',w2:''},
   boat:{name:'Patrol Boat',hp:170,speed:21,turn:1.15,fuel:150,ammo:500,ammo2:0,r:5,h:3.4,air:false,desc:'Water only. Roof gun tracks targets; two deck gunners fire on their own.',w1:'Roof gun',w2:''},
   jet:{name:'Jet',hp:70,speed:54,turn:1.3,fuel:95,ammo:400,ammo2:6,r:3.6,h:2.4,air:true,desc:'Catapults off the carrier. Never stops. Brake over the carrier to land.',w1:'Cannon',w2:'Bombs'},
+  tel:{name:'Launcher truck',hp:420,speed:13,turn:1.1,fuel:1e9,ammo:0,ammo2:0,r:3.6,h:5,air:false,desc:'',w1:'',w2:''}, /* Black Tide: the enemy's mobile launcher (missionSetup) */
   truck:{name:'Six-Wheeler',hp:90,speed:25,turn:2,fuel:130,ammo:160,ammo2:0,r:2.9,h:2.6,air:false,desc:'Armored 6×6 jeep. Roof gun tracks targets, plows through water and trees, carries the objective.',w1:'Roof gun',w2:''},
 };
 const VORDER=['tank','heli','asv','jeep','truck','boat','jet'];
@@ -3515,6 +3531,7 @@ function buildVehicleObj(type,T){
       const arm=new THREE.Mesh(new THREE.BoxGeometry(.6,1,.6),tm);arm.position.set(0,-1,-.6);pod.add(arm);
       pod.position.set(0,2.6,-.6);pod.rotation.x=-.28;g.add(pod);parts.pod=pod;}
   }else if(type==='heli'){const m=tintObj(proto('heli',.62).clone(),'veh'+T,teamTint(T));g.add(m);parts.rotor=m.getObjectByName('Blade_001');parts.tail=m.getObjectByName('Blade_002');}
+  else if(type==='tel'){const src=tintObj(A.launcher.clone(),'tel'+T,teamMark(T));src.position.z=5.25;g.add(src);}
   else if(type==='boat'){const wrap=new THREE.Group(),src=A.boat.clone(true);src.position.y=BOAT.wl;wrap.add(src);wrap.rotation.y=Math.PI;wrap.scale.setScalar(BOAT.len/14.33);tintObj(src,'veh'+T,teamMark(T));g.add(wrap);
     parts.gun=src.getObjectByName('GunRoof');parts.side=['GunL','GunR'].map(n=>{const o=src.getObjectByName(n);return {o,yaw0:o?o.rotation.y:0,cd:Math.random()*.5,think:Math.random()*.3,burst:0};});
     teamPanels(g,T,{w:2.2,d:.7,x:0,y:1.2,z:-4.2});}
@@ -4934,7 +4951,9 @@ const OPS2=(()=>{
   const MISSION={0:{active:true,enemyStock:{tank:3,heli:2,asv:1,jeep:3},tip:'The enemy is attacking: it will come for your orders if you leave them unguarded.'},
     2:{pows:4,tip:'Four of our men are held in the camp. Pull a jeep up slowly beside them and they will climb in. Bring them home.'},
     9:{active:true,enemyStock:{tank:2,heli:2,jeep:2},tip:'The enemy knows where you are and is coming for your codebook.'},
+    10:{launcher:true,tip:'The launcher never stops moving. Find it on the roads, destroy it, and the route map is yours.'},
     11:{pows:3,tip:'Three survivors of the recon team are still alive out there. Pick them up with a jeep.'},
+    18:{launcher:true,tip:'The warhead convoy is on the move. Hunt the launcher down to take the manifest.'},
     12:{decoys:true,tip:'Three launchers on three islands. Only one island holds the telemetry.'},
     13:{jets:4,tip:'Their jets are parked on the runway. Destroy all four.'},
     14:{active:true,enemyStock:{tank:2,asv:2,jeep:2},tip:'Cornered, the enemy will throw everything at you.'},
@@ -5041,7 +5060,7 @@ function step(dt){
     else if(!t.passive){if(!t.vehicle&&t.respawnT<=0&&!G.over){t.ai.pick=(t.ai.pick||0)+dt;if(t.ai.pick>1.2){t.ai.pick=0;const k=aiChoose(t.team);if(k)spawnVehicle(t.team,k);}}
       aiThink(t.team,dt);aiDrive(t.team,dt,t.input);}
   }
-  for(const v of [...G.vehicles]){const t=G.teams[v.team];updateVehicle(v,t.vehicle===v?t.input:{thr:0,turn:0},dt);}
+  for(const v of [...G.vehicles]){const t=G.teams[v.team];updateVehicle(v,t.vehicle===v?t.input:v.auto||{thr:0,turn:0},dt);}
   updateTurrets(dt);updateGates(dt);updateSoldiers(dt);updateDrones(dt);devTick();updateAir(dt);updateDrops(dt);updateStrike(dt);updateSub(dt);updateProjectiles(dt);updateMines(dt);updateFlags(dt);
   if((G.time*2|0)!==((G.time-dt)*2|0))checkLose();
 }

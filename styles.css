@@ -2758,3 +2758,15 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
     font-size: 0.68rem;
   }
 }
+
+/* (Matt, 7 Nov 2026) Admin dashboard tabs: the game and the poker league no longer share one long scroll. */
+.adm-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 18px; border-bottom: 1px solid var(--line, #2a2f3a); padding-bottom: 0; }
+.adm-tab { appearance: none; background: transparent; border: 1px solid transparent; border-bottom: none;
+  color: var(--muted, #9aa4b2); font: 600 0.92rem/1 inherit; letter-spacing: .02em; padding: 9px 14px;
+  border-radius: 6px 6px 0 0; cursor: pointer; margin-bottom: -1px; white-space: nowrap; }
+.adm-tab:hover { color: var(--text, #e8ecf1); background: rgba(255, 255, 255, .04); }
+.adm-tab.on { color: var(--text, #e8ecf1); background: var(--card, #161a22); border-color: var(--line, #2a2f3a); border-bottom-color: var(--card, #161a22); }
+.adm-tab .adm-pip { display: inline-block; min-width: 18px; margin-left: 6px; padding: 1px 5px; border-radius: 9px;
+  background: #c0392b; color: #fff; font-size: .72rem; font-weight: 700; text-align: center; }
+.adm-panel > h2:first-child, .adm-panel > h3:first-child { margin-top: 0; }
+@media (max-width: 520px) { .adm-tab { padding: 8px 10px; font-size: .85rem; } }

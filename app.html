@@ -429,98 +429,111 @@
           <button id="logout-btn" class="btn btn-small btn-secondary" type="button">Log Out</button>
         </div>
 
-        <h2>Site Stats</h2>
-        <div class="stat-grid">
+        <!-- (Matt, 7 Nov 2026) the dashboard is two unrelated products, so it is split into tabs: an overview,
+             then everything about the game, then everything about the poker league. -->
+        <div class="adm-tabs" role="tablist">
+          <button class="adm-tab" data-panel="overview" role="tab" type="button">Overview</button>
+          <button class="adm-tab" data-panel="game" role="tab" type="button">🎮 Spoon Platoon</button>
+          <button class="adm-tab" data-panel="poker" role="tab" type="button">🃏 Poker League</button>
+        </div>
+
+        <div class="adm-panel" id="adm-overview">
+          <h2>Site Stats</h2>
+          <div class="stat-grid">
           <div class="stat-box"><div class="value" id="stat-total-views">—</div><div class="label">Poker Views</div></div>
           <div class="stat-box"><div class="value" id="stat-week-views">—</div><div class="label">Poker, Last 24 Hours</div></div>
           <div class="stat-box"><div class="value" id="stat-game-total-views">—</div><div class="label">🎮 Spoon Platoon Views</div></div>
           <div class="stat-box"><div class="value" id="stat-game-week-views">—</div><div class="label">🎮 Spoon Platoon, Last 24 Hours</div></div>
-        </div>
-        <p class="muted" style="margin-top:6px;">Counts page loads by visitors who aren't logged in as admin (Spoon Platoon has no login, so every open counts, including yours). Starts counting from when this feature was added — earlier visits aren't included.</p>
-        <button id="reset-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Poker Counter</button>
-        <button id="reset-game-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Spoon Platoon Counter</button>
-        <p id="stats-error" class="error"></p>
-
-        <h3 class="playing-now-title">🎮 Playing Spoon Platoon now <span id="playing-now-count" class="playing-now-count">—</span></h3>
-        <p class="muted" style="margin:0 0 8px;">Everyone with the game open on screen in the last minute (it checks in every 30 s). The name is what they typed in the game's online lobby, if they ever did; otherwise go by the location, IP and device. Refreshes itself every 15 s while this page is open. <b>👁 Watch</b> opens a live spectator view of that player's game in a new tab (their game picks it up on its next check-in, so allow up to 30 s; the game needs developer mode on in this browser).</p>
-        <div id="playing-now-list" class="visit-log-wrap"></div>
-
-        <details id="game-map-details" class="visit-log-details">
-          <summary>🗺 Where Spoon Platoon is played <span class="muted">— map of every visit and player</span></summary>
-          <div class="visit-log-body">
-            <p class="muted" style="margin:0 0 10px;">One dot per place (bigger = more visits), from the approximate location of each visitor's internet provider. Green dots are playing right now. Visits before 3 Nov 2026 had no coordinates recorded, so they only appear in the list below. Click a dot for the call signs seen there.</p>
-            <div id="game-map" class="game-map"></div>
-            <p id="game-map-stats" class="muted" style="margin:8px 0 0;"></p>
           </div>
-        </details>
+          <p class="muted" style="margin-top:6px;">Counts page loads by visitors who aren't logged in as admin (Spoon Platoon has no login, so every open counts, including yours). Starts counting from when this feature was added — earlier visits aren't included.</p>
+          <button id="reset-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Poker Counter</button>
+          <button id="reset-game-views-btn" class="btn btn-small btn-danger" type="button" style="margin-top:8px;">Reset Spoon Platoon Counter</button>
+          <p id="stats-error" class="error"></p>
 
-        <details id="campaign-wins-details" class="visit-log-details">
-          <summary>🏆 Campaign conquered <span id="campaign-wins-count" class="muted">— who has beaten all 20 operations</span></summary>
-          <div class="visit-log-body">
-            <p class="muted" style="margin:0 0 10px;">Every time someone finishes Operation 20 the game records their call sign (it is required to start the campaign). The game's title screen shows the public roll; this list has the IP, location and device behind each win. Dev-mode wins are not recorded.</p>
-            <div id="campaign-wins-list" class="visit-log-wrap"></div>
-          </div>
-        </details>
-
-        <details id="visit-log-details" class="visit-log-details">
+          <details id="visit-log-details" class="visit-log-details">
           <summary>Recent Visits <span class="muted">— last 50</span></summary>
           <div class="visit-log-body">
-            <p class="muted" style="margin:0 0 10px;">Location is approximate, based on the visitor's internet provider — not GPS.</p>
-            <div class="visit-log-wrap" id="visit-log-list"></div>
+          <p class="muted" style="margin:0 0 10px;">Location is approximate, based on the visitor's internet provider — not GPS.</p>
+          <div class="visit-log-wrap" id="visit-log-list"></div>
           </div>
-        </details>
+          </details>
+        </div>
 
-        <h2 style="margin-top:24px;">Announcement Banner</h2>
-        <p class="muted" style="margin:0 0 8px;">Shows as a dismissible banner at the top of the app for every player. Leave it blank to hide it. Saving — even with the same text — makes it reappear for players who already dismissed an earlier one.</p>
-        <label>Message
+        <div class="adm-panel" id="adm-game" hidden>
+          <h3 class="playing-now-title">🎮 Playing Spoon Platoon now <span id="playing-now-count" class="playing-now-count">—</span></h3>
+          <p class="muted" style="margin:0 0 8px;">Everyone with the game open on screen in the last minute (it checks in every 30 s). The name is what they typed in the game's online lobby, if they ever did; otherwise go by the location, IP and device. Refreshes itself every 15 s while this page is open. <b>👁 Watch</b> opens a live spectator view of that player's game in a new tab (their game picks it up on its next check-in, so allow up to 30 s; the game needs developer mode on in this browser).</p>
+          <div id="playing-now-list" class="visit-log-wrap"></div>
+
+          <details id="game-map-details" class="visit-log-details">
+          <summary>🗺 Where Spoon Platoon is played <span class="muted">— map of every visit and player</span></summary>
+          <div class="visit-log-body">
+          <p class="muted" style="margin:0 0 10px;">One dot per place (bigger = more visits), from the approximate location of each visitor's internet provider. Green dots are playing right now. Visits before 3 Nov 2026 had no coordinates recorded, so they only appear in the list below. Click a dot for the call signs seen there.</p>
+          <div id="game-map" class="game-map"></div>
+          <p id="game-map-stats" class="muted" style="margin:8px 0 0;"></p>
+          </div>
+          </details>
+
+          <details id="campaign-wins-details" class="visit-log-details">
+          <summary>🏆 Campaign conquered <span id="campaign-wins-count" class="muted">— who has beaten all 20 operations</span></summary>
+          <div class="visit-log-body">
+          <p class="muted" style="margin:0 0 10px;">Every time someone finishes Operation 20 the game records their call sign (it is required to start the campaign). The game's title screen shows the public roll; this list has the IP, location and device behind each win. Dev-mode wins are not recorded.</p>
+          <div id="campaign-wins-list" class="visit-log-wrap"></div>
+          </div>
+          </details>
+        </div>
+
+        <div class="adm-panel" id="adm-poker" hidden>
+          <h2 style="margin-top:24px;">Announcement Banner</h2>
+          <p class="muted" style="margin:0 0 8px;">Shows as a dismissible banner at the top of the app for every player. Leave it blank to hide it. Saving — even with the same text — makes it reappear for players who already dismissed an earlier one.</p>
+          <label>Message
           <textarea id="announcement-input" rows="2" placeholder="e.g. New: real card deck added to the tables!"></textarea>
-        </label>
-        <div style="display:flex; gap:8px;">
+          </label>
+          <div style="display:flex; gap:8px;">
           <button id="save-announcement-btn" class="btn btn-small" type="button">Save &amp; Show to Players</button>
           <button id="clear-announcement-btn" class="btn btn-small btn-secondary" type="button">Clear</button>
-        </div>
-        <p id="announcement-status" class="muted" style="margin-top:4px;"></p>
-        <p id="announcement-error" class="error"></p>
+          </div>
+          <p id="announcement-status" class="muted" style="margin-top:4px;"></p>
+          <p id="announcement-error" class="error"></p>
 
-        <h2 style="margin-top:24px;">Visible Tabs</h2>
-        <p class="muted" style="margin:0 0 8px;">Uncheck a tab to hide it from players. The tab bar updates for everyone the next time they load the app.</p>
-        <div id="tab-visibility-list" class="tab-visibility-list"></div>
-        <button id="save-tab-visibility-btn" class="btn btn-small" type="button" style="margin-top:8px;">Save</button>
-        <p id="tab-visibility-status" class="muted" style="margin-top:4px;"></p>
-        <p id="tab-visibility-error" class="error"></p>
+          <h2 style="margin-top:24px;">Visible Tabs</h2>
+          <p class="muted" style="margin:0 0 8px;">Uncheck a tab to hide it from players. The tab bar updates for everyone the next time they load the app.</p>
+          <div id="tab-visibility-list" class="tab-visibility-list"></div>
+          <button id="save-tab-visibility-btn" class="btn btn-small" type="button" style="margin-top:8px;">Save</button>
+          <p id="tab-visibility-status" class="muted" style="margin-top:4px;"></p>
+          <p id="tab-visibility-error" class="error"></p>
 
-        <h2 style="margin-top:24px;">Seasons</h2>
-        <form id="add-season-form">
+          <h2 style="margin-top:24px;">Seasons</h2>
+          <form id="add-season-form">
           <label>Season name
-            <input type="text" id="new-season-name" placeholder="e.g. Fall 2026" required>
+          <input type="text" id="new-season-name" placeholder="e.g. Fall 2026" required>
           </label>
           <label>Start date
-            <input type="date" id="new-season-start" required>
+          <input type="date" id="new-season-start" required>
           </label>
           <label>Planned games <span class="muted">(optional — powers the "games left" milestone)</span>
-            <input type="number" id="new-season-planned-games" min="1" step="1" placeholder="e.g. 16">
+          <input type="number" id="new-season-planned-games" min="1" step="1" placeholder="e.g. 16">
           </label>
           <button type="submit">Create Season</button>
-        </form>
-        <p id="season-error" class="error"></p>
-        <ul id="season-list"></ul>
+          </form>
+          <p id="season-error" class="error"></p>
+          <ul id="season-list"></ul>
 
-        <h2 style="margin-top:24px;">Friday Results</h2>
-        <p id="results-no-season" class="muted" hidden>Create and activate a season above before entering Friday results.</p>
-        <div id="results-editor" hidden>
+          <h2 style="margin-top:24px;">Friday Results</h2>
+          <p id="results-no-season" class="muted" hidden>Create and activate a season above before entering Friday results.</p>
+          <div id="results-editor" hidden>
           <label>Friday date
-            <input type="date" id="friday-date-input">
+          <input type="date" id="friday-date-input">
           </label>
           <p id="friday-status-line" class="muted"></p>
 
           <label>Location (optional) — announce this before results are in
-            <input type="text" id="friday-location-input" placeholder="e.g. Mike's house">
+          <input type="text" id="friday-location-input" placeholder="e.g. Mike's house">
           </label>
           <button id="save-location-btn" class="btn btn-small btn-secondary" type="button">Save Location</button>
           <p id="location-error" class="error"></p>
 
           <label>Players who played tonight (Championship Pot — $5 each)
-            <input type="number" id="friday-pot-players-input" min="0" step="1" placeholder="e.g. 6">
+          <input type="number" id="friday-pot-players-input" min="0" step="1" placeholder="e.g. 6">
           </label>
           <button id="save-pot-btn" class="btn btn-small btn-secondary" type="button">Save Player Count</button>
           <p id="pot-error" class="error"></p>
@@ -528,81 +541,82 @@
           <div id="results-player-rows"></div>
           <p id="results-error" class="error"></p>
           <div style="display:flex; gap:8px; margin-top:8px;">
-            <button id="save-results-btn" class="btn" type="button">Save Results</button>
-            <button id="cancel-friday-btn" class="btn btn-danger" type="button">Mark Cancelled / No Game</button>
+          <button id="save-results-btn" class="btn" type="button">Save Results</button>
+          <button id="cancel-friday-btn" class="btn btn-danger" type="button">Mark Cancelled / No Game</button>
           </div>
 
           <h3 style="margin-top:22px; font-size:0.95rem;">Recorded Fridays This Season</h3>
           <ul id="friday-list"></ul>
-        </div>
+          </div>
 
-        <h2 style="margin-top:24px;">Championship Game Pot</h2>
-        <p class="muted">$5 per player, added up across every Friday recorded this season.</p>
-        <div class="stat-grid">
+          <h2 style="margin-top:24px;">Championship Game Pot</h2>
+          <p class="muted">$5 per player, added up across every Friday recorded this season.</p>
+          <div class="stat-grid">
           <div class="stat-box"><div class="value" id="pot-total-buyins">—</div><div class="label">Total Buy-ins</div></div>
           <div class="stat-box"><div class="value" id="pot-total-dollars">—</div><div class="label">Pot Total</div></div>
-        </div>
+          </div>
 
-        <h2 style="margin-top:24px;">High Hands</h2>
-        <form id="add-highhand-form">
+          <h2 style="margin-top:24px;">High Hands</h2>
+          <form id="add-highhand-form">
           <label>Date
-            <input type="date" id="hh-date-input" required>
+          <input type="date" id="hh-date-input" required>
           </label>
           <label>Player
-            <select id="hh-player-select" required></select>
+          <select id="hh-player-select" required></select>
           </label>
           <div id="hh-card-rows">
-            <div class="card-input-row"><span class="card-label">Card 1</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
-            <div class="card-input-row"><span class="card-label">Card 2</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
-            <div class="card-input-row"><span class="card-label">Card 3</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
-            <div class="card-input-row"><span class="card-label">Card 4</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
-            <div class="card-input-row"><span class="card-label">Card 5</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+          <div class="card-input-row"><span class="card-label">Card 1</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+          <div class="card-input-row"><span class="card-label">Card 2</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+          <div class="card-input-row"><span class="card-label">Card 3</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+          <div class="card-input-row"><span class="card-label">Card 4</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
+          <div class="card-input-row"><span class="card-label">Card 5</span><select class="hh-rank-select"></select><select class="hh-suit-select"></select></div>
           </div>
           <p id="hh-preview" class="muted"></p>
           <div style="display:flex; gap:8px;">
-            <button type="submit" class="btn">Save High Hand</button>
-            <button type="button" id="hh-cancel-edit-btn" class="btn btn-secondary" hidden>Cancel Edit</button>
+          <button type="submit" class="btn">Save High Hand</button>
+          <button type="button" id="hh-cancel-edit-btn" class="btn btn-secondary" hidden>Cancel Edit</button>
           </div>
           <p id="highhand-error" class="error"></p>
-        </form>
-        <h3 style="margin-top:22px; font-size:0.95rem;">Recorded High Hands</h3>
-        <ul id="highhand-list"></ul>
+          </form>
+          <h3 style="margin-top:22px; font-size:0.95rem;">Recorded High Hands</h3>
+          <ul id="highhand-list"></ul>
 
-        <h2 style="margin-top:24px;">Players</h2>
-        <form id="add-player-form">
+          <h2 style="margin-top:24px;">Players</h2>
+          <form id="add-player-form">
           <label>Player name
-            <input type="text" id="new-player-name" placeholder="Full name" required>
+          <input type="text" id="new-player-name" placeholder="Full name" required>
           </label>
           <label>Nickname (optional)
-            <input type="text" id="new-player-nickname" placeholder="Nickname">
+          <input type="text" id="new-player-nickname" placeholder="Nickname">
           </label>
           <button type="submit">Add Player</button>
-        </form>
-        <p id="player-error" class="error"></p>
-        <ul id="player-list"></ul>
+          </form>
+          <p id="player-error" class="error"></p>
+          <ul id="player-list"></ul>
 
-        <h2 style="margin-top:24px;">Feedback</h2>
-        <h3 style="font-size:0.9rem;">Problems Reported</h3>
-        <ul id="admin-problem-list"></ul>
-        <h3 style="margin-top:16px; font-size:0.9rem;">Comments Posted</h3>
-        <ul id="admin-comment-list"></ul>
-        <p id="feedback-admin-error" class="error"></p>
+          <h2 style="margin-top:24px;">Feedback</h2>
+          <h3 style="font-size:0.9rem;">Problems Reported</h3>
+          <ul id="admin-problem-list"></ul>
+          <h3 style="margin-top:16px; font-size:0.9rem;">Comments Posted</h3>
+          <ul id="admin-comment-list"></ul>
+          <p id="feedback-admin-error" class="error"></p>
 
-        <h2 style="margin-top:24px;">Export &amp; Backup</h2>
-        <label>Season for the exports below
+          <h2 style="margin-top:24px;">Export &amp; Backup</h2>
+          <label>Season for the exports below
           <select id="export-season-select"></select>
-        </label>
-        <p class="muted" style="margin-top:6px;">These download straight to your device — nothing is emailed or uploaded anywhere.</p>
-        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+          </label>
+          <p class="muted" style="margin-top:6px;">These download straight to your device — nothing is emailed or uploaded anywhere.</p>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
           <button id="export-standings-btn" class="btn btn-small btn-secondary" type="button">Standings (CSV)</button>
           <button id="export-results-btn" class="btn btn-small btn-secondary" type="button">Results History (CSV)</button>
           <button id="export-highhands-btn" class="btn btn-small btn-secondary" type="button">High Hands (CSV)</button>
-        </div>
-        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
           <button id="export-players-btn" class="btn btn-small btn-secondary" type="button">Players (CSV)</button>
           <button id="export-backup-btn" class="btn btn-small" type="button">Full Backup — All Seasons (JSON)</button>
+          </div>
+          <p id="export-error" class="error"></p>
         </div>
-        <p id="export-error" class="error"></p>
       </div>
     </section>
   </main>

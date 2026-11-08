@@ -1859,6 +1859,23 @@
     const campaignWinsDetails = document.getElementById("campaign-wins-details");
     if (campaignWinsDetails) campaignWinsDetails.addEventListener("toggle", () => { if (campaignWinsDetails.open) loadCampaignWins().catch((e) => console.warn("campaign wins", e)); });
 
+    // (Matt, 7 Nov 2026) dashboard tabs. The panels are just shown/hidden, so everything that loads on login
+    // keeps working untouched; the chosen tab is remembered between visits.
+    const admTabs = [...document.querySelectorAll(".adm-tab")];
+    function showAdminTab(name) {
+      const valid = admTabs.some((t) => t.dataset.panel === name) ? name : "overview";
+      admTabs.forEach((t) => t.classList.toggle("on", t.dataset.panel === valid));
+      ["overview", "game", "poker"].forEach((p) => {
+        const el = document.getElementById("adm-" + p);
+        if (el) el.hidden = p !== valid;
+      });
+      try { localStorage.setItem("fnpa.admintab", valid); } catch (e) {}
+      // Leaflet lays out against a hidden container as 0x0, so nudge it once the panel is on screen
+      if (valid === "game") setTimeout(() => { try { if (gameMap) gameMap.invalidateSize(); } catch (e) {} }, 60);
+    }
+    admTabs.forEach((t) => t.addEventListener("click", () => showAdminTab(t.dataset.panel)));
+    (function () { let saved = "overview"; try { saved = localStorage.getItem("fnpa.admintab") || "overview"; } catch (e) {} showAdminTab(saved); })();
+
     async function startPlayingNow() {
       // tidy old rows (authenticated delete policy), then poll
       try {

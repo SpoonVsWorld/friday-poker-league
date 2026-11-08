@@ -438,7 +438,10 @@
         </div>
 
         <div class="adm-panel" id="adm-overview">
-          <h2>Site Stats</h2>
+          <h2>Since you were last here</h2>
+          <div id="adm-since" class="adm-since"><p class="muted">Loading…</p></div>
+
+          <h2 style="margin-top:24px;">Site Stats</h2>
           <div class="stat-grid">
           <div class="stat-box"><div class="value" id="stat-total-views">—</div><div class="label">Poker Views</div></div>
           <div class="stat-box"><div class="value" id="stat-week-views">—</div><div class="label">Poker, Last 24 Hours</div></div>
@@ -464,6 +467,9 @@
           <p class="muted" style="margin:0 0 8px;">Everyone with the game open on screen in the last minute (it checks in every 30 s). The name is what they typed in the game's online lobby, if they ever did; otherwise go by the location, IP and device. Refreshes itself every 15 s while this page is open. <b>👁 Watch</b> opens a live spectator view of that player's game in a new tab (their game picks it up on its next check-in, so allow up to 30 s; the game needs developer mode on in this browser).</p>
           <div id="playing-now-list" class="visit-log-wrap"></div>
 
+          <h3 style="margin-top:22px;">📊 Game insights</h3>
+          <div id="game-insights"><p class="muted">Loading…</p></div>
+
           <details id="game-map-details" class="visit-log-details">
           <summary>🗺 Where Spoon Platoon is played <span class="muted">— map of every visit and player</span></summary>
           <div class="visit-log-body">
@@ -483,6 +489,9 @@
         </div>
 
         <div class="adm-panel" id="adm-poker" hidden>
+          <h2>League health</h2>
+          <div id="league-health"><p class="muted">Loading…</p></div>
+
           <h2 style="margin-top:24px;">Announcement Banner</h2>
           <p class="muted" style="margin:0 0 8px;">Shows as a dismissible banner at the top of the app for every player. Leave it blank to hide it. Saving — even with the same text — makes it reappear for players who already dismissed an earlier one.</p>
           <label>Message

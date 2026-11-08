@@ -1859,6 +1859,122 @@
     const campaignWinsDetails = document.getElementById("campaign-wins-details");
     if (campaignWinsDetails) campaignWinsDetails.addEventListener("toggle", () => { if (campaignWinsDetails.open) loadCampaignWins().catch((e) => console.warn("campaign wins", e)); });
 
+    // (Matt, 7 Nov 2026) Game insights, League health and the "since you were last here" strip. All three read
+    // one JSON blob each from a database function (game_stats / league_stats, see supabase_game_sessions.sql),
+    // so the browser never pulls raw rows just to count them.
+    const fmtSecs = (n) => {
+      if (n == null) return "—";
+      n = Math.round(n);
+      if (n < 90) return n + " s";
+      if (n < 3600) return Math.round(n / 60) + " min";
+      return (n / 3600).toFixed(1).replace(/\.0$/, "") + " h";
+    };
+    const tile = (v, label, hint) =>
+      `<div class="adm-tile"><div class="v">${escapeHtml(String(v))}</div><div class="l">${escapeHtml(label)}</div>${hint ? `<div class="h">${escapeHtml(hint)}</div>` : ""}</div>`;
+    const dayLabel = (d) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+    async function loadGameInsights() {
+      const el = document.getElementById("game-insights");
+      if (!el) return;
+      const { data, error } = await supabaseClient.rpc("game_stats", { p_days: 30 });
+      if (error || !data) {
+        el.innerHTML = `<p class="error">Could not load game insights${error ? ": " + escapeHtml(error.message) : ""}${error && /game_stats|game_sessions/.test(error.message) ? " (run supabase_game_sessions.sql in the Supabase SQL editor once)" : ""}</p>`;
+        return;
+      }
+      const d = data;
+      const days = d.views_by_day || [];
+      const peak = Math.max(1, ...days.map((x) => x.n));
+      // fill in the quiet days so the chart has no gaps
+      const byDay = new Map(days.map((x) => [x.d, x.n]));
+      const bars = [];
+      for (let i = 29; i >= 0; i--) {
+        const dt = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+        const n = byDay.get(dt) || 0;
+        bars.push(`<span class="adm-bar" style="height:${Math.max(2, Math.round((n / peak) * 100))}%" title="${dayLabel(dt)}: ${n} view${n === 1 ? "" : "s"}"></span>`);
+      }
+      // trim the tail of operations nobody has reached yet, keeping one empty rung as the next target
+      let fn = d.funnel || [];
+      const lastReached = fn.reduce((m, f, i) => (f.reached > 0 ? i : m), -1);
+      fn = fn.slice(0, Math.min(fn.length, lastReached + 2));
+      const started = fn.length ? fn[0].reached : 0;
+      const funnelRows = fn.map((f) => {
+        const pct = started ? Math.round((f.reached / started) * 100) : 0;
+        return `<div class="adm-fn"><span class="n">Op ${f.op}</span><span class="track"><span style="width:${pct}%"></span></span><span class="c">${f.reached}</span></div>`;
+      }).join("");
+      const noSessions = !d.sessions;
+      el.innerHTML = `
+        <div class="adm-chart" aria-label="Spoon Platoon views, last 30 days">${bars.join("")}</div>
+        <p class="muted adm-chart-cap">Views per day, last 30 days — busiest hour of the day is around ${d.busiest_hour != null ? escapeHtml(d.busiest_hour) + ":00" : "—"}.</p>
+        <div class="adm-tiles">
+          ${tile(d.visitors_total ?? 0, "Unique visitors", "by IP, all time")}
+          ${tile(d.visitors_window ?? 0, "Visitors, 30 days", "")}
+          ${tile(d.returning ?? 0, "Came back", "visited more than once")}
+          ${tile(d.sessions ?? 0, "Play sessions", "recorded since 7 Nov")}
+          ${tile(d.mobile_pct == null ? "—" : d.mobile_pct + "%", "On a phone", "")}
+          ${tile(fmtSecs(d.median_secs), "Typical session", "median")}
+          ${tile(fmtSecs(d.longest_secs), "Longest session", "")}
+          ${tile(d.call_signs ?? 0, "Call signs seen", "")}
+        </div>
+        <h4 class="adm-sub">How far people get</h4>
+        ${noSessions
+          ? '<p class="muted">Nothing yet — this fills in as people play. Each session records the furthest operation it reached, so after a few days you can see where players stop.</p>'
+          : `<p class="muted" style="margin:0 0 8px;">${d.campaign_sessions ?? 0} session${d.campaign_sessions === 1 ? "" : "s"} played the campaign. The bar is the share of those still going at each operation.</p><div class="adm-funnel">${funnelRows}</div>`}
+      `;
+    }
+
+    async function loadLeagueHealth() {
+      const el = document.getElementById("league-health");
+      if (!el) return;
+      const { data, error } = await supabaseClient.rpc("league_stats");
+      if (error || !data) {
+        el.innerHTML = `<p class="error">Could not load league health${error ? ": " + escapeHtml(error.message) : ""}</p>`;
+        return;
+      }
+      const d = data;
+      const dayDiff = (iso) => (iso ? Math.round((Date.now() - new Date(iso + "T12:00:00").getTime()) / 86400000) : null);
+      const since = dayDiff(d.last_friday);
+      const until = d.next_friday ? -dayDiff(d.next_friday) : null;
+      const dateStr = (iso) => (iso ? new Date(iso + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
+      el.innerHTML = `
+        <div class="adm-tiles">
+          ${tile(dateStr(d.last_friday), "Last Friday played", since == null ? "" : since + " day" + (since === 1 ? "" : "s") + " ago")}
+          ${tile(dateStr(d.next_friday), "Next on the calendar", until == null ? "not scheduled" : until === 0 ? "today" : "in " + until + " day" + (until === 1 ? "" : "s"))}
+          ${tile(d.players_active ?? 0, "Active players", (d.players_total ?? 0) + " on the books")}
+          ${tile(d.players_missing ?? 0, "Not seen in 5 weeks", "active, but no recent result")}
+          ${tile(d.fridays_total ?? 0, "Fridays recorded", "")}
+          ${tile(d.high_hands ?? 0, "High hands logged", "")}
+          ${tile(d.feedback_open ?? 0, "Problems reported", (d.feedback_recent ?? 0) + " message" + (d.feedback_recent === 1 ? "" : "s") + " in 30 days")}
+        </div>`;
+    }
+
+    // "Since you were last here": what has changed since the previous time this dashboard was opened.
+    // The mark is read once per page load and stamped straight away, so a second call in the same load
+    // (getSession and onAuthStateChange both reach showLoggedIn) still compares against the real last visit.
+    let sinceMark;
+    async function loadSinceLast() {
+      const el = document.getElementById("adm-since");
+      if (!el) return;
+      if (sinceMark === undefined) {
+        try { sinceMark = localStorage.getItem("fnpa.lastadmin"); } catch (e) { sinceMark = null; }
+        try { localStorage.setItem("fnpa.lastadmin", new Date().toISOString()); } catch (e) {}
+      }
+      const last = sinceMark;
+      const sinceIso = last || new Date(Date.now() - 7 * 86400000).toISOString();
+      const [wins, views, feedback, live] = await Promise.all([
+        supabaseClient.from("campaign_wins").select("name, won_at").gte("won_at", sinceIso).order("won_at", { ascending: false }),
+        supabaseClient.from("page_views").select("page", { count: "exact", head: true }).gte("viewed_at", sinceIso),
+        supabaseClient.from("feedback").select("type, message, created_at").gte("created_at", sinceIso).order("created_at", { ascending: false }),
+        supabaseClient.from("game_presence").select("name", { count: "exact", head: true }).gte("last_seen", new Date(Date.now() - 65 * 1000).toISOString()),
+      ]);
+      const bits = [];
+      const when = last ? "since your last visit on " + new Date(last).toLocaleString() : "in the last 7 days";
+      if (live.count) bits.push(`<li><b>${live.count}</b> playing Spoon Platoon right now — see the game tab</li>`);
+      if ((wins.data || []).length) bits.push(`<li><b>${wins.data.length}</b> new campaign win${wins.data.length === 1 ? "" : "s"}: ${wins.data.slice(0, 5).map((w) => escapeHtml(w.name)).join(", ")}</li>`);
+      if ((feedback.data || []).length) bits.push(`<li><b>${feedback.data.length}</b> new message${feedback.data.length === 1 ? "" : "s"} in Feedback — see the poker tab</li>`);
+      bits.push(`<li><b>${views.count ?? 0}</b> page view${views.count === 1 ? "" : "s"} across both sites ${escapeHtml(when)}</li>`);
+      el.innerHTML = `<ul class="adm-since-list">${bits.join("")}</ul>`;
+    }
+
     // (Matt, 7 Nov 2026) dashboard tabs. The panels are just shown/hidden, so everything that loads on login
     // keeps working untouched; the chosen tab is remembered between visits.
     const admTabs = [...document.querySelectorAll(".adm-tab")];
@@ -1884,6 +2000,9 @@
       } catch {}
       await loadPlayingNow();
       loadCampaignWins().catch((e) => console.warn("campaign wins", e));
+      loadGameInsights().catch((e) => console.warn("game insights", e));
+      loadLeagueHealth().catch((e) => console.warn("league health", e));
+      loadSinceLast().catch((e) => console.warn("since last", e));
       if (!playingNowTimer) playingNowTimer = setInterval(loadPlayingNow, 15000);
     }
 

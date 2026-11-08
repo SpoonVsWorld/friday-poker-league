@@ -3136,7 +3136,7 @@ const VORDER=['tank','heli','asv','jeep','truck','boat','jet'];
 // in a dev-mode skirmish (navyOn) - never in Operations 1-20, never online. The boat launches from a dock (nearest open water to your
 // bunker, marked by a buoy) and returns there to stow; the jet catapults off your carrier, always flies forward, banks to turn, turns
 // itself back at the edge of the area and lands when you brake over the carrier deck.
-const BOAT={len:12,wl:1.6,deep:-1.1,hull:[[5.4,0],[-5,0],[0,0],[1.5,2],[1.5,-2],[-3,1.9],[-3,-1.9]]};const JETF={min:26,cruise:38,alt:20};
+const BOAT={len:12,wl:1.6,deep:-1.1,edge:80,hull:[[5.4,0],[-5,0],[0,0],[1.5,2],[1.5,-2],[-3,1.9],[-3,-1.9]]};const JETF={min:26,cruise:38,alt:20};
 function navyCard(k){return k==='boat'||k==='jet';}
 function cardShown(t,k){return (k!=='truck'||t.truckOn)&&(!navyCard(k)||t.navyOn);}
 function findDock(b){ // nearest open water to a base that is deep and roomy enough for the patrol boat
@@ -3801,7 +3801,7 @@ function staticPen(v,x,z,hd=v.heading){ // how deep the hull capsule overlaps bu
   return p;
 }
 function blockedAt(v,x,z,hd=v.heading){
-  if(v.type==='boat'){if(x<X0+14||x>-X0-14||z<Z0+14||z>-Z0-14)return true;const ground=(px,pz,h)=>{const fx=Math.sin(h),fz=Math.cos(h),sx=fz,sz=-fx;let g=0;for(const [a,c] of BOAT.hull)g+=Math.max(0,H(px+fx*a+sx*c,pz+fz*a+sz*c)-BOAT.deep);return g;};
+  if(v.type==='boat'){const E=BOAT.edge;if(x<X0-E||x>-X0+E||z<Z0-E||z>-Z0+E)return true;const ground=(px,pz,h)=>{const fx=Math.sin(h),fz=Math.cos(h),sx=fz,sz=-fx;let g=0;for(const [a,c] of BOAT.hull)g+=Math.max(0,H(px+fx*a+sx*c,pz+fz*a+sz*c)-BOAT.deep);return g;};
     const g1=ground(x,z,hd);if(g1>0&&g1>ground(v.x,v.z,v.heading)+1e-4)return true;} /* a grounded hull may always move toward deeper water */
   else if(!v.def.air&&!(v.floats?(x>X0+12&&x<-X0-12&&z>Z0+12&&z<-Z0-12):passable(x,z)))return true;
   if(v.def.air)return x<X0+10||x>-X0-10||z<Z0+10||z>-Z0-10;
@@ -4242,12 +4242,13 @@ function updateSub(dt){
     if(S.t>1.4&&!S.fired&&S.target&&S.target.state==='active'){S.fired=true;fire('sub',S.team,S.x,1.5,S.z,0,1,0,{target:S.target});sfx('missile',S.x,S.z);for(let i=0;i<14;i++)puff(S.x,1,S.z,C_WATER,3,1.5,.7);}
     if(S.t>6.6){world.remove(S.mesh);S.mesh=null;S.cool=9;}}
   S.cool-=dt;
-  for(const t of G.teams){if(!t.human)continue;const v=t.vehicle;if(!v||v.state!=='active')continue;
-    const edge=Math.min(v.x-X0,-X0-v.x,v.z-Z0,-Z0-v.z);const offshore=edge<42&&H(v.x,v.z)<-2;
+  for(const t of G.teams){if(!t.human)continue;const v=t.vehicle;if(!v||v.state!=='active'||v.type==='jet')continue;
+    const edge=Math.min(v.x-X0,-X0-v.x,v.z-Z0,-Z0-v.z);const lim=t.navyOn?-45:42; /* Black Tide maps have deep sea right up to the edge, and the boat may sail 80 m past it: the sub only comes once you are really off the map */
+    const offshore=edge<lim&&H(v.x,v.z)<-2;
     v.seaT=offshore?(v.seaT||0)+dt:0;
     if(offshore&&v.seaT>.4&&v.seaT<.4+dt*1.5)note(v.team,'Leaving the island — turn back!','warn',true);
-    if(v.seaT>3.2&&!S.mesh&&S.cool<=0){const ox=v.x<0?-1:1,oz=v.z<0?-1:1;const out=edge<42&&Math.abs(v.x)>Math.abs(v.z)*.55?[v.x+ox*24,v.z]:[v.x,v.z+oz*24];
-      S.x=clamp(out[0],X0+4,-X0-4);S.z=clamp(out[1],Z0+4,-Z0-4);S.t=0;S.fired=false;S.target=v;S.team=1-v.team;
+    if(v.seaT>3.2&&!S.mesh&&S.cool<=0){const ox=v.x<0?-1:1,oz=v.z<0?-1:1;const out=edge<lim&&Math.abs(v.x)>Math.abs(v.z)*.55?[v.x+ox*24,v.z]:[v.x,v.z+oz*24];
+      S.x=clamp(out[0],X0-BOAT.edge-10,-X0+BOAT.edge+10);S.z=clamp(out[1],Z0-BOAT.edge-10,-Z0+BOAT.edge+10);S.t=0;S.fired=false;S.target=v;S.team=1-v.team;
       const m=new THREE.Group();const hull=new THREE.Mesh(new THREE.CapsuleGeometry(1.6,14,4,10),new THREE.MeshStandardMaterial({color:0x22272b,roughness:.5,metalness:.3}));hull.rotation.x=Math.PI/2;m.add(hull);
       const sail=new THREE.Mesh(new THREE.BoxGeometry(1.4,3.2,4),hull.material);sail.position.set(0,2,1);m.add(sail);m.position.set(S.x,-3.2,S.z);m.rotation.y=Math.atan2(v.x-S.x,v.z-S.z);world.add(m);S.mesh=m;
       sfx('alarm');note(v.team,'Submarine! Get back over land!','bad',true);}}

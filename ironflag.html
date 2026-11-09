@@ -1317,10 +1317,13 @@ function H(x,z){const t=G.terr;let fx=(x-X0)/CELL,fz=(z-Z0)/CELL;fx=clamp(fx,0,N
   let o=0;if(G.craters)o+=craterOff(x,z);if(G.grv)o+=grooveOff(x,z);return b+o;} // + missile craters (makeCrater) and laser grooves (carveGroove)
 function Hnogrv(x,z){const t=G.terr;let fx=(x-X0)/CELL,fz=(z-Z0)/CELL;fx=clamp(fx,0,NX-1.001);fz=clamp(fz,0,NZ-1.001);const ix=fx|0,iz=fz|0,ux=fx-ix,uz=fz-iz,i=iz*NX+ix,h=t.h;
   const b=(h[i]*(1-ux)+h[i+1]*ux)*(1-uz)+(h[i+NX]*(1-ux)+h[i+NX+1]*ux)*uz;return G.craters?b+craterOff(x,z):b;} // ground under the grooves themselves (so the trench mesh isn't dug twice)
-function onBridge(x,z){for(const b of G.bridgeSegs){if(!b.span.alive)continue;if(Math.abs(x-b.cx)>b.reach||Math.abs(z-b.cz)>b.reach)continue;
-  const dx=x-b.ax,dz=z-b.az,t=clamp((dx*b.ux+dz*b.uz)/b.len,0,1),px=b.ax+b.ux*b.len*t-x,pz=b.az+b.uz*b.len*t-z;if(px*px+pz*pz<5.2*5.2)return true;}return false;}
-const BRIDGE_Y=1.7;
-function groundAt(x,z){const h=H(x,z);return h<BRIDGE_Y&&onBridge(x,z)?BRIDGE_Y:h;}
+function onBridge(x,z){return bridgeY(x,z)!=null;}
+// deck height under (x,z), or null when not on a bridge. Black Tide decks (Matt, 8 Nov 2026) ramp up to BT_BRIDGE_RISE above the
+// old deck so the patrol boat passes underneath; a segment carries y0/y1 (deck height at each end) and the deck is linear between.
+function bridgeY(x,z){for(const b of G.bridgeSegs){if(!b.span.alive)continue;if(Math.abs(x-b.cx)>b.reach||Math.abs(z-b.cz)>b.reach)continue;
+  const dx=x-b.ax,dz=z-b.az,t=clamp((dx*b.ux+dz*b.uz)/b.len,0,1),px=b.ax+b.ux*b.len*t-x,pz=b.az+b.uz*b.len*t-z;if(px*px+pz*pz<5.2*5.2)return b.y0==null?BRIDGE_Y:b.y0+(b.y1-b.y0)*t;}return null;}
+const BRIDGE_Y=1.7,BT_BRIDGE_RISE=4.2,BT_RAMP=16;
+function groundAt(x,z){const h=H(x,z);const by=bridgeY(x,z);return by!=null&&h<by?by:h;}
 function vehGround(x,z){let g=groundAt(x,z);for(const b of G.bases){if(Math.abs(x-b.x)<7&&Math.abs(z-b.z)<7)g=Math.max(g,b.padY);}return g;}
 function passable(x,z){if(x<X0+12||x>-X0-12||z<Z0+12||z>-Z0-12)return false;return H(x,z)>-1.3||onBridge(x,z);}
 
@@ -1528,7 +1531,11 @@ function generate2(seed,op,idx){
   const spans=[];
   for(const r of runs){let span=null;for(let i=r.a;i<r.b;i++){const a=r.c[i],b=r.c[i+1];const dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz)||1;
     if(!span||span.segs.length>=5){span={hp:120,maxHp:120,alive:true,segs:[],meshes:[],corrIdx:corr.indexOf(r.c)};spans.push(span);}
-    const sg={ax:a[0],az:a[1],ux:dx/len,uz:dz/len,len,cx:(a[0]+b[0])/2,cz:(a[1]+b[1])/2,reach:len/2+5,span,pillar:(i-r.a)%3===0};span.segs.push(sg);segs.push(sg);}}
+    const sg={ax:a[0],az:a[1],ux:dx/len,uz:dz/len,len,cx:(a[0]+b[0])/2,cz:(a[1]+b[1])/2,reach:len/2+5,span,pillar:(i-r.a)%3===0,run:r};span.segs.push(sg);segs.push(sg);}}
+  // raised decks: each run ramps up over BT_RAMP metres at both ends to a flat deck BT_BRIDGE_RISE above the old height, so the boat fits under
+  for(const r of runs){const rs=segs.filter(q=>q.run===r);let L=0;for(const q of rs)L+=q.len;let d=0;
+    const prof=x=>BRIDGE_Y+BT_BRIDGE_RISE*smooth(0,1,Math.min(x,L-x)/Math.min(BT_RAMP,L/2));
+    for(const q of rs){q.y0=prof(d);q.y1=prof(d+q.len);q.y=(q.y0+q.y1)/2;d+=q.len;}}
   for(const sp of spans){sp.x=sp.segs.reduce((a,q)=>a+q.cx,0)/sp.segs.length;sp.z=sp.segs.reduce((a,q)=>a+q.cz,0)/sp.segs.length;}
   G.bridgeSegs=segs;G.bridgeRuns=runs;G.bridgeSpans=spans;G.corrBroken=corr.map(()=>false);G.bridgeSpans.forEach((sp,i)=>sp.netIdx=i);
   G.forts=islets.map(il=>({x:il.x,z:il.z,kind:il.kind,team:1}));
@@ -1757,9 +1764,10 @@ function buildTerrain(){
   if(TEX.planksD){railM.map=TEX.planksD.clone();railM.map.repeat.set(4,1);railM.map.needsUpdate=true;railM.color.setRGB(1.3,1.3,1.3);}
   const pilM=triplanarStone(pilM0);
   for(const sg of G.bridgeSegs){const yaw=Math.atan2(sg.ux,sg.uz);
-      const deck=new THREE.Mesh(new THREE.BoxGeometry(10.4,.5,sg.len+.4),deckM);deck.position.set(sg.cx,BRIDGE_Y-.25,sg.cz);deck.rotation.y=yaw;deck.castShadow=deck.receiveShadow=true;world.add(deck);sg.span.meshes.push(deck);
+      const y0=sg.y0==null?BRIDGE_Y:sg.y0,y1=sg.y1==null?BRIDGE_Y:sg.y1,dy=(y0+y1)/2,pitch=Math.atan2(y0-y1,sg.len);
+      const deck=new THREE.Mesh(new THREE.BoxGeometry(10.4,.5,sg.len+.4),deckM);deck.position.set(sg.cx,dy-.25,sg.cz);deck.rotation.order='YXZ';deck.rotation.y=yaw;deck.rotation.x=pitch;deck.castShadow=deck.receiveShadow=true;world.add(deck);sg.span.meshes.push(deck);
       for(const s of [-1,1]){const rl=new THREE.Mesh(new THREE.BoxGeometry(.35,.7,sg.len+.4),railM);rl.position.set(s*5.1,.5,0);deck.add(rl);rl.castShadow=true;}
-      if(sg.pillar){const p=new THREE.Mesh(new THREE.CylinderGeometry(.6,.7,12,6),pilM);p.position.set(sg.ax,BRIDGE_Y-6.4,sg.az);world.add(p);sg.span.pillars=(sg.span.pillars||[]);sg.span.pillars.push(p);}}
+      if(sg.pillar){const ph=12+(y0-BRIDGE_Y);const p=new THREE.Mesh(new THREE.CylinderGeometry(.6,.7,ph,6),pilM);p.position.set(sg.ax,y0-6.4-(ph-12)/2,sg.az);world.add(p);sg.span.pillars=(sg.span.pillars||[]);sg.span.pillars.push(p);}}
 }
 // ---- the sea (Matt, 28 Oct 2026: "the water looks like it has squares in it where the tiles come together... make it hyper realistic").
 // The old 128-px procedural normal map wasn't seamless, so every 40 m tile showed its edge. Now: a seamless ocean tile baked in
@@ -3766,7 +3774,7 @@ function splashDamage(x,y,z,R,dmg,team,skip){
   for(const j of G.jets){if(j.alive&&j.team!==team&&Math.hypot(j.x-x,j.z-z)<R+3&&Math.abs(j.y-y)<R+2)damage(j,dmg,team);}
   for(const dr of G.drones){if(dr.alive&&dr.team!==team&&Math.hypot(dr.x-x,dr.z-z)<R+1.6&&Math.abs(dr.y-y)<R+1.5)damage(dr,dmg,team);}
   for(const sd of G.soldiers){if(sd.alive&&!sd.ride&&sd.team!==team&&Math.hypot(sd.x-x,sd.z-z)<R+.8&&Math.abs(sd.y-y)<R+2)killSoldier(sd,team,'blast');}
-  if(dmg>=12&&y<BRIDGE_Y+4)for(const sp of G.bridgeSpans){if(!sp.alive||Math.abs(sp.x-x)>22||Math.abs(sp.z-z)>22)continue;
+  if(dmg>=12&&y<BRIDGE_Y+4+BT_BRIDGE_RISE)for(const sp of G.bridgeSpans){if(!sp.alive||Math.abs(sp.x-x)>22||Math.abs(sp.z-z)>22)continue;
     if(sp.segs.some(q=>Math.hypot(q.cx-x,q.cz-z)<R+5)){sp.hp-=dmg;if(sp.hp<=0)collapseSpan(sp,team);}}
 }
 function collapseSpan(sp,byTeam){
@@ -3776,7 +3784,7 @@ function collapseSpan(sp,byTeam){
   // it's built can be silently lost forever if that one packet drops. Re-sending
   // the full dead-span list each tick is cheap (~20 small ints) and self-healing.
   sp.alive=false;for(const m of sp.meshes)m.visible=false;for(const p of sp.pillars||[])p.scale.y=.45;
-  for(const q of sp.segs){explosion(q.cx,BRIDGE_Y,q.cz,1.4);explosion(q.cx,0,q.cz,1.2,true);debris(q.cx,BRIDGE_Y,q.cz,4,8);}
+  for(const q of sp.segs){const qy=q.y==null?BRIDGE_Y:q.y;explosion(q.cx,qy,q.cz,1.4);explosion(q.cx,0,q.cz,1.2,true);debris(q.cx,qy,q.cz,4,8);}
   sfx('bigboom',sp.x,sp.z);sfx('waterboom',sp.x,sp.z);
   G.corrBroken[sp.corrIdx]=true;
   for(const v of [...G.vehicles]){if(!v.def.air&&v.state==='active'&&!onBridge(v.x,v.z)&&H(v.x,v.z)<-1.3)destroyVehicle(v);}

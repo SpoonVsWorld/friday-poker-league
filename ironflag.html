@@ -3566,18 +3566,29 @@ function footBunker(v,dt){ // (Matt, 6 Nov 2026) on foot, back on your own pad: 
   sfx('lift',b.x,b.z);note(T,'Back in the bunker — pick a vehicle','info');
   if(t.view&&t.view.index===0)musicStop();
 }
+function footstep(surf,x,z,vol,view){ // (interiors branch) short synthesized steps: crunch on snow, soft thud on dirt, slap on sand, knock on decks/bridges
+  const c=AU.ctx;if(!c||!AU.sfx)return;const g=vol*(view?.5:.25)*(.85+Math.random()*.3);
+  try{if(surf==='snow'){noiseHit(.5*g,.09,1800,900,'bandpass',.8);noiseHit(.25*g,.05,4200,2500,'highpass');}
+    else if(surf==='sand'){noiseHit(.4*g,.11,900,500,'lowpass');}
+    else if(surf==='deck'){tone(.35*g,.07,140,90,'triangle');noiseHit(.2*g,.05,1200,700,'bandpass');}
+    else{noiseHit(.32*g,.07,420,220,'lowpass');tone(.12*g,.05,90,60,'sine');}}catch(e){}
+}
 function updateFoot(v,inp,dt){
   const def=v.def,T=v.team;footBunker(v,dt);if(v.state!=='active')return;if(v.hitFlash>0)v.hitFlash-=dt;if(opts.touch&&G.teams[T].human)aimAssist(v,dt,!!inp.fire);
   v.heading-=(inp.turn||0)*def.turn*dt;if(inp.look){v.heading-=inp.look.x*2.6*dt;v.pitch=clamp(v.pitch-inp.look.y*1.8*dt,-1.25,1.25);}
-  const mzi=inp.thr||0,mxi=inp.strafe||0;v.crouch=!!inp.crouch&&!v.air;const sprint=!!inp.special&&mzi>.3&&!v.carrying&&!v.crouch;v.sprint=sprint;
+  const mzi=inp.thr||0,mxi=inp.strafe||0;v.crouch=!!inp.crouch&&!v.air;if(v.stam==null)v.stam=1;
+  const wantSprint=!!inp.special&&mzi>.3&&!v.carrying&&!v.crouch;if(v.winded&&v.stam>.35)v.winded=false;const sprint=wantSprint&&!v.winded&&!devFor(T);v.sprint=sprint||(wantSprint&&devFor(T));
+  v.stam=clamp(v.stam+(sprint?-.2:(wantSprint?0:.26))*dt,0,1);if(sprint&&v.stam<=0)v.winded=true; // (interiors branch) stamina
   let mz=mzi,mx=mxi;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l;}
-  const sp=def.speed*(sprint?1.6:1)*(v.carrying?.6:1)*(mz<0?.7:1)*(v.crouch?.42:1);
+  const sp=def.speed*(v.sprint?1.6:1)*(v.carrying?.6:1)*(mz<0?.7:1)*(v.crouch?.42:1);
   const fx=Math.sin(v.heading),fz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
   const k=1-Math.exp(-dt*10);v.vx=lerp(v.vx,(fx*mz+rx*mx)*sp,k);v.vz=lerp(v.vz,(fz*mz+rz*mx)*sp,k);
   let nx=v.x+v.vx*dt,nz=v.z+v.vz*dt;
   {const p=footWalls({x:nx,z:nz},T);nx=p.x;nz=p.z;} // walls push you sideways, so you slide along them
   if(footBlocked(nx,nz,T,v)){if(!footBlocked(nx,v.z,T,v))nz=v.z;else if(!footBlocked(v.x,nz,T,v))nx=v.x;else{nx=v.x;nz=v.z;}}
   v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;v.speed=Math.hypot(v.vx,v.vz);
+  if(!v.air&&v.speed>.8){v.stepT=(v.stepT||0)+dt*v.speed*(v.crouch?.9:1.05);if(v.stepT>=1.55){v.stepT=0;const gy=groundAt(v.x,v.z),h=H(v.x,v.z);const snow=G.theme&&/snow|ice/.test(String(G.theme.wx||''));
+      const surf=gy>h+.3?'deck':h<2.6?'sand':snow?'snow':'dirt';footstep(surf,v.x,v.z,v.sprint?1:.7,G.teams[T].view);}}else v.stepT=.9;
   {const g0=vehGround(v.x,v.z);const sd0=v.parts.sd;
     if(inp.jump&&!v.prevJump&&!v.air&&v.y<=g0+.08&&!v.carrying&&!v.crouch){v.air=true;v.vy=4.9;if(sd0.trooper)trooperOneShot(sd0,'jump',1.05,true);sfx('throw',v.x,v.z);}v.prevJump=!!inp.jump;
     if(v.air){v.vy-=13.5*dt;v.y+=v.vy*dt;if(v.y<=g0){v.y=g0;v.air=false;v.vy=0;puff(v.x,v.y+.1,v.z,C_DUST,1,.6,.4);}}else v.y=lerp(v.y,g0,1-Math.exp(-dt*16));}
@@ -4981,7 +4992,7 @@ function updateHud(view){
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
     q.fuel.style.width=(v.fuel/d.fuel*100).toFixed(1)+'%';
     s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.type==='jeep'&&A.crew?`<div>Riflemen <span>${crewCount(v)}/3</span></div>`:'')+(v.carrying?`<div style="color:var(--signal)">${v.carrying.item?v.carrying.item.s:'FLAG'} ABOARD</div>`:'');
-    q.warn.textContent=v.scuttle>0?'SCUTTLING…':v.landHint?(opts.touch?'PULL BACK TO LAND':'HOLD BRAKE TO LAND'):v.supplyMsg?v.supplyMsg:v.type==='foot'&&v.ammo<=0?'OUT OF AMMO — FIND AN AMMO TENT':v.type==='foot'&&G.vehicles.some(o=>o!==v&&o.team===v.team&&o.type!=='foot'&&o.state==='active'&&Math.hypot(o.x-v.x,o.z-v.z)-o.r<2.4)?(opts.touch?'TAP IN TO GET IN':'PRESS G TO GET IN'):v.floats?'TIRES INFLATED':v.fuel<d.fuel*.2?(v.fuel<=0?'OUT OF FUEL':'LOW FUEL'):'';q.warn.style.color=v.supplyMsg||v.floats?'var(--ok)':'';}
+    q.warn.textContent=v.scuttle>0?'SCUTTLING…':v.landHint?(opts.touch?'PULL BACK TO LAND':'HOLD BRAKE TO LAND'):v.supplyMsg?v.supplyMsg:v.type==='foot'&&v.winded?'WINDED — catch your breath':v.type==='foot'&&v.ammo<=0?'OUT OF AMMO — FIND AN AMMO TENT':v.type==='foot'&&G.vehicles.some(o=>o!==v&&o.team===v.team&&o.type!=='foot'&&o.state==='active'&&Math.hypot(o.x-v.x,o.z-v.z)-o.r<2.4)?(opts.touch?'TAP IN TO GET IN':'PRESS G TO GET IN'):v.floats?'TIRES INFLATED':v.fuel<d.fuel*.2?(v.fuel<=0?'OUT OF FUEL':'LOW FUEL'):'';q.warn.style.color=v.supplyMsg||v.floats?'var(--ok)':'';}
   else{q.vn.textContent='In bunker';q.hp.style.width='0';q.fuel.style.width='0';s='';q.warn.textContent='';}
   if(lastHud.get(q.ammo)!==s){q.ammo.innerHTML=s;lastHud.set(q.ammo,s);}
   const st=VORDER.filter(k=>cardShown(t,k)).map(k=>`<div class="${t.stock[k]?'':'zero'}">${{tank:'TNK',heli:'HEL',asv:'ASV',jeep:'JEP',truck:'6X6',boat:'BOT',jet:'JET'}[k]} ${t.stock[k]}</div>`).join('');

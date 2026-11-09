@@ -1948,7 +1948,7 @@ function hqSetup(T,x,z,yaw,o){
   const s=addStatic({kind:'hq',team:T,x:cx,z:cz,y0:o.position.y,h:4,hp:420,obj:o,pts,reach:12});
   s.rect=null; // on foot the walls do the work
   const w=HQ_RECTS.map(r=>{const [wx,wz]=toW(r.x,r.z);return {x:wx,z:wz,sx:r.sx,sz:r.sz,yaw};});
-  s.interior={open:true,w,outer:{x:cx,z:cz,sx:HQ_OUTER.sx,sz:HQ_OUTER.sz,yaw},roof:o.getObjectByName('Roof'),inner:o.getObjectByName('Interior'),door:toW(0,5.4),occupied:false};
+  s.interior={open:true,w,outer:{x:cx,z:cz,sx:HQ_OUTER.sx,sz:HQ_OUTER.sz,yaw},roof:o.getObjectByName('HQ_Roof')||o.getObjectByName('Roof'),inner:o.getObjectByName('HQ_Interior')||o.getObjectByName('Interior'),door:toW(0,5.4),occupied:false};
   s.interior.cy=o.position.y+3.1; // the shared room light sits here while you are inside (the ceiling stays on in first person; it only lifts for an overhead/spectator view)
   G.interiors=G.interiors||[];G.interiors.push(s);o.updateMatrixWorld(true);s.interior.pickup=hqBriefcase(s,o);return s;}
 function interiorLight(){if(!G.intLight){const li=new THREE.PointLight(0xffe0b0,0,19,1.4);world.add(li);G.intLight=li;}return G.intLight;}

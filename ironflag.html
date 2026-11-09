@@ -1386,11 +1386,11 @@ function generate(seed){
 // frozen lakes, burn sites) plus a theme that recolours the ground, trees, fog and light. generate() itself is untouched.
 const BT_THEME={
   burning:{grass:0x55583a,grass2:0x3b3a2a,sand:0xb9a37a,wet:0x8e7f5e,deep:0x203f45,rock:0x66605a,dirt:0x8d7a55,base:0x7f7566,scorch:0x24201d,fog:0x6e665c,fogN:120,fogF:380,hemi:.9,sun:1.9,sunC:0xffd0a0,trees:['treeD','treeD','treeD','oak','tree'],cover:false},
-  snow:{grass:0xe9eef3,grass2:0xd3dbe3,sand:0xd6e6f0,wet:0xbfd3df,deep:0x1d3744,rock:0x7c848c,dirt:0x9ea6ad,base:0xb3b9be,fog:0xcbd4dc,fogN:110,fogF:360,hemi:1.05,sun:1.7,sunC:0xeaf2ff,trees:['pine','pine','pine','treeD'],cover:false},
-  whiteout:{grass:0xe9eef3,grass2:0xd3dbe3,sand:0xd6e6f0,wet:0xbfd3df,deep:0x1d3744,rock:0x7c848c,dirt:0x9ea6ad,base:0xb3b9be,fog:0xdfe5ea,fogN:60,fogF:230,hemi:1.0,sun:1.1,sunC:0xf2f6ff,trees:['pine','pine','treeD'],cover:false},
-  night:{grass:0xdfe6ee,grass2:0xc8d2dc,sand:0xcddde8,wet:0xaabfcc,deep:0x0c1a26,rock:0x6e767e,dirt:0x8d959c,base:0xa3a9ae,fog:0x0b1322,fogN:90,fogF:320,hemi:.28,sun:.5,sunC:0x9fb4ff,trees:['pine','pine','treeD'],cover:false},
-  storm:{grass:0x5c7a48,grass2:0x40593a,sand:0xa89a7c,wet:0x7f7a66,deep:0x16282f,rock:0x55585a,dirt:0x8f7d5b,base:0x8c8470,fog:0x4b5661,fogN:110,fogF:350,hemi:.75,sun:1.2,sunC:0xcfd8e4,trees:['pine','oak','tree','treeD'],cover:true},
-  ice:{grass:0xeaf1f6,grass2:0xd8e3ec,sand:0xd2e4ef,wet:0xb9d0dd,deep:0x15303f,rock:0x8a9299,dirt:0xa5acb2,base:0xb7bdc2,fog:0xc2d2df,fogN:130,fogF:400,hemi:1.1,sun:1.9,sunC:0xf4f8ff,trees:['treeD','pine'],cover:false},
+  snow:{grass:0xe9eef3,grass2:0xd3dbe3,sand:0xd6e6f0,wet:0xbfd3df,deep:0x1d3744,rock:0x7c848c,dirt:0x9ea6ad,base:0xb3b9be,fog:0xcbd4dc,fogN:110,fogF:360,hemi:1.05,sun:1.7,sunC:0xeaf2ff,trees:['pine','pine','pine','treeD'],cover:false,wx:'snow',wxWind:1.2},
+  whiteout:{grass:0xe9eef3,grass2:0xd3dbe3,sand:0xd6e6f0,wet:0xbfd3df,deep:0x1d3744,rock:0x7c848c,dirt:0x9ea6ad,base:0xb3b9be,fog:0xdfe5ea,fogN:60,fogF:230,hemi:1.0,sun:1.1,sunC:0xf2f6ff,trees:['pine','pine','treeD'],cover:false,wx:'snow',wxHeavy:1,wxWind:4},
+  night:{grass:0xdfe6ee,grass2:0xc8d2dc,sand:0xcddde8,wet:0xaabfcc,deep:0x0c1a26,rock:0x6e767e,dirt:0x8d959c,base:0xa3a9ae,fog:0x0b1322,fogN:90,fogF:320,hemi:.28,sun:.5,sunC:0x9fb4ff,trees:['pine','pine','treeD'],cover:false,wx:'rain',wxWind:2},
+  storm:{grass:0x5c7a48,grass2:0x40593a,sand:0xa89a7c,wet:0x7f7a66,deep:0x16282f,rock:0x55585a,dirt:0x8f7d5b,base:0x8c8470,fog:0x4b5661,fogN:110,fogF:350,hemi:.75,sun:1.2,sunC:0xcfd8e4,trees:['pine','oak','tree','treeD'],cover:true,wx:'rain',wxHeavy:1,wxWind:7},
+  ice:{grass:0xeaf1f6,grass2:0xd8e3ec,sand:0xd2e4ef,wet:0xb9d0dd,deep:0x15303f,rock:0x8a9299,dirt:0xa5acb2,base:0xb7bdc2,fog:0xc2d2df,fogN:130,fogF:400,hemi:1.1,sun:1.9,sunC:0xf4f8ff,trees:['treeD','pine'],cover:false,wx:'snow',wxWind:2.5},
   sea:{grass:0x6f8f4a,grass2:0x56773c,sand:0xd0bc88,wet:0x9e8f66,deep:0x1a3440,rock:0x7d776c,dirt:0x9f875a,base:0x938668,fog:0x55707c,fogN:120,fogF:380,hemi:.9,sun:1.6,sunC:0xe8eef5,trees:['palm','palmBend','treeD'],cover:true}};
 function splinePts(ctrl){const pts=[];for(let i=0;i<ctrl.length-1;i++){const p0=ctrl[Math.max(0,i-1)],p1=ctrl[i],p2=ctrl[i+1],p3=ctrl[Math.min(ctrl.length-1,i+2)];
     const seg=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]),n=Math.ceil(seg/3);
@@ -1604,8 +1604,78 @@ function themeTick(dt){ // burning islands: standing fires and smoke columns at 
   for(const b of G.burn){if(cam&&Math.hypot(cam.position.x-b.x,cam.position.z-b.z)>330)continue;
     if(Math.random()<dt*7*b.s){FIRE.spawn(b.x+rr(-1.5,1.5)*b.s,b.y+.3,b.z+rr(-1.5,1.5)*b.s,rr(-.4,.4),rr(1.5,3.5),rr(-.4,.4),rr(.5,.9),1.2*b.s,.3,C_FIRE0,C_FIRE1);}
     if(Math.random()<dt*2.2*b.s){SMOKE.spawn(b.x+rr(-1,1),b.y+1.5,b.z+rr(-1,1),rr(-.6,.6)+.9,rr(2,3.5),rr(-.6,.6)+.4,rr(5,9),1.6*b.s,7*b.s,[.18,.17,.16],[.42,.4,.38],.5,0,.3);}}}
-function applyTheme(th){G.theme=th||null;const T=th||{fog:FOG,fogN:150,fogF:430,hemi:1.15,sun:2.5,sunC:0xffffff};
-  scene.fog.color.set(T.fog);scene.background.set(T.fog);scene.fog.near=T.fogN;scene.fog.far=T.fogF;hemi.intensity=T.hemi;sun.intensity=T.sun;sun.color.set(T.sunC);}
+function applyTheme(th,key){G.theme=th||null;const T=th||{fog:FOG,fogN:150,fogF:430,hemi:1.15,sun:2.5,sunC:0xffffff};
+  scene.fog.color.set(T.fog);scene.background.set(T.fog);scene.fog.near=T.fogN;scene.fog.far=T.fogF;hemi.intensity=T.hemi;sun.intensity=T.sun;sun.color.set(T.sunC);
+  weatherSet(T.wx||null,T);}
+
+// ============================================================ weather (Matt, 8 Nov 2026: "snow levels it should be snowing, some of the missions in the dark it should be raining")
+// One cloud of flakes or drops rides along with the first view's camera focus, wrapping around a box so it never runs out.
+// Snow: slow soft points that sway. Rain: short streaks with wind, a splash haze on the ground, a filtered-noise rain bed and,
+// in a storm, lightning (sun flash + rumble). Set per theme through BT_THEME[..].wx; nothing happens on themeless (Iron Curtain) ops.
+const WX={kind:null,heavy:0,pts:null,rain:null,n:0,R:60,top:48,data:null,wind:{x:0,z:0},t:0,bolt:0,boltT:0,audio:null,gain:0,fx:0,fz:0,fy:0,inited:false};
+function weatherSet(kind,T){
+  if(kind===WX.kind&&(!kind||WX.heavy===(T.wxHeavy||0)))return;
+  WX.kind=kind;WX.heavy=kind?(T.wxHeavy||0):0;WX.wind.x=kind?(T.wxWind||0):0;WX.wind.z=0;WX.bolt=0;WX.boltT=kind==='rain'&&WX.heavy?rr(4,9):0;
+  if(WX.pts)WX.pts.visible=false;if(WX.rain)WX.rain.visible=false;
+  if(!kind){weatherAudio(0);return;}
+  weatherInit();const n=kind==='snow'?(WX.heavy?3200:2200):(WX.heavy?2600:1800);WX.n=n;
+  const obj=kind==='snow'?WX.pts:WX.rain;obj.visible=true;obj.geometry.setDrawRange(0,n);WX.top=kind==='rain'?70:48;
+  const d=WX.data,f=G.views&&G.views[0]?G.views[0].focus:{x:0,y:0,z:0};
+  for(let i=0;i<n;i++){d.x[i]=f.x+rr(-WX.R,WX.R);d.y[i]=f.y+rr(-4,WX.top);d.z[i]=f.z+rr(-WX.R,WX.R);d.s[i]=rr(.6,1.4);d.ph[i]=rr(0,TAU);}
+  WX.fx=f.x;WX.fz=f.z;WX.fy=f.y;weatherAudio(kind==='rain'?(WX.heavy?.16:.1):0);
+}
+function weatherInit(){
+  if(WX.inited)return;WX.inited=true;const MAX=3200;
+  WX.data={x:new Float32Array(MAX),y:new Float32Array(MAX),z:new Float32Array(MAX),s:new Float32Array(MAX),ph:new Float32Array(MAX)};
+  // snow: soft round points, fading with distance so they melt into the fog
+  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(MAX*3),3).setUsage(THREE.DynamicDrawUsage));
+  pg.setAttribute('size',new THREE.BufferAttribute(new Float32Array(MAX),1).setUsage(THREE.DynamicDrawUsage));
+  const pm=new THREE.ShaderMaterial({uniforms:{scale:{value:500},tint:{value:new THREE.Color(0xffffff)},R:{value:WX.R}},transparent:true,depthWrite:false,
+    vertexShader:`attribute float size;uniform float scale;uniform float R;varying float vA;
+      void main(){vec4 mv=modelViewMatrix*vec4(position,1.);float dz=-mv.z;vA=(1.-smoothstep(R*.55,R,dz))*smoothstep(1.5,6.,dz);gl_PointSize=mv.z>-1.?0.:min(size*scale/dz,16.);gl_Position=projectionMatrix*mv;}`,
+    fragmentShader:`uniform vec3 tint;varying float vA;void main(){vec2 d=gl_PointCoord-.5;float r=length(d);if(r>.5)discard;float a=smoothstep(.5,.1,r)*vA*.9;gl_FragColor=vec4(tint,a);}`});
+  WX.pts=new THREE.Points(pg,pm);WX.pts.frustumCulled=false;WX.pts.renderOrder=4;WX.pts.visible=false;scene.add(WX.pts);
+  // rain: streak sprites (a thin vertical line inside each point) so drops stay visible from the high camera
+  const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(MAX*3),3).setUsage(THREE.DynamicDrawUsage));
+  rg.setAttribute('size',new THREE.BufferAttribute(new Float32Array(MAX),1).setUsage(THREE.DynamicDrawUsage));
+  const rm=new THREE.ShaderMaterial({uniforms:{scale:{value:500},tint:{value:new THREE.Color(0xd6e4f0)},R:{value:WX.R},op:{value:.55}},transparent:true,depthWrite:false,
+    vertexShader:`attribute float size;uniform float scale;uniform float R;varying float vA;
+      void main(){vec4 mv=modelViewMatrix*vec4(position,1.);float dz=-mv.z;vA=(1.-smoothstep(R*.6,R*1.1,dz))*smoothstep(1.,3.,dz);gl_PointSize=mv.z>-1.?0.:min(size*scale/dz,90.);gl_Position=projectionMatrix*mv;}`,
+    fragmentShader:`uniform vec3 tint;uniform float op;varying float vA;void main(){vec2 d=gl_PointCoord-.5;float a=(1.-smoothstep(.0,.07,abs(d.x)))*(1.-smoothstep(.25,.5,abs(d.y)));gl_FragColor=vec4(tint,a*vA*op);}`});
+  WX.rain=new THREE.Points(rg,rm);WX.rain.frustumCulled=false;WX.rain.renderOrder=4;WX.rain.visible=false;scene.add(WX.rain);
+}
+function weatherTick(dt){
+  if(!WX.kind||!G||!G.views||!G.views[0])return;const view=G.views[0],f=view.focus;const d=WX.data,n=WX.n,R=WX.R,top=WX.top;
+  // the cloud follows the focus: shift the box, wrapping anything that fell out of it
+  WX.t+=dt;const fx=f.x,fz=f.z,fy=f.y;const wx=WX.wind.x,wz=WX.wind.z;
+  if(WX.kind==='snow'){
+    const pos=WX.pts.geometry.attributes.position.array,sz=WX.pts.geometry.attributes.size.array;const fall=WX.heavy?2.6:1.7,sway=WX.heavy?1.4:.9;
+    for(let i=0;i<n;i++){const ph=d.ph[i];d.y[i]-=(fall*d.s[i])*dt;d.x[i]+=(Math.sin(WX.t*.9+ph)*sway+wx)*dt;d.z[i]+=(Math.cos(WX.t*.7+ph*1.3)*sway*.7+wz)*dt;
+      if(d.y[i]<fy-6){d.y[i]=fy+top-rr(0,3);d.x[i]=fx+rr(-R,R);d.z[i]=fz+rr(-R,R);}
+      let x=d.x[i]-fx;if(x>R)d.x[i]-=2*R;else if(x<-R)d.x[i]+=2*R;let z=d.z[i]-fz;if(z>R)d.z[i]-=2*R;else if(z<-R)d.z[i]+=2*R;
+      pos[i*3]=d.x[i];pos[i*3+1]=d.y[i];pos[i*3+2]=d.z[i];sz[i]=(WX.heavy?.09:.07)*d.s[i];}
+    WX.pts.geometry.attributes.position.needsUpdate=true;WX.pts.geometry.attributes.size.needsUpdate=true;
+    WX.pts.material.uniforms.scale.value=FIRE.mat.uniforms.scale.value*40;
+  }else{
+    const pos=WX.rain.geometry.attributes.position.array,sz=WX.rain.geometry.attributes.size.array;const fall=WX.heavy?34:26,len=WX.heavy?1.1:.8;
+    for(let i=0;i<n;i++){d.y[i]-=fall*d.s[i]*dt;d.x[i]+=wx*dt;d.z[i]+=wz*dt;
+      if(d.y[i]<fy-3){d.y[i]=fy+top-rr(0,6);d.x[i]=fx+rr(-R,R)-wx*.6;d.z[i]=fz+rr(-R,R);
+        if(RND()<.22){const gy=groundAt(d.x[i],d.z[i]);if(gy>-.5&&RND()<.5)SMOKE.spawn(d.x[i],gy+.15,d.z[i],rr(-.3,.3),rr(.4,.9),rr(-.3,.3),rr(.35,.6),.18,.5,[.78,.84,.9],[.7,.76,.84],.22,0,2);}}
+      let x=d.x[i]-fx;if(x>R)d.x[i]-=2*R;else if(x<-R)d.x[i]+=2*R;let z=d.z[i]-fz;if(z>R)d.z[i]-=2*R;else if(z<-R)d.z[i]+=2*R;
+      pos[i*3]=d.x[i];pos[i*3+1]=d.y[i];pos[i*3+2]=d.z[i];sz[i]=len*d.s[i];}
+    WX.rain.geometry.attributes.position.needsUpdate=true;WX.rain.geometry.attributes.size.needsUpdate=true;WX.rain.material.uniforms.scale.value=FIRE.mat.uniforms.scale.value*40;
+    // lightning in a storm
+    if(WX.boltT>0){WX.boltT-=dt;if(WX.boltT<=0){WX.bolt=1;WX.boltT=rr(6,16);const c=AU.ctx;if(c&&AU.sfx){setTimeout(()=>{try{noiseHit(.9,2.2,40,260,'lowpass',.6);tone(.2,1.6,38,22,'sine');}catch(e){}},rr(600,2200));}}}
+    if(WX.bolt>0){WX.bolt=Math.max(0,WX.bolt-dt*5);const T=G.theme||{sun:2.5,hemi:1.15};const k=WX.bolt*(RND()<.7?1:.3);sun.intensity=T.sun+k*4.5;hemi.intensity=T.hemi+k*1.2;
+      if(WX.bolt<=0){sun.intensity=T.sun;hemi.intensity=T.hemi;}}
+  }
+}
+function weatherAudio(g){ // filtered noise bed for rain
+  const c=AU.ctx;WX.gain=g;if(!c||!AU.sfx)return;
+  if(!WX.audio){try{const len=c.sampleRate*2,b=c.createBuffer(1,len,c.sampleRate),ch=b.getChannelData(0);let l=0;for(let i=0;i<len;i++){const w=Math.random()*2-1;l=l*.96+w*.04;ch[i]=(w*.35+l*2.2)*.5;}
+      const src=c.createBufferSource();src.buffer=b;src.loop=true;const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=1600;f.Q.value=.5;const gn=c.createGain();gn.gain.value=0;src.connect(f);f.connect(gn);gn.connect(AU.sfx);src.start();WX.audio={src,gn};}catch(e){return;}}
+  WX.audio.gn.gain.setTargetAtTime(g,c.currentTime,.8);
+}
 
 // ---- realistic building exteriors: one shader patch for every structure. From the existing albedo it sorts each pixel into
 // light wall (-> weathered concrete), dark trim/roof (-> corrugated metal / tar-gravel), glass (-> dark, glossy, reflects the sky)
@@ -5212,7 +5282,7 @@ function togglePause(){paused=!paused;$('#pause').hidden=!paused;$('#pRestart').
 let last=performance.now();
 const _ft=new V3();
 function step(dt){
-  G.time+=dt;if(G.burn)themeTick(dt);if(G.mission)missionTick(dt);
+  G.time+=dt;if(G.burn)themeTick(dt);if(WX.kind)weatherTick(dt);if(G.mission)missionTick(dt);
   if(G.water){if(G.water.tex){G.water.tex.offset.x+=dt*.012;G.water.tex.offset.y+=dt*.008;}if(G.water.u)G.water.u.uT.value+=dt;}
   for(const t of G.teams){
     if(t.respawnT>0)t.respawnT-=dt;
@@ -5869,7 +5939,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

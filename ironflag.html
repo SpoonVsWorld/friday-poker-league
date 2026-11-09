@@ -3409,17 +3409,18 @@ function trooperViewModel(v,sd,dt,inp){
   const gun=sd.gun,o=sd.obj;if(gun.parent!==o)o.attach(gun);o.updateMatrixWorld(true);
   const sp=Math.hypot(v.vx,v.vz),mv=clamp(sp/v.def.speed,0,1.6);sd.bob+=dt*(3+mv*6)*(mv>.1?1:.15);
   const dh=sd.lastH==null?0:((v.heading-sd.lastH+Math.PI*3)%(Math.PI*2))-Math.PI;sd.lastH=v.heading;sd.sway=lerp(sd.sway,clamp(dh/Math.max(dt,.001)*-.02,-.05,.05),1-Math.exp(-dt*8));
-  const follow=v.air||v.sprint||!!sd.shot; // the animation keeps the rifle
+  const follow=v.air||!!sd.shot; // the animation keeps the rifle only in the air or when hit; sprinting is a held pose now
   if(follow){sd.bones.rhand.updateMatrixWorld(true);_vm1.multiplyMatrices(sd.bones.rhand.matrixWorld,TROOP.gun);}
-  else{const cp=Math.cos(v.pitch);_gd.set(Math.sin(v.heading)*cp,Math.sin(v.pitch),Math.cos(v.heading)*cp);sd.bones.head.getWorldPosition(_ge);_ge.y+=.08;_ge.addScaledVector(_gd,.1); // the camera
+  else{const cp=Math.cos(v.pitch);_gd.set(Math.sin(v.heading)*cp,Math.sin(v.pitch),Math.cos(v.heading)*cp);footEye(v,0,_ge);if(v.camPos)_ge.y=v.camPos.y; // the camera, from this frame's position (the stored one is a frame old and would drag the rifle back into your face as you run)
     _gu.set(0,1,0).addScaledVector(_gd,-_gd.y).normalize();_gr.crossVectors(_gd,_gu).normalize(); // screen right
-    const cr=v.crouch?1:0,f=lerp(.235,.22,cr),r=lerp(.09,.08,cr)+Math.sin(sd.bob)*.011*mv+sd.sway,u=lerp(-.13,-.12,cr)-Math.abs(Math.cos(sd.bob))*.008*mv-Math.abs(sd.sway)*.3;
+    sd.spr=lerp(sd.spr||0,v.sprint?1:0,1-Math.exp(-dt*7));const spr=sd.spr,ph=v.bobPh||0,amp=(v.bobAmp||0)*.55;
+    const cr=v.crouch?1:0,f=lerp(.33,.30,cr)-spr*.04,r=lerp(.12,.105,cr)+Math.sin(ph*.5)*amp*.8+sd.sway-spr*.015,u=lerp(-.185,-.17,cr)-Math.abs(Math.sin(ph))*amp-Math.abs(sd.sway)*.3-spr*.045;
     _gg.copy(_ge).addScaledVector(_gd,f).addScaledVector(_gr,r).addScaledVector(_gu,u); // where the grip goes
-    _gt.copy(_ge).addScaledVector(_gd,30);_vp.copy(_gt).sub(_gg).normalize();_vp2.set(0,1,0).addScaledVector(_vp,-_vp.y).normalize();_vp3.crossVectors(_vp2,_vp).normalize();_gm.makeBasis(_vp3,_vp2,_vp);_gq.setFromRotationMatrix(_gm);
+    _gt.copy(_ge).addScaledVector(_gd,30).addScaledVector(_gr,-spr*3).addScaledVector(_gu,-spr*4); // sprint: muzzle dips down and in_vp.copy(_gt).sub(_gg).normalize();_vp2.set(0,1,0).addScaledVector(_vp,-_vp.y).normalize();_vp3.crossVectors(_vp2,_vp).normalize();_gm.makeBasis(_vp3,_vp2,_vp);_gq.setFromRotationMatrix(_gm);
     _vp.copy(RIFLE.grip).applyQuaternion(_gq);_vp2.copy(_gg).sub(_vp);_vm1.compose(_vp2,_gq,_vp3.set(1,1,1));}
   // smooth between the two placements, then set the rifle (world -> parent space)
   _vm2.copy(o.matrixWorld).invert().multiply(_vm1);_vm2.decompose(_vp,_vq,_vp3); // in his own frame, so the smoothing never lags behind him as he runs
-  if(!sd.vmPos){sd.vmPos=_vp.clone();sd.vmQ=_vq.clone();}else{const k=1-Math.exp(-dt*(follow?14:30));sd.vmPos.lerp(_vp,k);sd.vmQ.slerp(_vq,k);}
+  if(!sd.vmPos){sd.vmPos=_vp.clone();sd.vmQ=_vq.clone();}else{const k=1-Math.exp(-dt*(follow?14:22));sd.vmPos.lerp(_vp,k);sd.vmQ.slerp(_vq,k);}
   gun.position.copy(sd.vmPos);gun.quaternion.copy(sd.vmQ);gun.scale.set(1,1,1);gun.updateMatrixWorld(true);_vm1.copy(gun.matrixWorld);
   if(follow)return;
   // both arms onto the rifle: wrist targets are the fitted hand frames carried along with the gun
@@ -3591,7 +3592,7 @@ function updateFoot(v,inp,dt){
       const surf=gy>h+.3?'deck':h<2.6?'sand':snow?'snow':'dirt';footstep(surf,v.x,v.z,v.sprint?1:.7,G.teams[T].view);}}else v.stepT=.9;
   {const g0=vehGround(v.x,v.z);const sd0=v.parts.sd;
     if(inp.jump&&!v.prevJump&&!v.air&&v.y<=g0+.08&&!v.carrying&&!v.crouch){v.air=true;v.vy=4.9;if(sd0.trooper)trooperOneShot(sd0,'jump',1.05,true);sfx('throw',v.x,v.z);}v.prevJump=!!inp.jump;
-    if(v.air){v.vy-=13.5*dt;v.y+=v.vy*dt;if(v.y<=g0){v.y=g0;v.air=false;v.vy=0;puff(v.x,v.y+.1,v.z,C_DUST,1,.6,.4);}}else v.y=lerp(v.y,g0,1-Math.exp(-dt*16));}
+    if(v.air){v.vy-=13.5*dt;v.y+=v.vy*dt;if(v.y<=g0){v.y=g0;v.air=false;v.landDip=.35;v.vy=0;puff(v.x,v.y+.1,v.z,C_DUST,1,.6,.4);footstep('dirt',v.x,v.z,1,G.teams[T].view);}}else v.y=lerp(v.y,g0,1-Math.exp(-dt*16));}
   v.cd-=dt;if(inp.fire&&v.cd<=0&&v.ammo>0&&!sprint)heroShoot(v);
   v.gcd-=dt;if(inp.grenade&&!v.prevGren&&v.gcd<=0&&v.ammo2>0)heroThrow(v);v.prevGren=!!inp.grenade;
   // field supply: any hospital heals, your ammo tents and any ammo depot refill the rifle
@@ -3615,14 +3616,28 @@ function heroDie(v,by){
   if(team.view&&!G.demo)skullFor(team.view);note(v.team,'You were killed','bad',true);if(by!==undefined&&by!==v.team)note(by,'Enemy soldier down','good');
   if(team.view&&team.view.index===0)musicStop();
 }
+// (interiors branch, 9 Nov 2026) first-person feel: the camera no longer rides the head bone of the run animation. It sits at a
+// steady eye height and gets a small, smooth procedural bob (vertical at step rate, a touch of lateral sway and roll), a dip on
+// landing, and a lower stance when sprinting - the way a modern shooter does it. The rifle takes the same bob, slightly damped.
+const EYE={stand:1.62,crouch:1.12,walk:.014,sprint:.026,lat:.6,roll:.009,rate:7.5,sprintRate:9.5};
+function footEye(v,dt,out){
+  const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6),moving=mv>.12&&!v.air;
+  if(dt>0){v.bobPh=(v.bobPh||0)+dt*(v.sprint?EYE.sprintRate:EYE.rate)*(moving?Math.min(1,mv):0);
+    v.bobAmp=lerp(v.bobAmp||0,moving?(v.sprint?EYE.sprint:EYE.walk)*Math.min(1,mv):0,1-Math.exp(-dt*6));
+    v.landDip=Math.max(0,(v.landDip||0)-dt*.5);v.eyeH=lerp(v.eyeH==null?EYE.stand:v.eyeH,(v.crouch?EYE.crouch:EYE.stand)-(v.sprint?.06:0),1-Math.exp(-dt*9));}
+  const ph=v.bobPh||0,amp=v.bobAmp||0,dip=(v.landDip||0)>0?Math.sin(Math.min(1,v.landDip/.35)*Math.PI)*.07:0;
+  const by=-Math.abs(Math.sin(ph))*amp*1.2,bx=Math.sin(ph*.5)*amp*EYE.lat;const rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
+  out.set(v.x+rx*bx,v.y+(v.eyeH==null?EYE.stand:v.eyeH)+by-dip,v.z+rz*bx);
+  out.roll=Math.sin(ph*.5)*EYE.roll*(amp>0?Math.min(1,amp/EYE.walk):0);return out;}
+const _eye=new V3();
 function fpCamera(view,v,dt){
   const cam=view.cam;if(view.fpFov==null)view.fpFov=cam.fov;const asp=cam.aspect,want=asp<1?VMP.world:asp<1.3?78:70;
   if(cam.fov!==want){cam.fov=want;cam.updateProjectionMatrix();}
   const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);const by=Math.abs(Math.sin(FP.bob))*.035*mv;
   const sd=v.parts&&v.parts.sd;
-  if(sd&&sd.trooper&&sd.bones.head){v.obj.updateMatrixWorld(true);sd.bones.head.getWorldPosition(cam.position);cam.position.y+=.08;cam.position.x+=Math.sin(v.heading)*.1;cam.position.z+=Math.cos(v.heading)*.1;if(cam.near!==.08){cam.near=.08;cam.updateProjectionMatrix();}}
-  else cam.position.set(v.x,v.y+1.6+by,v.z);
-  cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,0);
+  footEye(v,dt,_eye);if(!v.camPos)v.camPos=_eye.clone();else{v.camPos.x=_eye.x;v.camPos.z=_eye.z;v.camPos.y=lerp(v.camPos.y,_eye.y,1-Math.exp(-dt*22));} // vertical only smoothed: no stair-step jitter, no lag when turning
+  cam.position.copy(v.camPos);if(sd&&sd.trooper&&cam.near!==.08){cam.near=.08;cam.updateProjectionMatrix();}
+  cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,_eye.roll||0);
   if(view.shake>0){cam.rotation.x+=rr(-.01,.01)*view.shake;cam.rotation.y+=rr(-.01,.01)*view.shake;view.shake=Math.max(0,view.shake-dt*3);}
   view.focus.set(v.x+Math.sin(v.heading)*14,v.y,v.z+Math.cos(v.heading)*14);
 }

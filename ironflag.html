@@ -468,7 +468,7 @@ const tmpBox=new THREE.Box3();
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
 const DATA='sp-data/',DATA_V='13';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
-const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
+const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone','hq'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock','s_dozer','s_m4','s_mg']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
 const MUS_KEYS=['m_drums','m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
@@ -578,7 +578,7 @@ async function loadAssets(){
   if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
   // hospital + ammo depot (built in Blender for Matt, SpoonPlatoon_Buildings/*_web.glb): field repair / rearm, see field supply
   try{const {MeshoptDecoder}=await import('three/addons/libs/meshopt_decoder.module.js');await MeshoptDecoder.ready;const ml=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-    for(const k of ['hospital','ammodepot','gasstation','drone']){if(!ex[k])continue;try{const kb=ex[k];const kg=await new Promise((res,rej)=>ml.parse(kb,'',res,rej));kg.scene.traverse(o=>{if(o.isMesh){o.material.flatShading=true;o.material.needsUpdate=true;}});A[k]=kg.scene;}catch(e){console.warn(k+' model',e);}}}catch(e){console.warn('meshopt decoder',e);}
+    for(const k of ['hospital','ammodepot','gasstation','drone','hq']){if(!ex[k])continue;try{const kb=ex[k];const kg=await new Promise((res,rej)=>ml.parse(kb,'',res,rej));kg.scene.traverse(o=>{if(o.isMesh){o.material.flatShading=true;o.material.needsUpdate=true;}});A[k]=kg.scene;}catch(e){console.warn(k+' model',e);}}}catch(e){console.warn('meshopt decoder',e);}
   try{const tl=new GLTFLoader(),got={};
     for(const [f,pr] of Object.entries(PRE.trees)){const b=await pr;if(b)got[f]=(await new Promise((res,rej)=>tl.parse(b,'',res,rej))).scene;}
     for(const [k,f] of Object.entries(RT_MAP)){const src=got[f],ref=A[k];if(!src||!ref)continue;
@@ -1763,7 +1763,7 @@ roughnessFactor=mix(.82-vScuff*.45,.6,vDark);`)
 metalnessFactor=mix(.06+vScuff*.5,.45,vDark);`);};
   VEH_REAL.set(key,m);return m;
 }
-const REAL_KINDS=new Set(['building','hospital','depot','gas','radio','tower','gen','fuel','gate']);
+const REAL_KINDS=new Set(['building','hospital','depot','gas','radio','tower','gen','fuel','gate','hq']);
 function realifyStructures(){
   if(!(TEXD.concrete&&TEXD.metal&&TEXD.roof&&TEXD.grime))return;
   for(const s of G.statics){if(!REAL_KINDS.has(s.kind)||!s.obj)continue;const cache=new Map();
@@ -1920,6 +1920,37 @@ function footprint(x,z,sx,sz,yaw,shrink=1){ // circles along long axis
   const pts=[];for(let k=0;k<n;k++){const o=n===1?0:(k/(n-1)-.5)*(long-short);pts.push([x+ax[0]*o,z+ax[1]*o,short/2*1.05]);}return pts;}
 function placeObj(name,s,x,z,yaw,tintKey,fn){const o=proto(name,s).clone();if(tintKey)tintObj(o,tintKey,fn);o.position.set(x,H(x,z),z);o.rotation.y=yaw;world.add(o);return o;}
 
+// ============================================================ INTERIORS (interiors branch, 9 Nov 2026)
+// A building with an interior collides on foot by its walls and furniture (local rectangles, model space: metres, floor y=0,
+// door on +Z) instead of its outer footprint, so you can walk through the doorway. Vehicles and AI troops still see the outer
+// footprint. While you stand inside, the 'Roof' group is hidden so the overhead camera can see in.
+const HQ_RECTS=[ // walls (0.4 thick) with the 1.8 m door gap in the +Z wall, then the furniture
+  {x:0,z:-4.8,sx:14,sz:.4},{x:-6.8,z:0,sx:.4,sz:10},{x:6.8,z:0,sx:.4,sz:10},{x:-3.95,z:4.8,sx:6.1,sz:.4},{x:3.95,z:4.8,sx:6.1,sz:.4},
+  {x:3.5,z:-3.0,sx:2.1,sz:1.0},{x:3.5,z:-2.2,sx:.6,sz:.6},{x:-2,z:-1,sx:2.5,sz:1.5},{x:0,z:-4.2,sx:1.7,sz:.8},{x:-6.3,z:1.5,sx:.7,sz:3.1},
+  {x:5.5,z:2.5,sx:1.2,sz:1.2},{x:4.3,z:3.2,sx:.9,sz:1.3},{x:-5.0,z:3.3,sx:2.1,sz:1.0},{x:1.5,z:-4.2,sx:1.3,sz:.8},
+  // sandbag nests and buttresses outside
+  {x:-5.2,z:6.9,sx:3.8,sz:.6},{x:5.2,z:6.9,sx:3.8,sz:.6},{x:-8.0,z:2.6,sx:.6,sz:2.9},{x:8.0,z:2.6,sx:.6,sz:2.9},{x:-7.3,z:-1,sx:.6,sz:1.2},{x:7.3,z:-1,sx:.6,sz:1.2}];
+const HQ_OUTER={sx:14,sz:10};
+function hqSetup(T,x,z,yaw,o){
+  const inner=o.children[0],off=inner?inner.position:{x:0,z:0}; // proto() recentres the model on its bounding box; undo that for the local rectangles
+  const c=Math.cos(yaw),sn=Math.sin(yaw);const toW=(lx,lz)=>{lx+=off.x;lz+=off.z;return [x+lx*c+lz*sn,z-lx*sn+lz*c];};
+  const [cx,cz]=toW(0,0);
+  const pts=rectFootprint(cx,cz,HQ_OUTER.sx+1.2,HQ_OUTER.sz+1.2,yaw,1);
+  const s=addStatic({kind:'hq',team:T,x:cx,z:cz,y0:o.position.y,h:4,hp:420,obj:o,pts,reach:12});
+  s.rect=null; // on foot the walls do the work
+  const w=HQ_RECTS.map(r=>{const [wx,wz]=toW(r.x,r.z);return {x:wx,z:wz,sx:r.sx,sz:r.sz,yaw};});
+  s.interior={open:true,w,outer:{x:cx,z:cz,sx:HQ_OUTER.sx,sz:HQ_OUTER.sz,yaw},roof:o.getObjectByName('Roof'),inner:o.getObjectByName('Interior'),door:toW(0,5.4),occupied:false};
+  const li=new THREE.PointLight(0xffe0b0,0,17,1.4);li.position.set(cx,o.position.y+3.1,cz);world.add(li);s.interior.light=li; // the room lights come on when you are inside (the ceiling stays on in first person; it only lifts for an overhead/spectator view)
+  G.interiors=G.interiors||[];G.interiors.push(s);return s;}
+function inRect(x,z,R,m=0){const c=Math.cos(R.yaw),sn=Math.sin(R.yaw),dx=x-R.x,dz=z-R.z;const lx=dx*c-dz*sn,lz=dx*sn+dz*c;return Math.abs(lx)<R.sx/2+m&&Math.abs(lz)<R.sz/2+m;}
+function interiorTick(){ // roof off while anyone on foot (a human) stands inside
+  if(!G.interiors)return;
+  for(const s of G.interiors){let inside=false;
+    if(s.alive)for(const t of G.teams){const v=t.vehicle;if(v&&v.type==='foot'&&v.state==='active'&&inRect(v.x,v.z,s.interior.outer,-.1)){inside=true;v.inside=s;}}
+    if(inside!==s.interior.occupied){s.interior.occupied=inside;if(s.interior.light)s.interior.light.intensity=inside?7:0;}
+    if(s.interior.roof)s.interior.roof.visible=!(s.interior.occupied&&(G.debugCam||SPEC.watching));}
+  for(const t of G.teams){const v=t.vehicle;if(v&&v.inside&&!(v.type==='foot'&&v.state==='active'&&v.inside.alive&&inRect(v.x,v.z,v.inside.interior.outer,-.1)))v.inside=null;}
+}
 function buildBase(b){
   const T=b.team;const fx=T===0?1:-1; // local->world mirror
   const toW=(lx,lz)=>[b.x+lx*fx,b.z+lz*fx];
@@ -1965,6 +1996,12 @@ function buildBase(b){
       const sz=proto(nm,sc).userData.size,turned=Math.round(yaw/(Math.PI/2))%2===1,wx=turned?sz.z:sz.x,wz=turned?sz.x:sz.z;
       const pts=rectFootprint(x,z,sz.x,sz.z,yaw,.96); /* hugs the walls (old 4 big circles bulged ~3 m past them and pinched the gaps) */
       addStatic({kind,team:T,x,z,y0:o.position.y,h:sz.y,hp,obj:o,pts,reach:Math.max(wx,wz)/2+7});break;}}
+  // (interiors branch, 9 Nov 2026) the enemy Command Post: a concrete bunker you can walk into on foot. Black Tide only, enemy base only.
+  if(T===1&&G.op&&CAMP===2&&A.hq){const e=G.bases[0];
+    for(let tr=0;tr<400;tr++){const a=RND()*TAU,rad=rr(20,46);const [x,z]=toW(Math.cos(a)*rad,Math.sin(a)*rad);
+      if(near(x,z,13)||H(x,z)<1.2||Math.hypot(x-b.x,z-b.z)<20||G.statics.some(st=>st.alive&&st.kind!=='wall'&&st.kind!=='hedge'&&Math.hypot(st.x-x,st.z-z)<(st.kind==='building'?11:(st.r||5))+13))continue;
+      const yaw=Math.round(Math.atan2(e.x-x,e.z-z)/(Math.PI/2))*(Math.PI/2); // door (model +Z) faces the attacker's side of the island
+      const o=placeObj('hq',1,x,z,yaw);o.position.y=Math.min(H(x,z),3);hqSetup(T,x,z,yaw,o);break;}}
   // decor: tents, fuel, crates, barrels, tower, radio
   const decor=[['tent',.7,4,45,'tent'],['tentBig',.7,4,60,'tent'],['radio',.75,3,90,'radio'],['watchtower',.65,2.4,70,'tower'],['fuel',6,2.4,40,'fuel'],['generator',1.1,1.3,40,'gen']];
   for(const [nm,sc,r,hp,kind] of decor){for(let tr=0;tr<25;tr++){const a=RND()*TAU,rad=rr(16,56);const [x,z]=toW(Math.cos(a)*rad,Math.sin(a)*rad);
@@ -3498,17 +3535,16 @@ function removeHero(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.
 const FOOT_R=.38;
 function footWalls(p,T){ // (interiors branch, 9 Nov 2026) slide the player out of any building rectangle: wall-accurate, no circle bulge at the corners
   for(let pass=0;pass<2;pass++){let moved=false;staticsNear(p.x,p.z,_sn);
-    for(const s of _sn){const R=s.rect;if(!R||!s.alive||(s.kind==='gate'&&s.team===T))continue;
-      if(s.interior&&s.interior.open)continue; // an enterable building collides by its own walls (footInside)
-      const c=Math.cos(R.yaw),sn=Math.sin(R.yaw),dx=p.x-R.x,dz=p.z-R.z;const lx=dx*c-dz*sn,lz=dx*sn+dz*c; // into the rectangle's frame
-      const hx=R.sx/2+FOOT_R,hz=R.sz/2+FOOT_R;if(Math.abs(lx)>=hx||Math.abs(lz)>=hz)continue;
-      const px=hx-Math.abs(lx),pz=hz-Math.abs(lz);let ox=0,oz=0;if(px<pz)ox=px*Math.sign(lx||1);else oz=pz*Math.sign(lz||1);
-      p.x+=ox*c+oz*sn;p.z+=-ox*sn+oz*c;moved=true;}
+    for(const s of _sn){if(!s.alive||(s.kind==='gate'&&s.team===T))continue;const list=s.interior&&s.interior.open?s.interior.w:(s.rect?[s.rect]:null);if(!list)continue;
+      for(const R of list){const c=Math.cos(R.yaw),sn=Math.sin(R.yaw),dx=p.x-R.x,dz=p.z-R.z;const lx=dx*c-dz*sn,lz=dx*sn+dz*c; // into the rectangle's frame
+        const hx=R.sx/2+FOOT_R,hz=R.sz/2+FOOT_R;if(Math.abs(lx)>=hx||Math.abs(lz)>=hz)continue;
+        const px=hx-Math.abs(lx),pz=hz-Math.abs(lz);let ox=0,oz=0;if(px<pz)ox=px*Math.sign(lx||1);else oz=pz*Math.sign(lz||1);
+        p.x+=ox*c+oz*sn;p.z+=-ox*sn+oz*c;moved=true;}}
     if(!moved)break;}
   return p;}
 function footBlocked(x,z,T,self){ // like soldierBlocked, but your OWN bunker pad is walkable (that's where you run the objective home)
   if(!passable(x,z))return true;staticsNear(x,z,_sn);for(const s of _sn){if(s.kind==='gate'&&s.team===T)continue;
-    if(s.rect){if(s.interior&&s.interior.open)continue;const R=s.rect,c=Math.cos(R.yaw),sn=Math.sin(R.yaw),dx=x-R.x,dz=z-R.z;const lx=dx*c-dz*sn,lz=dx*sn+dz*c;if(Math.abs(lx)<R.sx/2+FOOT_R-.02&&Math.abs(lz)<R.sz/2+FOOT_R-.02)return true;continue;}
+    if(s.rect||(s.interior&&s.interior.open)){const list=s.interior&&s.interior.open?s.interior.w:[s.rect];for(const R of list){const c=Math.cos(R.yaw),sn=Math.sin(R.yaw),dx=x-R.x,dz=z-R.z;const lx=dx*c-dz*sn,lz=dx*sn+dz*c;if(Math.abs(lx)<R.sx/2+FOOT_R-.02&&Math.abs(lz)<R.sz/2+FOOT_R-.02)return true;}continue;}
     for(const q of s.pts){const dx=q[0]-x,dz=q[1]-z,r=q[2]+.35;if(dx*dx+dz*dz<r*r)return true;}}
   const eb=G.bases[1-T];if(Math.abs(x-eb.x)<7.5&&Math.abs(z-eb.z)<7.5)return true;for(const o of G.vehicles){if(o===self||o.def.air||o.state!=='active'||o.type==='foot')continue;if(Math.hypot(o.x-x,o.z-z)<o.r*.85+.45)return true;}return false;}
 function carryAttach(f,v){ // the objective rides on the jeep's roof, the six-wheeler's deck, or the soldier's back
@@ -3926,6 +3962,9 @@ function destroyStatic(s,byTeam){
       if(s.hasFlag){const [fx,fz]=rubbleFlagSpot(s);exposeFlag(G.flags[s.team],fx,fz);}else note(byTeam,`Building destroyed — no ${objName(G.flags[s.team]).toLowerCase()} inside`,'info');break;}
     case 'gate':{explosion(s.x,y+1,s.z,2.2);sfx('bigboom',s.x,s.z);s.panel.visible=false;tintObj(s.obj,'rubble',darken);s.smoke=12;G.smokers.push(s);debris(s.x,y,s.z,8,9);
       note(s.team,'Your base gate was blown open!','bad',true);note(1-s.team,'Enemy gate breached!','good',true);break;}
+    case 'hq':{explosion(s.x,y,s.z,3.2);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=24;G.smokers.push(s);debris(s.x,y,s.z,10,12);
+      if(s.interior){s.interior.open=false;if(s.interior.roof)s.interior.roof.visible=true;s.rect=s.interior.outer;} // collapsed: solid rubble now
+      note(s.team,'Your command post was destroyed!','bad',true);note(1-s.team,'Enemy command post destroyed','good');break;}
     case 'hospital':case 'depot':case 'gas':{const dep=s.kind!=='hospital';explosion(s.x,y,s.z,dep?3.4:2.6);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=dep?26:18;G.smokers.push(s);debris(s.x,y,s.z,10,12);
       if(dep){splashDamage(s.x,y,s.z,15,95,-2,s);for(let i=0;i<4;i++)explosion(s.x+rr(-6,6),y+rr(0,2),s.z+rr(-6,6),rr(1.2,1.8));}
       const nm={hospital:'hospital',depot:'ammo depot',gas:'gas station'}[s.kind];note(s.team,'Your '+nm+' was destroyed!','bad',true);note(1-s.team,'Enemy '+nm+' destroyed','good');break;}
@@ -5327,7 +5366,7 @@ function togglePause(){paused=!paused;$('#pause').hidden=!paused;$('#pRestart').
 let last=performance.now();
 const _ft=new V3();
 function step(dt){
-  G.time+=dt;if(G.burn)themeTick(dt);if(WX.kind)weatherTick(dt);if(G.mission)missionTick(dt);
+  G.time+=dt;if(G.burn)themeTick(dt);if(WX.kind)weatherTick(dt);if(G.interiors)interiorTick();if(G.mission)missionTick(dt);
   if(G.water){if(G.water.tex){G.water.tex.offset.x+=dt*.012;G.water.tex.offset.y+=dt*.008;}if(G.water.u)G.water.u.uT.value+=dt;}
   for(const t of G.teams){
     if(t.respawnT>0)t.respawnT-=dt;
@@ -5984,7 +6023,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,toggleFoot,footWalls,footBlocked,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,toggleFoot,footWalls,footBlocked,inRect,HQ_RECTS,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

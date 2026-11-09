@@ -3541,7 +3541,16 @@ function fitReal(src,len,turretName){
   const b=new THREE.Box3().setFromObject(wrap),c=b.getCenter(new V3());wrap.position.set(-c.x,-b.min.y,-c.z);
   const L=b.max.z-b.min.z,sc=len/L;g.scale.setScalar(sc);g.updateMatrixWorld(true);
   const tw=turretName&&src.getObjectByName(turretName);
-  if(tw){const piv=new THREE.Group();piv.name='TurretPivot';const wp=tw.getWorldPosition(new V3());wrap.add(piv);piv.position.copy(wrap.worldToLocal(wp));piv.updateMatrixWorld(true);piv.attach(tw);g.userData.turret=piv;}
+  if(tw){const piv=new THREE.Group();piv.name='TurretPivot';const wp=tw.getWorldPosition(new V3());
+    // (Matt, 8 Nov 2026) the FBX turret node's origin sits at the mantlet, so the turret used to swing around its front edge.
+    // Put the pivot on the ring instead: take the turret body's footprint (the wide vertices - the barrel is narrow) and
+    // place the pivot 40% back from the body's front edge, centred across the width, which is where the ring is on a tank.
+    let mesh=null;tw.traverse(o=>{if(o.isMesh&&!mesh)mesh=o;});
+    if(mesh){const pos=mesh.geometry.attributes.position,v=new V3();let x0=1e9,x1=-1e9;const pts=[];
+      for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i);mesh.localToWorld(v);x0=Math.min(x0,v.x);x1=Math.max(x1,v.x);pts.push(v.x,v.z);}
+      const cx=(x0+x1)/2,hw=(x1-x0)/2;let z0=1e9,z1=-1e9;for(let i=0;i<pts.length;i+=2)if(Math.abs(pts[i]-cx)>hw*.3){z0=Math.min(z0,pts[i+1]);z1=Math.max(z1,pts[i+1]);}
+      if(z1>z0){wp.x=cx;wp.z=z1-(z1-z0)*.4;}}
+    wrap.add(piv);piv.position.copy(wrap.worldToLocal(wp));piv.updateMatrixWorld(true);piv.attach(tw);g.userData.turret=piv;}
   src.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;const m=o.material;if(m.map){m.map.anisotropy=4;}m.envMapIntensity=.6;}});
   const b2=new THREE.Box3().setFromObject(g);g.userData.size=b2.getSize(new V3());g.userData.box=b2;
   return g;

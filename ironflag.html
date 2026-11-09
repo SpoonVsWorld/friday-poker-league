@@ -4118,7 +4118,7 @@ function podTaken(P){
 // bulldozer. The supply transport flies in from behind your base and parachutes it onto open ground in front of the bunker;
 // you are in the seat when it lands. It grinds through buildings, tents, turrets and gates, rams vehicles, flattens trees,
 // has ~4x a tank's armor, a tracking autocannon turret, and never stows (too big for the elevator) - it lives until it dies.
-const DOZER={cost:4,scale:1.2,alt:46,speed:44,fall:7.5,crush:130,ram:70,selfHurt:4};
+const DOZER={cost:2,scale:1.2,alt:46,speed:44,fall:7.5,crush:130,ram:70,selfHurt:4};
 const DOZ_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><path d="M14 20h34l-2 3H16z" fill="#2a2a26"/><rect x="18" y="9" width="24" height="10" fill="#6f7f3c"/><rect x="26" y="4" width="12" height="6" fill="#4e5a2a"/><path d="M44 8h8l6 12H44z" fill="#9a6a3a"/><path d="M52 8l3-4 1 5zM56 12l3-3v4zM58 16l4-2-1 4z" fill="#c9b98a"/><circle cx="20" cy="20" r="3" fill="#555"/><circle cx="30" cy="20" r="3" fill="#555"/><circle cx="40" cy="20" r="3" fill="#555"/></svg>';
 function dozerShown(){return !!(A.dozer&&G&&G.teams[0].navyOn&&(G.op||devActive())&&!G.net&&!G.demo);}
 function dozerCount(){if(devActive())return 99;return Math.floor(mslCount()/DOZER.cost);}

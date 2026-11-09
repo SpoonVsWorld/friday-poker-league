@@ -171,7 +171,7 @@ body.touchui .sel{gap:9px}body.touchui .sel h2{font-size:clamp(16px,2.6vw,24px)}
 .mslbtn.on{border-color:var(--signal);box-shadow:0 0 0 2px var(--signal) inset}
 .mslbtn[disabled]{opacity:.5;cursor:not-allowed}
 .mslbtn:not([disabled]):hover{border-color:var(--signal)}
-.mslbtn.orbbtn i{color:#7fb0ff}.mslbtn.orbbtn.on{border-color:#7fb0ff;box-shadow:0 0 0 2px #7fb0ff inset}.mslbtn.nukebtn i{color:#ff8a6a}.mslbtn.nukebtn.on{border-color:#ff8a6a;box-shadow:0 0 0 2px #ff8a6a inset}
+.mslbtn.dozbtn i{color:#e0b84a}.mslbtn.dozbtn.on{border-color:#e0b84a;box-shadow:0 0 0 2px #e0b84a inset}.mslbtn.orbbtn i{color:#7fb0ff}.mslbtn.orbbtn.on{border-color:#7fb0ff;box-shadow:0 0 0 2px #7fb0ff inset}.mslbtn.nukebtn i{color:#ff8a6a}.mslbtn.nukebtn.on{border-color:#ff8a6a;box-shadow:0 0 0 2px #ff8a6a inset}
 #msl{position:fixed;inset:0;z-index:18;background:#0b1a20;touch-action:none;user-select:none;-webkit-user-select:none}
 #msl canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
 #msl .mtop,#msl .mbot{position:absolute;left:0;right:0;display:flex;align-items:center;gap:12px;background:rgba(8,11,8,.86);color:var(--sand);box-sizing:border-box;padding-left:calc(14px + var(--sal));padding-right:calc(14px + var(--sar))}
@@ -469,7 +469,7 @@ const tmpBox=new THREE.Box3();
 const DATA='sp-data/',DATA_V='13';
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone'];
-const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
+const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock','s_dozer']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
 const MUS_KEYS=['m_drums','m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
 const PRE={assets:fetchBin('assets.glb'),ex:Object.fromEntries(EXTRA_KEYS.map(k=>[k,fetchBin(k+'.glb').catch(e=>{console.warn('model',k,e);return null;})])),audio:null};
 // Retro Tree Pack (Matt's Kenney folder, Low Res GLBs with WebP textures): photo-textured trees replace the cartoon Kenney
@@ -499,6 +499,7 @@ PRE.props=fetchBin('props.glb').catch(e=>{console.warn('props',e);return null;})
 PRE.trooper=fetchBin('trooper.glb').catch(e=>{console.warn('trooper',e);return null;}); // (Matt, 28 Oct 2026) the new player character: Mixamo's armoured trooper (Ch15) + his rifle move set, built in Blender from the 6 packs
 PRE.hero=fetchBin('hero.glb').catch(e=>{console.warn('hero',e);return null;}); // ON FOOT: Matt's own soldier (Male Military Soldier, Mixamo) + first-person arms/carbine posed from it (FPView)
 PRE.jet2=fetchBin('jet.glb').catch(e=>{console.warn('jet skin',e);return null;}); // (Matt, 8 Nov 2026) realistic two-tone grey 'Have Glass' skin baked in Blender, spoon emblems on the tail fins; Black Tide player/runway jets only
+PRE.dozer=fetchBin('killdozer.glb').catch(e=>{console.warn('killdozer',e);return null;}); // (Matt, 8 Nov 2026) the Killdozer: armored spiked dozer built in Blender (SpoonPlatoon_Buildings/killdozer), baked atlas + decal planes, turret under TurretPivot
 PRE.boat=fetchBin('boat.glb').catch(e=>{console.warn('boat',e);return null;}); // (Matt, 7 Nov 2026) patrol boat for the Black Tide campaign (Kenney\Boat.blend -> SpoonPlatoon_Buildings\boat: hull + GunRoof/GunL/GunR pivots)
 PRE.truck=fetchBin('truck.glb').catch(e=>{console.warn('truck',e);return null;}); // six-wheeler (Matt's 6x6, Kenney\blend.blend, reduced to ~31k tris: TruckBody, TruckGun on the roof ring, Wheel_F/M/B L/R)
 PRE.jeepOpen=fetchBin('jeep_open.glb').catch(e=>{console.warn('jeep_open',e);return null;});PRE.crew=fetchBin('crew.glb').catch(e=>{console.warn('crew',e);return null;});
@@ -539,6 +540,10 @@ async function loadAssets(){
   try{const jb2=await PRE.jet2;if(jb2){const jg2=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(jb2,'',res,rej));
     jg2.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;const m=o.material,n=m.name||'';if(/^Decal/.test(n)){m.transparent=true;m.depthWrite=false;m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=1;o.castShadow=false;}
       else if(n==='Canopy'){m.color.setHex(0x16222e);m.emissive.setHex(0x000000);m.transparent=true;m.opacity=.88;m.roughness=.2;m.metalness=.5;m.envMapIntensity=.5;m.depthWrite=true;}else{m.envMapIntensity=.9;}m.needsUpdate=true;});A.jet2=jg2.scene;}}catch(e){console.warn('jet skin model',e);}
+  try{const db=await PRE.dozer;if(db){const dg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(db,'',res,rej));
+    dg.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;const m=o.material,n=m.name||'';
+      if(/^Decal/.test(n)){m.transparent=true;m.depthWrite=false;m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=1;o.castShadow=false;}
+      else if(n==='Lens'||n==='Slit'){m.roughness=.1;m.metalness=.6;m.envMapIntensity=1;}else{m.envMapIntensity=.5;}m.needsUpdate=true;});A.dozer=dg.scene;}}catch(e){console.warn('killdozer model',e);}
   try{const bb=await PRE.boat;if(bb){const bg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(bb,'',res,rej));const gm=new THREE.MeshStandardMaterial({color:0x2b2d2a,roughness:.45,metalness:.6});
     bg.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;if(/^Gun/.test(o.name)||!o.geometry.attributes.uv)o.material=gm;else{const m=o.material;m.normalMap=null;m.color.setScalar(1.5);m.envMapIntensity=.7;m.roughness=Math.max(m.roughness,.6);m.metalness=Math.min(m.metalness,.3);m.side=THREE.FrontSide;m.needsUpdate=true;}});A.boat=bg.scene; /* the old .blend wired the paint texture into the normal slot too */}}catch(e){console.warn('boat model',e);}
   try{const sb=await PRE.sub;if(sb){const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));const sr=sg.scene.getObjectByName('sub')||sg.scene;sr.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(sr);sr.scale.setScalar(NUKE.subLen/Math.max(1,bb.max.z-bb.min.z));sr.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.7;}});A.sub=sr;const nm=sg.scene.getObjectByName('NukeMissile');if(nm){nm.position.set(0,0,0);nm.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.8;}});A.nukeMissile=nm;}}}catch(e){console.warn('sub model',e);}
@@ -794,7 +799,7 @@ function engineFor(view){
   const c=AU.ctx;if(!c)return null;
   if(AU.ready&&AU.buf.s_engine){
     const mk=(name,a,b)=>{const s=c.createBufferSource();s.buffer=AU.buf[name];s.loop=true;if(a!=null){s.loopStart=a;s.loopEnd=b;}const g=c.createGain();g.gain.value=0;s.connect(g);g.connect(AU.sfx);s.start();return {s,g};};
-    const L={heavy:mk('s_engine'),fast:mk('s_engine_fast'),heli:mk('s_heli')};
+    const L={heavy:mk('s_engine'),fast:mk('s_engine_fast'),heli:mk('s_heli')};if(AU.buf.s_dozer)L.dozer=mk('s_dozer'); // (Matt, 8 Nov 2026) his bulldozer recording
     return {rec:true,L,stop(){for(const k in L)try{L[k].s.stop();}catch(e){}}};}
   const o=c.createOscillator();o.type='sawtooth';const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=300;
   const g=c.createGain();g.gain.value=0;const lfo=c.createOscillator();lfo.frequency.value=14;const lg=c.createGain();lg.gain.value=0;
@@ -807,8 +812,9 @@ function updateEngine(view){
   const e=view.engine;if(!e)return;const v=view.team.vehicle;const t=AU.ctx.currentTime;
   const off=!v||v.state==='dead'||v.type==='foot'||G.over||paused;
   if(e.rec){const sc=G.views.length>1?.6:1;const sp=v?Math.abs(v.speed)/v.def.speed:0;
-    const want={heavy:0,fast:0,heli:0};let rate={heavy:1,fast:1,heli:1};
+    const want={heavy:0,fast:0,heli:0,dozer:0};let rate={heavy:1,fast:1,heli:1,dozer:1};
     if(!off){if(v.type==='heli'){want.heli=.55*sc;rate.heli=.95+sp*.15;}
+      else if(v.type==='dozer'){if(e.L.dozer){want.dozer=(.45+sp*.35)*sc;rate.dozer=.9+sp*.3+(v.crushT>0?.12:0);}else{want.heavy=(.3+sp*.3)*sc;rate.heavy=.7+sp*.3;}}
       else if(v.type==='jet'){const ab=v.ab||0;want.fast=(.3+ab*.25)*sc;rate.fast=1.45+sp*.5+ab*.25;}else if(v.type==='boat'){want.heavy=(.2+sp*.3)*sc;rate.heavy=.68+sp*.5;}
       else if(v.type==='jeep'){want.fast=(.16+sp*.3)*sc;rate.fast=.85+sp*.45;}else if(v.type==='truck'){want.fast=(.2+sp*.3)*sc;rate.fast=.62+sp*.38;}
       else{want.heavy=(.22+sp*.3)*sc;rate.heavy=(v.type==='asv'?.82:.9)+sp*.35;}}
@@ -818,7 +824,7 @@ function updateEngine(view){
   const sp=Math.abs(v.speed)/v.def.speed;const sc=G.views.length>1?.6:1;
   if(v.type==='heli'){e.o.frequency.setTargetAtTime(55+sp*20,t,.1);e.f.frequency.setTargetAtTime(380,t,.1);e.g.gain.setTargetAtTime(.0,t,.1);
     e.lfo.frequency.setTargetAtTime(15+sp*4,t,.2);e.lg.gain.setTargetAtTime(.11*sc,t,.1);e.ng.gain.setTargetAtTime(.1*sc,t,.1);e.nf.frequency.setTargetAtTime(380,t,.1);}
-  else{const base={tank:38,asv:32,jeep:70,truck:52,boat:30,jet:95}[v.type];e.o.frequency.setTargetAtTime(base+sp*base*1.2,t,.1);e.f.frequency.setTargetAtTime(240+sp*500,t,.1);
+  else{const base={tank:38,asv:32,jeep:70,truck:52,boat:30,jet:95,dozer:26}[v.type]||40;e.o.frequency.setTargetAtTime(base+sp*base*1.2,t,.1);e.f.frequency.setTargetAtTime(240+sp*500,t,.1);
     e.g.gain.setTargetAtTime((.05+sp*.06)*sc,t,.1);e.lg.gain.setTargetAtTime(0,t,.1);e.ng.gain.setTargetAtTime((v.type==='jeep'?.02:.05)*sp*sc,t,.1);e.nf.frequency.setTargetAtTime(700,t,.1);}
 }
 // ---- music: public-domain themes as simple chiptune loops
@@ -838,7 +844,7 @@ const TRACKS={
   mars:{bpm:168,lead:[[55,.333],[55,.333],[55,.333],[55,.5],[55,.5],[55,1],[55,1],[55,1],[55,.333],[55,.333],[55,.333],[55,.5],[55,.5],[56,1],[61,1],[62,1]],
     bass:[[43,.333],[43,.333],[43,.333],[43,.5],[43,.5],[43,1],[43,1],[43,1],[43,.333],[43,.333],[43,.333],[43,.5],[43,.5],[44,1],[49,1],[50,1]]},
 };
-const VEH_MUSIC={tank:'mars',asv:'mountain',heli:'valkyries',jeep:'bumblebee',truck:'bumblebee',boat:'mountain',jet:'valkyries'};
+const VEH_MUSIC={dozer:'mars',tank:'mars',asv:'mountain',heli:'valkyries',jeep:'bumblebee',truck:'bumblebee',boat:'mountain',jet:'valkyries'};
 const MUS={track:null,next:0,i:[0,0],t:[0,0],loop:0,timer:null,src:null,gain:null};
 function musicPlay(name,once){
   if(!AU.ctx||MUS.track===name)return;stopRecorded();MUS.track=name;
@@ -3155,6 +3161,7 @@ const VDEF={
   boat:{name:'Patrol Boat',hp:170,speed:21,turn:1.15,fuel:150,ammo:500,ammo2:0,r:5,h:3.4,air:false,desc:'Water only. Roof gun tracks targets; two deck gunners fire on their own.',w1:'Roof gun',w2:''},
   jet:{name:'Jet',hp:70,speed:54,turn:1.3,fuel:95,ammo:400,ammo2:6,r:3.6,h:2.4,air:true,desc:'Catapults off the carrier. Never stops. Brake over the carrier to land.',w1:'Cannon',w2:'Bombs'},
   tel:{name:'Launcher truck',hp:420,speed:13,turn:1.1,fuel:1e9,ammo:0,ammo2:0,r:3.6,h:5,air:false,desc:'',w1:'',w2:''}, /* Black Tide: the enemy's mobile launcher (missionSetup) */
+  dozer:{name:'Killdozer',hp:900,speed:9,turn:.85,fuel:240,ammo:60,ammo2:0,r:4.6,h:6,air:false,desc:'Armored spiked dozer. Crushes buildings and rams vehicles. Shrugs off fire. Autocannon turret tracks threats.',w1:'Autocannon',w2:''}, /* Black Tide: bought with banked missile strikes, air-dropped (dozerCall) */
   truck:{name:'Six-Wheeler',hp:90,speed:25,turn:2,fuel:130,ammo:160,ammo2:0,r:2.9,h:2.6,air:false,desc:'Armored 6×6 jeep. Roof gun tracks targets, plows through water and trees, carries the objective.',w1:'Roof gun',w2:''},
 };
 const VORDER=['tank','heli','asv','jeep','truck','boat','jet'];
@@ -3226,7 +3233,7 @@ function jetFly(v,inp,thr,turn,dt){
 // SIX-WHEELER (Matt, 27 Oct 2026): a special jeep. Unlocked by beating Operation 10 (or dev mode); one per operation, campaign only.
 // Same job as the jeep (carries the objective, inflates its tyres to cross water) plus a roof gun that tracks the nearest threat
 // (mouse / Q-E / right stick take over), 9x the jeep's armour, faster wading and it flattens trees like the tank.
-const MSL_SLOT=VORDER.length,NUKE_SLOT=MSL_SLOT+1,ORB_SLOT=NUKE_SLOT+1; // bunker menu slots: missile strike, then the nuclear strike (after the vehicle cards)
+const MSL_SLOT=VORDER.length,NUKE_SLOT=MSL_SLOT+1,ORB_SLOT=NUKE_SLOT+1,DOZ_SLOT=ORB_SLOT+1; // bunker menu slots: missile strike, then the nuclear strike (after the vehicle cards)
 const CARRIER=v=>v.type==='jeep'||v.type==='truck'||v.type==='foot'; // vehicles that can pick up and run the objective home
 const TRUCK_LEN=6.2,TRUCK_ITEM={y:2.2,z:-2.55,s:.6},_tq=new V3();
 function truckUnlocked(){if(!A.truck)return false;if(DEV.on)return true;const b=loadOpsK(CAMPS[1].key).best||{};return b[9]!=null;} /* unlocked by Iron Curtain's Operation 10 */
@@ -3570,6 +3577,9 @@ function buildVehicleObj(type,T){
   else if(type==='jet'){const m=makeJetObj(T,true);g.add(m);parts.glow=m.children[m.children.length-1];parts.flame=m.getObjectByName('flame')||null;}
   else if(type==='truck'){const pr=proto('truck',1);const m=tintObj(proto('truck',TRUCK_LEN/pr.userData.size.z).clone(),'veh'+T,teamMark(T));g.add(m);parts.wheels=[];
     m.traverse(o=>{if(/^Wheel_[FMB][LR]$/.test(o.name)){o.rotation.order='YXZ';parts.wheels.push(o);}});parts.front=parts.wheels.filter(w=>/^Wheel_F/.test(w.name)); /* pivots (the meshes sit under Wheel_xx_mesh children: meshopt keeps its dequantize scale on those) */parts.gun=m.getObjectByName('TruckGun');}
+  else if(type==='dozer'){const m=A.dozer.clone(true);m.scale.setScalar(DOZER.scale);g.add(m);
+    m.traverse(o=>{if(o.isMesh&&o.material&&o.material.name==='TeamBand'){o.material=o.material.clone();o.material.color.set(TEAMS[T].color);o.material.emissive.set(TEAMS[T].color);o.material.emissiveIntensity=.25;}});
+    parts.gun=m.getObjectByName('TurretPivot');}
   else{const m=tintObj(proto('jeep',1).clone(),'veh'+T,teamTint(T));g.add(m);parts.wheels=[];m.traverse(o=>{if(/^Wheel/.test(o.name)){o.rotation.order='YXZ';parts.wheels.push(o);}});
     parts.front=parts.wheels.filter(w=>w.position.z>0);}
   // team ring
@@ -3849,6 +3859,7 @@ function updateVehicle(v,inp,dt){
   if(v.type==='foot'){if(v.state==='active')updateFoot(v,inp,dt);return;}
   const team=G.teams[v.team],b=G.bases[v.team];
   if(v.hitFlash>0)v.hitFlash-=dt;
+  if(v.state==='dropping'){dozerDropTick(v,dt);syncObj(v,dt);return;}
   if(v.state==='rising'&&v.type==='boat'){v.stateT+=dt;v.y=lerp(-4.5,0,smooth(0,1.6,v.stateT));if(v.stateT>=1.6)v.state='active';syncObj(v,dt);return;}
   if(v.state==='lowering'&&v.type==='boat'){v.stateT+=dt;v.y=lerp(0,-4.5,smooth(0,1.4,v.stateT));v.x=lerp(v.x,v.dock.x,dt*2);v.z=lerp(v.z,v.dock.z,dt*2);syncObj(v,dt);if(v.stateT>=1.4)stowVehicle(v);return;}
   if(v.state==='lowering'&&v.type==='jet'){v.stateT+=dt;const Ld=v.land;v.speed=lerp(v.speed,4,1-Math.exp(-dt*1.4));v.x+=fwdX(v.heading)*v.speed*dt;v.z+=fwdZ(v.heading)*v.speed*dt;if(!Ld.c){v.x=lerp(v.x,Ld.x,dt*2);v.z=lerp(v.z,Ld.z,dt*2);}
@@ -3887,7 +3898,7 @@ function updateVehicle(v,inp,dt){
     const shallow=H(v.x,v.z)<0&&!onBridge(v.x,v.z);
     let max=def.speed*(v.type==='boat'?1:shallow?(v.type==='truck'?(v.floats?.62:.78):v.floats?.42:.5):1); /* six-wheeler wades much faster */
     const tgt=thr>0?thr*max:thr*max*.55;
-    const acc=v.type==='boat'?1.1:v.type==='jeep'?2.2:v.type==='truck'?2.5:1.5;v.speed=lerp(v.speed,tgt,1-Math.exp(-dt*acc*(Math.abs(tgt)<Math.abs(v.speed)?1.6:1)));
+    const acc=v.type==='boat'?1.1:v.type==='jeep'?2.2:v.type==='truck'?2.5:v.type==='dozer'?.8:1.5;v.speed=lerp(v.speed,tgt,1-Math.exp(-dt*acc*(Math.abs(tgt)<Math.abs(v.speed)?1.6:1)));
     let tr=def.turn;if(v.type==='jeep'||v.type==='truck'){tr*=clamp(Math.abs(v.speed)/6,0,1)*(v.speed<0?-1:1);}else if(v.type==='boat'){tr*=clamp(.3+Math.abs(v.speed)/7,0,1)*(v.speed<-.5?-1:1);}
     const h0=v.heading;v.heading-=turn*tr*dt;v.steer=lerp(v.steer,turn,dt*8);
     if(v.heading!==h0&&staticPen(v,v.x,v.z)>staticPen(v,v.x,v.z,h0)+1e-4)v.heading=h0; /* don't swing the nose/tail deeper into a wall */
@@ -3895,12 +3906,14 @@ function updateVehicle(v,inp,dt){
     let nx=v.x+fx*v.speed*dt,nz=v.z+fz*v.speed*dt;
     let blk=blockedAt(v,nx,nz);
     if(blk&&blk!==true&&!blk.def){const pc=staticPen(v,v.x,v.z);if(pc>0&&staticPen(v,nx,nz)<pc)blk=false;} /* already touching: any move that backs out is allowed */
+    v.crushT=Math.max(0,(v.crushT||0)-dt);
+    if(blk&&v.type==='dozer'&&blk!==true&&dozerCrush(v,blk,dt,thr)){nx=v.x;nz=v.z;v.speed=clamp(v.speed,-1.5,1.5);blk=false;} // the Killdozer grinds through whatever it is pushing on
     if(blk){if(!blockedAt(v,nx,v.z)){nz=v.z;v.speed*=.85;}else if(!blockedAt(v,v.x,nz)){nx=v.x;v.speed*=.85;}else{nx=v.x;nz=v.z;
-      if(blk.kind==='tree'&&(v.type==='tank'||v.type==='asv'||v.type==='truck')&&Math.abs(v.speed)>3){damage(blk,40,v.team);} // heavy armor flattens trees
+      if(blk.kind==='tree'&&(v.type==='tank'||v.type==='asv'||v.type==='truck'||v.type==='dozer')&&Math.abs(v.speed)>3){damage(blk,40,v.team);} // heavy armor flattens trees
       v.speed*=-.25;}}
     v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;
     // separate overlapping vehicles
-    if(v.type!=='tel')for(const o of G.vehicles){if(o===v||o.def.air||o.state!=='active'||o.type==='foot')continue;const dx=v.x-o.x,dz=v.z-o.z,d=Math.hypot(dx,dz),r=v.r+o.r*.9;if(d<r&&d>.01){const push=(r-d)*(o.type==='tel'?1:.5);v.x+=dx/d*push;v.z+=dz/d*push;}} /* the launcher truck shoves, it is never shoved */ // (a man on foot never pushes a vehicle: he is stopped by it instead)
+    if(v.type!=='tel'&&v.type!=='dozer')for(const o of G.vehicles){if(o===v||o.def.air||o.state!=='active'||o.type==='foot')continue;const dx=v.x-o.x,dz=v.z-o.z,d=Math.hypot(dx,dz),r=v.r+o.r*.9;if(d<r&&d>.01){const push=(r-d)*(o.type==='tel'||o.type==='dozer'?1:.5);v.x+=dx/d*push;v.z+=dz/d*push;}} /* the launcher truck shoves, it is never shoved */ // (a man on foot never pushes a vehicle: he is stopped by it instead)
     v.y=lerp(v.y,v.type==='boat'?Math.sin(G.time*1.4+v.x*.07)*.14:v.floats&&shallow?Math.max(vehGround(v.x,v.z),-.35+Math.sin(G.time*3+v.x)*.12):vehGround(v.x,v.z),1-Math.exp(-dt*14));
     if(v.type==='boat')boatCrew(v,dt);
     else if(Math.abs(v.speed)>3){v.dustT-=dt;if(v.dustT<0){v.dustT=v.type==='jeep'||v.type==='truck'?.05:.08;const g=groundAt(v.x,v.z);
@@ -3911,7 +3924,7 @@ function updateVehicle(v,inp,dt){
   }
   // turret
   if(v.type==='tank'){if(inp.aimYaw!=null){const cur=v.heading+v.turret;const d=angDiff(cur,inp.aimYaw);v.turret+=clamp(d,-1.9*dt,1.9*dt);}else v.turret-=(inp.tur||0)*1.9*dt;v.parts.turret.rotation.y=v.turret;}
-  if((v.type==='truck'||v.type==='boat')&&v.parts.gun){let want=null;if(inp.aimYaw!=null){want=inp.aimYaw;v.gunHold=1.2;}else if(inp.tur){v.turret-=inp.tur*2.6*dt;v.gunHold=1.5;}
+  if((v.type==='truck'||v.type==='boat'||v.type==='dozer')&&v.parts.gun){let want=null;if(inp.aimYaw!=null){want=inp.aimYaw;v.gunHold=1.2;}else if(inp.tur){v.turret-=inp.tur*2.6*dt;v.gunHold=1.5;}
     else if((v.gunHold=(v.gunHold||0)-dt)<=0){v.gunThink=(v.gunThink||0)-dt;if(v.gunThink<=0){v.gunThink=.25;v.gunTgt=truckTarget(v);}want=v.gunTgt?Math.atan2(v.gunTgt.x-v.x,v.gunTgt.z-v.z):v.heading;}
     if(want!=null){const d=angDiff(v.heading+v.turret,want);v.turret+=clamp(d,-3.2*dt,3.2*dt);}v.turret=angDiff(0,v.turret);v.parts.gun.rotation.y=v.turret;}
   // weapons
@@ -3932,7 +3945,7 @@ function updateVehicle(v,inp,dt){
   // pad entry
   const dPad=v.dock?Math.hypot(v.x-v.dock.x,v.z-v.dock.z):Math.hypot(v.x-b.x,v.z-b.z);if(dPad>(v.dock?22:12))v.leftPad=true;
   const slow=Math.hypot(v.vx,v.vz)<2.5;const settled=!v.def.air||v.y<b.padY+1.2;
-  if(v.leftPad&&dPad<(v.dock?7:5.5)&&slow&&settled&&team.vehicle===v&&v.type!=='jet'){ /* a vehicle you climbed out of never stows itself */v.padT+=dt;if(v.padT>.6){v.state='lowering';v.stateT=0;sfx('lift',v.x,v.z);}}else v.padT=0;
+  if(v.leftPad&&dPad<(v.dock?7:5.5)&&slow&&settled&&team.vehicle===v&&v.type!=='jet'&&v.type!=='dozer'){ /* a vehicle you climbed out of never stows itself; the Killdozer is far too big for the elevator */v.padT+=dt;if(v.padT>.6){v.state='lowering';v.stateT=0;sfx('lift',v.x,v.z);}}else v.padT=0;
   // damage smoke
   if(v.hp<def.hp*.4&&Math.random()<dt*10)puff(v.x,v.y+2,v.z,C_SMK0,1.6,1.4,.7);
   if(v.hp<def.hp*.2&&Math.random()<dt*8)FIRE.spawn(v.x+rr(-.6,.6),v.y+2,v.z+rr(-.6,.6),0,2,0,.4,1.4,.4,C_FIRE0,C_FIRE1);
@@ -4091,6 +4104,89 @@ function podTaken(P){
   sfx('pick');sample('s_case',.8,1);
   for(let i=0;i<26;i++){const a=rr(0,TAU);FIRE.spawn(P.x+Math.cos(a)*rr(0,1.4),P.y+1,P.z+Math.sin(a)*rr(0,1.4),Math.cos(a)*rr(2,7),rr(4,10),Math.sin(a)*rr(2,7),rr(.5,1),.3,.9,[.65,1,.7],[.1,.5,.2],1,-4,1);}
   note(0,`Supply recovered — ${n} missile strike${n===1?'':'s'} banked`,'good',true);}
+// ============================================================ the Killdozer (Matt, 8 Nov 2026)
+// Black Tide (and a dev skirmish): from the bunker menu you trade DOZER.cost banked missile strikes for an armored, spiked
+// bulldozer. The supply transport flies in from behind your base and parachutes it onto open ground in front of the bunker;
+// you are in the seat when it lands. It grinds through buildings, tents, turrets and gates, rams vehicles, flattens trees,
+// has ~4x a tank's armor, a tracking autocannon turret, and never stows (too big for the elevator) - it lives until it dies.
+const DOZER={cost:4,scale:1.2,alt:46,speed:44,fall:7.5,crush:130,ram:70,selfHurt:4};
+const DOZ_ICON='<svg viewBox="0 0 64 24" aria-hidden="true"><path d="M14 20h34l-2 3H16z" fill="#2a2a26"/><rect x="18" y="9" width="24" height="10" fill="#6f7f3c"/><rect x="26" y="4" width="12" height="6" fill="#4e5a2a"/><path d="M44 8h8l6 12H44z" fill="#9a6a3a"/><path d="M52 8l3-4 1 5zM56 12l3-3v4zM58 16l4-2-1 4z" fill="#c9b98a"/><circle cx="20" cy="20" r="3" fill="#555"/><circle cx="30" cy="20" r="3" fill="#555"/><circle cx="40" cy="20" r="3" fill="#555"/></svg>';
+function dozerShown(){return !!(A.dozer&&G&&G.teams[0].navyOn&&(G.op||devActive())&&!G.net&&!G.demo);}
+function dozerCount(){if(devActive())return 99;return Math.floor(mslCount()/DOZER.cost);}
+function dozerReady(){return !!(dozerShown()&&!G.over&&!G.strike&&!G.mslMap&&state==='play'&&!G.dozerDrop&&dozerCount()>0);}
+function dozerPoint(T){ // open ground in front of the bunker, toward the enemy: dry, not a bridge, nothing standing within the hull
+  const b=G.bases[T],e=G.bases[1-T];const ang=Math.atan2(e.x-b.x,e.z-b.z);
+  for(let d=30;d<=90;d+=6)for(const side of [0,-1,1,-2,2]){const a=ang+side*.35;const x=b.x+Math.sin(a)*d,z=b.z+Math.cos(a)*d;
+    if(H(x,z)<2.4||onBridge(x,z)||x<X0+20||x>-X0-20||z<Z0+20||z>-Z0-20)continue;
+    staticsNear(x,z,_near);let blocked=false;
+    for(const st of _near){if(!st.alive)continue;for(const pt of st.pts)if(Math.hypot(pt[0]-x,pt[1]-z)<pt[2]+7){blocked=true;break;}if(blocked)break;}
+    if(!blocked)return {x,z,hd:a};}
+  const p=dropPoint();return p?{x:p.x,z:p.z,hd:ang}:null;}
+function makeChute(sc){
+  const chute=new THREE.Group();
+  const canopy=new THREE.Mesh(new THREE.SphereGeometry(DROP.chuteR*sc,18,9,0,TAU,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0x8e9a6e,roughness:.95,side:THREE.DoubleSide}));
+  canopy.position.y=6.4*sc;chute.add(canopy);
+  const panel=new THREE.Mesh(new THREE.SphereGeometry(DROP.chuteR*sc*1.004,18,9,0,TAU/3,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xd8d2bc,roughness:.95,side:THREE.DoubleSide}));
+  panel.position.y=6.4*sc;chute.add(panel);
+  const cm=new THREE.MeshBasicMaterial({color:0x2a2a26});
+  for(let i=0;i<8;i++){const a=i/8*TAU,c=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,6.6*sc,4),cm);
+    c.position.set(Math.cos(a)*DROP.chuteR*sc*.42,3.2*sc,Math.sin(a)*DROP.chuteR*sc*.42);c.rotation.z=-Math.cos(a)*.26;c.rotation.x=Math.sin(a)*.26;chute.add(c);}
+  return chute;}
+function dozerCall(view){
+  const t=view.team,T=t.team;if(!dozerReady()||t.vehicle||t.respawnT>0)return;
+  const p=dozerPoint(T);if(!p){note(T,'No open ground near the bunker for the drop','warn');return;}
+  if(!devActive())setStrikes(mslCount()-DOZER.cost);
+  const dx=Math.sin(p.hd),dz=Math.cos(p.hd),y=Math.max(groundAt(p.x,p.z),0)+DOZER.alt;
+  const plane=makeCargoObj();plane.rotation.order='YXZ';plane.rotation.y=p.hd;plane.position.set(p.x-dx*320,y,p.z-dz*320);world.add(plane);
+  const {g,parts}=buildVehicleObj('dozer',T);const def=VDEF.dozer;
+  const v={type:'dozer',def,team:T,x:p.x-dx*320,z:p.z-dz*320,y,heading:p.hd,speed:0,vx:0,vz:0,turret:0,hp:def.hp,fuel:def.fuel,ammo:def.ammo,ammo2:def.ammo2,cd:0,cd2:0,
+    state:'dropping',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:def.r,alt:0,smokeT:0,scuttle:0,strafe:0,steer:0,wheelRot:0,lowFuelWarned:false,dustT:0,crushT:0,
+    drop:{plane,tx:p.x,tz:p.z,dx,dz,s:-320,phase:'carry',vy:0,chute:null}};
+  g.visible=false;g.position.set(v.x,v.y,v.z);g.rotation.y=v.heading;world.add(g);world.add(parts.ring);
+  v.netId=++G.netSeq;t.vehicle=v;t.ai={think:0,goal:null,aimJit:0};G.vehicles.push(v);G.dozerDrop=v;
+  sample('s_radio',.85,1,.2);sfx('jet',p.x,p.z);sfx('click');
+  note(T,'Killdozer inbound — the transport is coming in behind the bunker','good',true);
+  if(view.index===0&&!G.demo)musicPlay(VEH_MUSIC.dozer);
+  return v;}
+function dozerDropTick(v,dt){
+  const D=v.drop;if(!D)return;const P=D.plane;
+  if(P){D.s+=DOZER.speed*dt;const px=D.tx+D.dx*D.s,pz=D.tz+D.dz*D.s;P.position.set(px,P.position.y,pz);P.rotation.z=Math.sin(G.time*.7)*.03;
+    const props=P.userData.props||[];for(const pr of props)pr.rotation.z+=dt*30;
+    if(D.s>380){world.remove(P);D.plane=null;}}
+  if(D.phase==='carry'){v.x=P.position.x;v.z=P.position.z;v.y=P.position.y-2.5;
+    if(D.s>=0){D.phase='fall';v.obj.visible=true;D.vy=-1;v.vx=D.dx*DOZER.speed*.5;v.vz=D.dz*DOZER.speed*.5;
+      const ch=makeChute(2.3);ch.position.y=6*DOZER.scale;v.obj.add(ch);D.chute=ch;
+      for(let i=0;i<14;i++)SMOKE.spawn(v.x+rr(-3,3),v.y,v.z+rr(-3,3),rr(-1,1),rr(-1,0),rr(-1,1),rr(1.5,2.5),.6,2.4,[.85,.85,.82],[.7,.7,.68],.4,-.4,.6);
+      note(v.team,'Chute open — Killdozer coming down in front of the bunker','good');}
+    return;}
+  // under the canopy: slows to a steady fall, drifts forward a little, swings
+  D.vy=lerp(D.vy,-DOZER.fall,1-Math.exp(-dt*1.2));v.vx*=Math.exp(-dt*.9);v.vz*=Math.exp(-dt*.9);
+  v.x+=v.vx*dt;v.z+=v.vz*dt;v.y+=D.vy*dt;
+  v.obj.rotation.x=Math.sin(G.time*1.3)*.05;v.obj.rotation.z=Math.cos(G.time*1.1)*.06;
+  const gy=vehGround(v.x,v.z);
+  if(v.y<=gy){v.y=gy;v.state='active';v.vx=v.vz=0;v.obj.rotation.x=v.obj.rotation.z=0;v.stateT=0;
+    if(D.chute){v.obj.remove(D.chute);const ch=D.chute;ch.position.set(v.x-D.dx*9+rr(-3,3),gy+.1,v.z-D.dz*9+rr(-3,3));ch.rotation.set(0,rr(0,TAU),0);ch.scale.set(.9,.08,.9);world.add(ch);setTimeout(()=>world.remove(ch),40000);} // the canopy settles flat on the ground behind it
+    v.drop=null;G.dozerDrop=null;
+    sfx('bigboom',v.x,v.z);for(let i=0;i<24;i++){const a=rr(0,TAU);puff(v.x+Math.cos(a)*rr(2,6),gy+.4,v.z+Math.sin(a)*rr(2,6),C_DUST,3,1.6,.6);}
+    const t=G.teams[v.team];if(t.view){t.view.shake=Math.max(t.view.shake||0,1.6);}
+    note(v.team,'KILLDOZER DOWN — drive through anything. Fire = autocannon, G = get out','good',true);}
+}
+// the blade: anything standing that can be damaged gets ground down while the dozer leans on it; enemy vehicles get rammed
+function dozerCrush(v,blk,dt,thr){
+  const sp=Math.abs(v.speed);if(sp<.8&&Math.abs(thr)<.2)return false;const k=clamp(Math.max(sp/4,Math.abs(thr)*.6),0,1); // leaning on it from a standstill still grinds, just slower
+  if(blk.def){ // a vehicle
+    if(blk.team===v.team||blk.state!=='active'||blk.type==='foot')return false;
+    damage(blk,DOZER.ram*k*dt,v.team);const dx=blk.x-v.x,dz=blk.z-v.z,d=Math.hypot(dx,dz)||1;blk.x+=dx/d*3*dt*k;blk.z+=dz/d*3*dt*k;
+    v.crushT=.3;if(RND()<dt*8){FIRE.spawn(blk.x+rr(-1,1),blk.y+1.2,blk.z+rr(-1,1),rr(-3,3),rr(1,4),rr(-3,3),.12,1.6,.5,C_FIRE0,C_FIRE1);sfx('hit',v.x,v.z);}
+    return true;}
+  if(!blk.alive||blk.hp===Infinity||blk.hp==null)return false;
+  damage(blk,DOZER.crush*k*dt,v.team);v.crushT=.3;
+  if(!devFor(v.team))v.hp-=DOZER.selfHurt*k*dt; // scraping paint
+  if(RND()<dt*14){const fx=fwdX(v.heading),fz=fwdZ(v.heading),bx=v.x+fx*v.r,bz=v.z+fz*v.r,y=Math.max(groundAt(bx,bz),0);
+    puff(bx+rr(-2,2),y+rr(.5,2.5),bz+rr(-2,2),C_DUST,2.2,1.4,.5);FIRE.spawn(bx+rr(-1.5,1.5),y+rr(.5,2),bz+rr(-1.5,1.5),rr(-3,3),rr(1,4),rr(-3,3),.1,1.4,.4,C_FIRE0,C_FIRE1);}
+  if((v.crushSnd=(v.crushSnd||0)-dt)<=0){v.crushSnd=.45;sfx(blk.kind==='tree'?'hit':'boom',v.x,v.z);const t=G.teams[v.team];if(t.view)t.view.shake=Math.max(t.view.shake||0,.5);}
+  if(v.hp<=0){destroyVehicle(v);}
+  return true;}
 function updateDrops(dt){
   if(!dropsOn())return;const S=G.drop;if(!S)return;
   const D=S.run;
@@ -4177,6 +4273,10 @@ function fireWeapon(v,slot){
     if(t&&Math.abs(angDiff(a,Math.atan2(t.x-v.x,t.z-v.z)))<.14){tx=t.x+rr(-.4,.4);tz=t.z+rr(-.4,.4);ty=t.y!=null?t.y:Math.max(groundAt(tx,tz),0)+1.2;}
     else{const near=Math.hypot(tx-v.x,tz-v.z);ty=Math.max(groundAt(v.x+ax*near,v.z+az*near),0)+1;}
     fire('tbullet',T,mx,my,mz,tx-mx,ty-my,tz-mz,{mul:G.vehMul[T]});v.ammo--;v.cd=.11;sfx('mg',v.x,v.z);FIRE.spawn(mx,my,mz,ax*2,0,az*2,.05,1.3,.45,C_FIRE0,C_FIRE1);}
+  else if(v.type==='dozer'){const a=v.heading+v.turret,ax=Math.sin(a),az=Math.cos(a);const gp=v.parts.gun?v.parts.gun.getWorldPosition(_tq):new V3(v.x,v.y+5,v.z);
+    const mx=gp.x+ax*4.6*DOZER.scale,my=gp.y+.5*DOZER.scale,mz=gp.z+az*4.6*DOZER.scale;
+    fire('shell',T,mx,my,mz,ax,0,az,{owner:v,mul:G.vehMul[T]});v.ammo--;v.cd=.5;sfx('cannon',v.x,v.z);
+    for(let i=0;i<5;i++)FIRE.spawn(mx,my,mz,ax*rr(4,9),rr(0,1),az*rr(4,9),.14,2,.5,C_FIRE0,C_FIRE1);for(let i=0;i<3;i++)puff(mx+ax*.6,my,mz+az*.6,C_SMK1,1.3,.7,.5);}
   else if(v.type==='boat'){const a=v.heading+v.turret,ax=Math.sin(a),az=Math.cos(a);const gp=v.parts.gun?v.parts.gun.getWorldPosition(_tq):new V3(v.x,v.y+2.6,v.z);
     const mx=gp.x+ax*1.2,my=gp.y+.2,mz=gp.z+az*1.2;let tx=v.x+ax*44,tz=v.z+az*44,ty=Math.max(groundAt(tx,tz),0)+.8;const t=v.gunTgt;
     if(t&&Math.abs(angDiff(a,Math.atan2(t.x-v.x,t.z-v.z)))<.14){tx=t.x+rr(-.4,.4);tz=t.z+rr(-.4,.4);ty=t.y!=null?t.y:Math.max(groundAt(tx,tz),0)+1.2;}
@@ -4658,7 +4758,7 @@ function readHuman(view,inp){
   const v=view.team.vehicle;
   if(solo&&opts.mouse&&v&&(performance.now()-mouse.moved<4000||mouse.l||mouse.r)){
     fire=fire||mouse.l;special=special||mouse.r;
-    if((v.type==='tank'||v.type==='truck'||v.type==='boat')&&!tur){const rect=renderer.domElement.getBoundingClientRect();
+    if((v.type==='tank'||v.type==='truck'||v.type==='boat'||v.type==='dozer')&&!tur){const rect=renderer.domElement.getBoundingClientRect();
       const nx=(mouse.x-rect.left)/rect.width*2-1,ny=-(mouse.y-rect.top)/rect.height*2+1;ray.setFromCamera({x:nx,y:ny},view.cam);plane.constant=-(v.y+1.5);
       const p=ray.ray.intersectPlane(plane,_v);if(p)aimYaw=Math.atan2(p.x-v.x,p.z-v.z);}}
   if(v&&v.type==='foot'){const locked=document.pointerLockElement===renderer.domElement,kx=(any(km.right)?1:0)-(any(km.left)?1:0),qe=(any(km.tr)?1:0)-(any(km.tl)?1:0);
@@ -4689,13 +4789,14 @@ function buildHud(view){
     <div class="bars"><div class="bar hp">ARMOR<u><i></i></u></div><div class="bar fuel">FUEL<u><i></i></u></div></div><div class="ammo"></div></div><svg class="xhair" viewBox="0 0 26 26"><g stroke="#fff" stroke-width="2" stroke-linecap="round" style="filter:drop-shadow(0 0 1px #000)"><path d="M13 2v6M13 18v6M2 13h6M18 13h6"/></g><circle cx="13" cy="13" r="1.3" fill="#f2b632"/></svg><div class="hurt"></div>
     <canvas class="mini" width="112" height="188"></canvas>
     <div class="stock"></div><div class="bodies" title="Enemy soldiers killed">☠ <b>0</b></div><div class="flagbox"></div><div class="msgs"></div><div class="warn"></div>
-    <div class="sel" hidden><h2><span>${TEAMS[view.team.team].name}</span> bunker — choose a vehicle</h2><div class="cards"></div><button type="button" class="mslbtn" hidden></button><button type="button" class="mslbtn nukebtn" hidden></button><button type="button" class="mslbtn orbbtn" hidden></button><div class="hint"></div></div>`;
+    <div class="sel" hidden><h2><span>${TEAMS[view.team.team].name}</span> bunker — choose a vehicle</h2><div class="cards"></div><button type="button" class="mslbtn" hidden></button><button type="button" class="mslbtn nukebtn" hidden></button><button type="button" class="mslbtn orbbtn" hidden></button><button type="button" class="mslbtn dozbtn" hidden></button><div class="hint"></div></div>`;
   $('#huds').appendChild(el);view.el=el;
   view.q={bodies:el.querySelector('.bodies b'),vn:el.querySelector('.vn'),hp:el.querySelector('.hp i'),fuel:el.querySelector('.fuel i'),ammo:el.querySelector('.ammo'),mini:el.querySelector('.mini'),stock:el.querySelector('.stock'),
-    flag:el.querySelector('.flagbox'),msgs:el.querySelector('.msgs'),warn:el.querySelector('.warn'),sel:el.querySelector('.sel'),cards:el.querySelector('.cards'),hint:el.querySelector('.hint'),msl:el.querySelector('.mslbtn'),nuke:el.querySelector('.nukebtn'),orb:el.querySelector('.orbbtn')};
+    flag:el.querySelector('.flagbox'),msgs:el.querySelector('.msgs'),warn:el.querySelector('.warn'),sel:el.querySelector('.sel'),cards:el.querySelector('.cards'),hint:el.querySelector('.hint'),msl:el.querySelector('.mslbtn'),nuke:el.querySelector('.nukebtn'),orb:el.querySelector('.orbbtn'),doz:el.querySelector('.dozbtn')};
   view.q.msl.addEventListener('click',()=>{audioInit();view.sel=MSL_SLOT;launchFromMenu(view);});view.q.msl.addEventListener('pointerenter',()=>{if(mslReady())view.sel=MSL_SLOT;});
   view.q.nuke.addEventListener('click',()=>{audioInit();view.sel=NUKE_SLOT;launchFromMenu(view);});view.q.nuke.addEventListener('pointerenter',()=>{if(nukeReady())view.sel=NUKE_SLOT;});
   view.q.orb.addEventListener('click',()=>{audioInit();view.sel=ORB_SLOT;launchFromMenu(view);});view.q.orb.addEventListener('pointerenter',()=>{if(orbReady())view.sel=ORB_SLOT;});
+  view.q.doz.addEventListener('click',()=>{audioInit();view.sel=DOZ_SLOT;launchFromMenu(view);});view.q.doz.addEventListener('pointerenter',()=>{if(dozerReady())view.sel=DOZ_SLOT;});
   view.q.cards.innerHTML=VORDER.map((k,i)=>`<button class="card" data-k="${k}" id="card${view.index}${k}"><img alt="" src="${thumbs[k+view.team.team]}"><div class="nm">${VDEF[k].name}<i></i></div><div class="ds">${VDEF[k].desc}</div></button>`).join('');
   {const nv=VORDER.filter(k=>cardShown(view.team,k)).length;view.q.cards.classList.toggle('five',nv===5);view.q.cards.classList.toggle('six',nv===6);view.q.cards.classList.toggle('seven',nv===7);}view.q.cards.querySelectorAll('.card').forEach((c,i)=>{c.hidden=!cardShown(view.team,VORDER[i]);c.addEventListener('click',()=>{audioInit();view.sel=i;launchFromMenu(view);});c.addEventListener('pointerenter',()=>{view.sel=i;});});
   const km=view.ctrl===0?'<kbd>A</kbd>/<kbd>D</kbd> choose · <kbd>Space</kbd> launch':'<kbd>←</kbd>/<kbd>→</kbd> choose · <kbd>K</kbd> launch';
@@ -4761,7 +4862,10 @@ function updateHud(view){
       nb.innerHTML=`${NUKE_ICON}<span class="mt">Nuclear strike<small>${n?'from the submarine — trades in 3 missile strikes':`bank ${need} more missile strike${need>1?'s':''} (3 per nuke)`}</small></span><i>×${devActive()?'∞':n}</i>`;nb.toggleAttribute('disabled',!ok);nb.classList.toggle('on',ok&&view.sel===NUKE_SLOT);}}
     const ob=q.orb,oshow=orbShown();if(ob.hidden===oshow)ob.hidden=!oshow;
     if(oshow){const n=orbCount(),ok=orbReady(),c=orbCost(),need=c-(mslCount()%c),key='o'+n+'|'+ok+'|'+need+'|'+c+'|'+(view.sel===ORB_SLOT);if(lastHud.get(ob)!==key){lastHud.set(ob,key);
-      ob.innerHTML=`${ORB_ICON}<span class="mt">Orbital strike<small>${n?`platform SPOON lasers every enemy on the island — trades in ${c} missile strikes`:`bank ${need} more missile strike${need>1?'s':''} (${c} per shot)`}</small></span><i>×${devActive()?'∞':n}</i>`;ob.toggleAttribute('disabled',!ok);ob.classList.toggle('on',ok&&view.sel===ORB_SLOT);}}}
+      ob.innerHTML=`${ORB_ICON}<span class="mt">Orbital strike<small>${n?`platform SPOON lasers every enemy on the island — trades in ${c} missile strikes`:`bank ${need} more missile strike${need>1?'s':''} (${c} per shot)`}</small></span><i>×${devActive()?'∞':n}</i>`;ob.toggleAttribute('disabled',!ok);ob.classList.toggle('on',ok&&view.sel===ORB_SLOT);}}
+    const db=q.doz,dshow=dozerShown();if(db.hidden===dshow)db.hidden=!dshow;
+    if(dshow){const n=dozerCount(),ok=dozerReady(),c=DOZER.cost,need=c-(mslCount()%c),key='d'+n+'|'+ok+'|'+need+'|'+(view.sel===DOZ_SLOT)+'|'+!!G.dozerDrop;if(lastHud.get(db)!==key){lastHud.set(db,key);
+      db.innerHTML=`${DOZ_ICON}<span class="mt">Killdozer<small>${G.dozerDrop?'on its way — the transport is inbound':n?`air-dropped at your base — trades in ${c} missile strikes`:`bank ${need} more missile strike${need>1?'s':''} (${c} per dozer)`}</small></span><i>×${devActive()?'∞':n}</i>`;db.toggleAttribute('disabled',!ok);db.classList.toggle('on',ok&&view.sel===DOZ_SLOT);}}}
   let s;
   {const foot=!!(v&&v.type==='foot');if(view.el&&view.el.classList.contains('foot')!==foot){view.el.classList.toggle('foot',foot);const hb=view.el.querySelector('.bar.hp');if(hb)hb.firstChild.nodeValue=foot?'HEALTH':'ARMOR';}
     if(view.index===0)document.body.classList.toggle('onfoot',foot&&opts.touch);
@@ -4788,12 +4892,12 @@ function autoAimTarget(v){ // touch mode: tank turret picks the nearest threat i
   for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&sd.team!==v.team)consider(sd,sd.x,sd.z,1.1);
   for(const dr of G.drones)if(dr.alive&&dr.team!==v.team)consider(dr,dr.x,dr.z,.55);
   return best;}
-function launchFromMenu(view){const t=view.team;if(view.watch||view.hold>0||mslBusy())return;if(view.sel===MSL_SLOT||view.sel===NUKE_SLOT||view.sel===ORB_SLOT){if(!t.vehicle)openStrikeMap(view,view.sel===ORB_SLOT?'orb':view.sel===NUKE_SLOT);return;}const k=VORDER[view.sel];if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
+function launchFromMenu(view){const t=view.team;if(view.watch||view.hold>0||mslBusy())return;if(view.sel===DOZ_SLOT){if(!t.vehicle)dozerCall(view);return;}if(view.sel===MSL_SLOT||view.sel===NUKE_SLOT||view.sel===ORB_SLOT){if(!t.vehicle)openStrikeMap(view,view.sel===ORB_SLOT?'orb':view.sel===NUKE_SLOT);return;}const k=VORDER[view.sel];if(!t.vehicle&&t.respawnT<=0&&t.stock[k]>0&&!G.over&&!paused){
   if(G.net&&!G.net.host){NET.matchCh&&NET.matchCh.send({type:'broadcast',event:'pick',payload:{k}});sfx('click');return;} // guest: ask the host to spawn it, never mutate local state
   spawnVehicle(t.team,k);sfx('click');}}
 function menuInput(view){
   const t=view.team;if(t.vehicle||t.respawnT>0||mslBusy())return;
-  const msl=!!((G.op||devActive())&&G.launcher),nk=nukeShown(),ob=orbShown(),N=ob?ORB_SLOT+1:nk?NUKE_SLOT+1:MSL_SLOT+(msl?1:0),can=i=>i<MSL_SLOT?t.stock[VORDER[i]]>0:i===MSL_SLOT?mslReady():i===NUKE_SLOT?nukeReady():orbReady(); // last slot = missile strike (campaign); slot 5 = six-wheeler card (hidden until unlocked, stock 0)
+  const msl=!!((G.op||devActive())&&G.launcher),nk=nukeShown(),ob=orbShown(),dz=dozerShown(),N=dz?DOZ_SLOT+1:ob?ORB_SLOT+1:nk?NUKE_SLOT+1:MSL_SLOT+(msl?1:0),can=i=>i<MSL_SLOT?t.stock[VORDER[i]]>0:i===MSL_SLOT?mslReady():i===NUKE_SLOT?nukeReady():i===ORB_SLOT?orbReady():dozerReady(); // last slot = missile strike (campaign); slot 5 = six-wheeler card (hidden until unlocked, stock 0)
   if(view.sel==null||!can(view.sel)){view.sel=VORDER.findIndex(k=>t.stock[k]>0);if(view.sel<0)view.sel=msl&&can(MSL_SLOT)?MSL_SLOT:0;}
   const e=view.menuEdge;if(!e)return;
   const step=d=>{for(let i=1;i<=N;i++){const n=(view.sel+d*i+N*2)%N;if(can(n)){view.sel=n;sfx('click');return;}}};
@@ -5107,7 +5211,7 @@ const CHASE={on:false};try{CHASE.on=localStorage.getItem('ironflag.chase')==='1'
 function toggleChase(){CHASE.on=!CHASE.on;try{localStorage.setItem('ironflag.chase',CHASE.on?'1':'0');}catch(e){}
   const b=document.getElementById('tCam');if(b)b.classList.toggle('on',CHASE.on);sfx('click');
   const vw=G&&G.views&&G.views[0];if(vw&&!G.demo)note(vw.team.team,CHASE.on?'Chase camera (V to switch back)':'Overhead camera','info');}
-const CH_D={tank:[13,5.5],asv:[13.5,6],jeep:[10,4.2],heli:[15,6.5],truck:[12,5],boat:[19,7.5],jet:[22,6]};
+const CH_D={dozer:[19,8],tank:[13,5.5],asv:[13.5,6],jeep:[10,4.2],heli:[15,6.5],truck:[12,5],boat:[19,7.5],jet:[22,6]};
 function chaseCam(view,v,dt){
   const [d,hgt]=CH_D[v.type]||[13,5.5];
   if(view.cy==null)view.cy=v.heading;view.cy+=angDiff(view.cy,v.heading)*(1-Math.exp(-dt*3.2));
@@ -5745,7 +5849,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

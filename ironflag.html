@@ -4148,11 +4148,13 @@ function dozerCall(view){
   note(T,'Killdozer inbound — the transport is coming in behind the bunker','good',true);
   if(view.index===0&&!G.demo)musicPlay(VEH_MUSIC.dozer);
   return v;}
+function dozerPlaneTick(D,dt){ // the transport flies straight on over the island and out to sea
+  const P=D.plane;if(!P)return false;D.s+=DOZER.speed*dt;P.position.set(D.tx+D.dx*D.s,P.position.y,D.tz+D.dz*D.s);P.rotation.z=Math.sin(G.time*.7)*.03;
+  const props=P.userData.props||[];for(const pr of props)pr.rotation.z+=dt*30;
+  if(D.s>420){world.remove(P);D.plane=null;return false;}return true;}
 function dozerDropTick(v,dt){
   const D=v.drop;if(!D)return;const P=D.plane;
-  if(P){D.s+=DOZER.speed*dt;const px=D.tx+D.dx*D.s,pz=D.tz+D.dz*D.s;P.position.set(px,P.position.y,pz);P.rotation.z=Math.sin(G.time*.7)*.03;
-    const props=P.userData.props||[];for(const pr of props)pr.rotation.z+=dt*30;
-    if(D.s>380){world.remove(P);D.plane=null;}}
+  dozerPlaneTick(D,dt);
   if(D.phase==='carry'){v.x=P.position.x;v.z=P.position.z;v.y=P.position.y-2.5;
     if(D.s>=0){D.phase='fall';v.obj.visible=true;D.vy=-1;v.vx=D.dx*DOZER.speed*.5;v.vz=D.dz*DOZER.speed*.5;
       const ch=makeChute(2.3);ch.position.y=6*DOZER.scale;v.obj.add(ch);D.chute=ch;
@@ -4165,8 +4167,8 @@ function dozerDropTick(v,dt){
   v.obj.rotation.x=Math.sin(G.time*1.3)*.05;v.obj.rotation.z=Math.cos(G.time*1.1)*.06;
   const gy=vehGround(v.x,v.z);
   if(v.y<=gy){v.y=gy;v.state='active';v.vx=v.vz=0;v.obj.rotation.x=v.obj.rotation.z=0;v.stateT=0;
-    if(D.chute){v.obj.remove(D.chute);const ch=D.chute;ch.position.set(v.x-D.dx*9+rr(-3,3),gy+.1,v.z-D.dz*9+rr(-3,3));ch.rotation.set(0,rr(0,TAU),0);ch.scale.set(.9,.08,.9);world.add(ch);setTimeout(()=>world.remove(ch),40000);} // the canopy settles flat on the ground behind it
-    v.drop=null;G.dozerDrop=null;
+    if(D.chute){v.obj.remove(D.chute);const ch=D.chute;ch.position.set(v.x-D.dx*9+rr(-3,3),gy+.1,v.z-D.dz*9+rr(-3,3));ch.rotation.set(0,rr(0,TAU),0);ch.scale.set(.45,.05,.45);world.add(ch);setTimeout(()=>world.remove(ch),40000);} // the canopy settles flat on the ground behind it
+    if(D.plane){(G.dozerPlanes||(G.dozerPlanes=[])).push(D);}v.drop=null;G.dozerDrop=null;
     sfx('bigboom',v.x,v.z);for(let i=0;i<24;i++){const a=rr(0,TAU);puff(v.x+Math.cos(a)*rr(2,6),gy+.4,v.z+Math.sin(a)*rr(2,6),C_DUST,3,1.6,.6);}
     const t=G.teams[v.team];if(t.view){t.view.shake=Math.max(t.view.shake||0,1.6);}
     note(v.team,'KILLDOZER DOWN — drive through anything. Fire = autocannon, G = get out','good',true);}
@@ -4188,6 +4190,7 @@ function dozerCrush(v,blk,dt,thr){
   if(v.hp<=0){destroyVehicle(v);}
   return true;}
 function updateDrops(dt){
+  if(G.dozerPlanes&&G.dozerPlanes.length)G.dozerPlanes=G.dozerPlanes.filter(D=>dozerPlaneTick(D,dt));
   if(!dropsOn())return;const S=G.drop;if(!S)return;
   const D=S.run;
   if(!D){if(S.left>0){S.t-=dt;if(S.t<=0){S.t=rr(DROP.gap[0],DROP.gap[1]);if(dropStart())S.left--;}}}

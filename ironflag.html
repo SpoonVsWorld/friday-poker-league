@@ -1902,7 +1902,7 @@ const HASH=16;
 function hkey(i,j){return i*4096+j;}
 function addStatic(s){
   s.alive=true;s.maxHp=s.hp;s.netIdx=G.statics.length;G.statics.push(s);
-  if(!s.pts)s.pts=[[s.x,s.z,s.r]];
+  if(!s.pts)s.pts=[[s.x,s.z,s.r]];if(s.pts.rect&&!s.rect)s.rect=s.pts.rect;
   for(const p of s.pts){const i=Math.floor(p[0]/HASH),j=Math.floor(p[1]/HASH);const R=Math.ceil(p[2]/HASH);
     for(let a=-R;a<=R;a++)for(let b=-R;b<=R;b++){const k=hkey(i+a,j+b);let arr=G.hash.get(k);if(!arr){arr=[];G.hash.set(k,arr);}if(!arr.includes(s))arr.push(s);}}
   return s;
@@ -1911,7 +1911,9 @@ function staticsNear(x,z,out){out.length=0;const i=Math.floor(x/HASH),j=Math.flo
   for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const arr=G.hash.get(hkey(i+a,j+b));if(arr)for(const s of arr)if(s.alive&&!out.includes(s))out.push(s);}return out;}
 function rectFootprint(x,z,sx,sz,yaw,shrink=1){ // grid of small circles that covers the rectangle including its corners, bulging < ~0.6 m
   sx*=shrink;sz*=shrink;const nx=Math.max(1,Math.ceil(sx/3)),nz=Math.max(1,Math.ceil(sz/3)),cx=sx/nx,cz=sz/nz,r=Math.hypot(cx,cz)/2,c=Math.cos(yaw),sn=Math.sin(yaw),pts=[];
-  for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){const lx=-sx/2+cx*(i+.5),lz=-sz/2+cz*(j+.5);pts.push([x+lx*c+lz*sn,z-lx*sn+lz*c,r]);}return pts;}
+  for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){const lx=-sx/2+cx*(i+.5),lz=-sz/2+cz*(j+.5);pts.push([x+lx*c+lz*sn,z-lx*sn+lz*c,r]);}
+  pts.rect={x,z,sx,sz,yaw}; // (interiors branch) the true rectangle, used for wall-accurate collision on foot
+  return pts;}
 function footprint(x,z,sx,sz,yaw,shrink=1){ // circles along long axis
   const long=Math.max(sx,sz),short=Math.min(sx,sz)*shrink;const n=Math.max(1,Math.round(long/short));const ax=sx>=sz?[Math.cos(yaw),-Math.sin(yaw)]:[Math.sin(yaw),Math.cos(yaw)];
   const pts=[];for(let k=0;k<n;k++){const o=n===1?0:(k/(n-1)-.5)*(long-short);pts.push([x+ax[0]*o,z+ax[1]*o,short/2*1.05]);}return pts;}
@@ -3489,8 +3491,21 @@ function spawnHero(T,x,z,heading){
   g.position.set(x,v.y,z);g.rotation.y=heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);return v;
 }
 function removeHero(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);v.state='gone';}
+const FOOT_R=.38;
+function footWalls(p,T){ // (interiors branch, 9 Nov 2026) slide the player out of any building rectangle: wall-accurate, no circle bulge at the corners
+  for(let pass=0;pass<2;pass++){let moved=false;staticsNear(p.x,p.z,_sn);
+    for(const s of _sn){const R=s.rect;if(!R||!s.alive||(s.kind==='gate'&&s.team===T))continue;
+      if(s.interior&&s.interior.open)continue; // an enterable building collides by its own walls (footInside)
+      const c=Math.cos(R.yaw),sn=Math.sin(R.yaw),dx=p.x-R.x,dz=p.z-R.z;const lx=dx*c-dz*sn,lz=dx*sn+dz*c; // into the rectangle's frame
+      const hx=R.sx/2+FOOT_R,hz=R.sz/2+FOOT_R;if(Math.abs(lx)>=hx||Math.abs(lz)>=hz)continue;
+      const px=hx-Math.abs(lx),pz=hz-Math.abs(lz);let ox=0,oz=0;if(px<pz)ox=px*Math.sign(lx||1);else oz=pz*Math.sign(lz||1);
+      p.x+=ox*c+oz*sn;p.z+=-ox*sn+oz*c;moved=true;}
+    if(!moved)break;}
+  return p;}
 function footBlocked(x,z,T,self){ // like soldierBlocked, but your OWN bunker pad is walkable (that's where you run the objective home)
-  if(!passable(x,z))return true;staticsNear(x,z,_sn);for(const s of _sn){if(s.kind==='gate'&&s.team===T)continue;for(const q of s.pts){const dx=q[0]-x,dz=q[1]-z,r=q[2]+.35;if(dx*dx+dz*dz<r*r)return true;}}
+  if(!passable(x,z))return true;staticsNear(x,z,_sn);for(const s of _sn){if(s.kind==='gate'&&s.team===T)continue;
+    if(s.rect){if(s.interior&&s.interior.open)continue;const R=s.rect,c=Math.cos(R.yaw),sn=Math.sin(R.yaw),dx=x-R.x,dz=z-R.z;const lx=dx*c-dz*sn,lz=dx*sn+dz*c;if(Math.abs(lx)<R.sx/2+FOOT_R-.02&&Math.abs(lz)<R.sz/2+FOOT_R-.02)return true;continue;}
+    for(const q of s.pts){const dx=q[0]-x,dz=q[1]-z,r=q[2]+.35;if(dx*dx+dz*dz<r*r)return true;}}
   const eb=G.bases[1-T];if(Math.abs(x-eb.x)<7.5&&Math.abs(z-eb.z)<7.5)return true;for(const o of G.vehicles){if(o===self||o.def.air||o.state!=='active'||o.type==='foot')continue;if(Math.hypot(o.x-x,o.z-z)<o.r*.85+.45)return true;}return false;}
 function carryAttach(f,v){ // the objective rides on the jeep's roof, the six-wheeler's deck, or the soldier's back
   f.state='carried';f.carrier=v;v.carrying=f;v.obj.add(f.obj);const tk=v.type==='truck',ft=v.type==='foot';
@@ -3560,6 +3575,7 @@ function updateFoot(v,inp,dt){
   const fx=Math.sin(v.heading),fz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
   const k=1-Math.exp(-dt*10);v.vx=lerp(v.vx,(fx*mz+rx*mx)*sp,k);v.vz=lerp(v.vz,(fz*mz+rz*mx)*sp,k);
   let nx=v.x+v.vx*dt,nz=v.z+v.vz*dt;
+  {const p=footWalls({x:nx,z:nz},T);nx=p.x;nz=p.z;} // walls push you sideways, so you slide along them
   if(footBlocked(nx,nz,T,v)){if(!footBlocked(nx,v.z,T,v))nz=v.z;else if(!footBlocked(v.x,nz,T,v))nx=v.x;else{nx=v.x;nz=v.z;}}
   v.vx=(nx-v.x)/dt;v.vz=(nz-v.z)/dt;v.x=nx;v.z=nz;v.speed=Math.hypot(v.vx,v.vz);
   {const g0=vehGround(v.x,v.z);const sd0=v.parts.sd;
@@ -5939,7 +5955,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   makeThumbs();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
-  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,toggleFoot,footWalls,footBlocked,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

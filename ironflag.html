@@ -3388,6 +3388,7 @@ function trooperAnim(v,sd,dt,inp){ // weights for the player's body from what he
   // one-shots of the legs (jump) are full-body: nothing else while they run
   for(const k in acts){W[k]=lerp(W[k]??0,T[k],1-Math.exp(-dt*(T[k]>W[k]?16:10)));acts[k].setEffectiveWeight(W[k]);}
   sd.mx.update(dt);
+  if(sd.fp&&sd.fingers&&sd.fingers.length){if(!sd.grip){sd.gripT=(sd.gripT||0)+dt;if(sd.gripT>.4&&Math.hypot(v.vx,v.vz)<.2&&!v.air){sd.grip=sd.fingers.map(b=>b.quaternion.clone());}}else if(!v.air){sd.fingers.forEach((b,i)=>b.quaternion.copy(sd.grip[i]));}}
   // the torso follows the aim (the camera is in the head, so this is what bends the rifle up and down)
   if(!v.air){_bax.set(-Math.cos(v.heading),0,Math.sin(v.heading));const a=v.pitch*TROOP.spineK*(v.crouch?.6:1);bendBone(sd.bones.spine1,_bax,a*.45);bendBone(sd.bones.spine2,_bax,a*.55);}
   if(sd.gun&&sd.fp&&TROOP.hR&&sd.bones.R.every(Boolean)&&sd.bones.L.every(Boolean))trooperViewModel(v,sd,dt,inp);
@@ -3414,7 +3415,7 @@ function trooperViewModel(v,sd,dt,inp){
   else{const cp=Math.cos(v.pitch);_gd.set(Math.sin(v.heading)*cp,Math.sin(v.pitch),Math.cos(v.heading)*cp);footEye(v,0,_ge);if(v.camPos)_ge.y=v.camPos.y; // the camera, from this frame's position (the stored one is a frame old and would drag the rifle back into your face as you run)
     _gu.set(0,1,0).addScaledVector(_gd,-_gd.y).normalize();_gr.crossVectors(_gd,_gu).normalize(); // screen right
     sd.spr=lerp(sd.spr||0,v.sprint?1:0,1-Math.exp(-dt*7));const spr=sd.spr,ph=v.bobPh||0,amp=(v.bobAmp||0)*.55;
-    const cr=v.crouch?1:0,f=lerp(.30,.28,cr)-spr*.04,r=lerp(.115,.10,cr)+Math.sin(ph*.5)*amp*.8+sd.sway-spr*.015,u=lerp(-.18,-.165,cr)-Math.abs(Math.sin(ph))*amp-Math.abs(sd.sway)*.3-spr*.045;
+    const cr=v.crouch?1:0,f=lerp(.38,.35,cr)-spr*.05,r=lerp(.135,.12,cr)+Math.sin(ph*.5)*amp*.8+sd.sway-spr*.02,u=lerp(-.245,-.225,cr)-Math.abs(Math.sin(ph))*amp-Math.abs(sd.sway)*.3-spr*.045;
     _gg.copy(_ge).addScaledVector(_gd,f).addScaledVector(_gr,r).addScaledVector(_gu,u); // where the grip goes
     _gt.copy(_ge).addScaledVector(_gd,30).addScaledVector(_gr,-spr*3).addScaledVector(_gu,-spr*4); /* sprint: muzzle dips down and in */ _vp.copy(_gt).sub(_gg).normalize();_vp2.set(0,1,0).addScaledVector(_vp,-_vp.y).normalize();_vp3.crossVectors(_vp2,_vp).normalize();_gm.makeBasis(_vp3,_vp2,_vp);_gq.setFromRotationMatrix(_gm);
     _vp.copy(RIFLE.grip).applyQuaternion(_gq);_vp2.copy(_gg).sub(_vp);_vm1.compose(_vp2,_gq,_vp3.set(1,1,1));}
@@ -3425,8 +3426,8 @@ function trooperViewModel(v,sd,dt,inp){
   if(follow)return;
   // both arms onto the rifle: wrist targets are the fitted hand frames carried along with the gun
   const R=sd.bones.R,L=sd.bones.L;o.getWorldQuaternion(_sq);_sf.set(0,0,1).applyQuaternion(_sq);_sr.set(1,0,0).applyQuaternion(_sq);
-  gun.localToWorld(_tg.copy(RIFLE.grip).add(TROOP.offR));_pl.copy(_ge).addScaledVector(_gr,.55).addScaledVector(_gu,-.85).addScaledVector(_gd,.05);ik2(R[0],R[1],R[2],_tg,_pl); // (interiors branch) poles in the camera frame: the run animation swings the shoulders, and a pole hung off them made the elbows flail_vm2.multiplyMatrices(_vm1,TROOP.hR);_vq.setFromRotationMatrix(_vm3.extractRotation(_vm2));setBoneWorldQuat(R[2],_vq);
-  _tg.copy(RIFLE.fore);_tg.z*=.72;gun.localToWorld(_tg.add(TROOP.offL));_pl.copy(_ge).addScaledVector(_gr,-.5).addScaledVector(_gu,-.85).addScaledVector(_gd,.15);ik2(L[0],L[1],L[2],_tg,_pl); // support hand nearer the magwell: never at full stretch_vm2.multiplyMatrices(_vm1,TROOP.hL);_vq.setFromRotationMatrix(_vm3.extractRotation(_vm2));setBoneWorldQuat(L[2],_vq);
+  gun.localToWorld(_tg.copy(RIFLE.grip).add(TROOP.offR));_pl.copy(_ge).addScaledVector(_gr,.55).addScaledVector(_gu,-.85).addScaledVector(_gd,.05);ik2(R[0],R[1],R[2],_tg,_pl); /* (interiors branch) poles in the camera frame: the run animation swings the shoulders, and a pole hung off them made the elbows flail */ _vm2.multiplyMatrices(_vm1,TROOP.hR);_vq.setFromRotationMatrix(_vm3.extractRotation(_vm2));setBoneWorldQuat(R[2],_vq);
+  _tg.copy(RIFLE.fore);_tg.z*=.85;gun.localToWorld(_tg.add(TROOP.offL));_pl.copy(_ge).addScaledVector(_gr,-.5).addScaledVector(_gu,-.85).addScaledVector(_gd,.15);ik2(L[0],L[1],L[2],_tg,_pl); /* support hand nearer the magwell: never at full stretch */ _vm2.multiplyMatrices(_vm1,TROOP.hL);_vq.setFromRotationMatrix(_vm3.extractRotation(_vm2));setBoneWorldQuat(L[2],_vq);
 }
 // ============================================================ ON FOOT
 // (Matt, 27 Oct 2026) Press G (gamepad X, touch OUT) in a stopped ground vehicle to climb out and fight on foot as Matt's own soldier
@@ -3482,6 +3483,7 @@ function buildTrooperObj(T,firstPerson=true,withGun=true){
     flashLight=new THREE.PointLight(0xffc070,0,2.2,2);flashLight.position.copy(A.m4?RIFLE.m4.muzzle:new V3(0,.02,.6));flashLight.position.z-=.05;gun.add(flashLight);}
   const mx=new THREE.AnimationMixer(o);const acts=trooperActs(o,mx);acts.idle.setEffectiveWeight(1);
   const sd={obj:g,mx,acts,w:{idle:1},gun,bones,flash,flashLight,trooper:true,arms:null,idle:acts.idle,run:acts.runF,fp:firstPerson,bob:0,sway:0,lastH:null};
+  sd.fingers=[];o.traverse(b=>{if(b.isBone&&/Hand(Thumb|Index|Middle|Ring|Pinky)\d/.test(b.name))sd.fingers.push(b);}); // (interiors branch) frozen in a grip while on the rifle
   const ring=new THREE.Mesh(new THREE.RingGeometry(.75,1.05,28),new THREE.MeshBasicMaterial({color:TEAMS[T].color,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=1;
   return {g,parts:{sd,ring}};
 }

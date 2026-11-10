@@ -479,8 +479,24 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='14'; /* sp-data is served with a one-year immutable cache (vercel.json), so BUMP DATA_V WHENEVER ANY FILE IN sp-data CHANGES or players keep the old file */
-const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
+/* Phones and other small-memory devices load a second copy of every model whose textures were baked at 512px
+   (sp-data-m, built with: gltf-transform optimize --texture-size 512 ... --palette false). Shrinking a 2048px
+   texture in the browser still costs the full-size decode first - 16 MB of pixels for one texture - and doing
+   that sixty times over is what was dropping the tab. BUILD BOTH FOLDERS AND BUMP DATA_V WHENEVER MODELS CHANGE. */
+const LOWMEM=(()=>{try{const q=location.search.match(/texcap=(\d+)/);if(q)return +q[1]<=1024;const m=navigator.deviceMemory||8;return (matchMedia('(pointer: coarse)').matches&&!matchMedia('(hover: hover)').matches)||m<=4;}catch(e){return false;}})();
+const DATA='sp-data/',MODELS=LOWMEM?'sp-data-m/':'sp-data/',DATA_V='14'; /* sp-data is served with a one-year immutable cache (vercel.json), so BUMP DATA_V WHENEVER ANY FILE IN sp-data CHANGES or players keep the old file */
+let LOADN=0,LOADOK=0,LOADMB=0;
+function loadNote(){const el=document.getElementById('loading');if(el)el.textContent='LOADING ARMOR… '+LOADOK+'/'+LOADN+(LOADMB>.5?'  ('+LOADMB.toFixed(0)+' MB)':'');}
+const binBase=f=>(LOWMEM&&f.slice(-4)==='.glb'&&f.indexOf('/')<0)?MODELS:DATA; /* only the top-level models have a 512px twin; audio, ground textures and the tree pack are shared */
+/* On a phone only six files are in the air at once: every finished download sits in memory as a buffer until
+   its model is built, and sixty at once is a pile of memory before a single model exists. */
+const FGATE=LOWMEM?6:64;let FQ=0;const FW=[];
+const fslot=()=>FQ<FGATE?(FQ++,Promise.resolve()):new Promise(r=>FW.push(r)).then(()=>{FQ++;});
+const fdone=()=>{FQ--;const n=FW.shift();if(n)n();};
+const fetchBin=f=>{LOADN++;let freed=false;const rel=()=>{if(!freed){freed=true;fdone();}};return fslot().then(()=>fetch(binBase(f)+f+'?v='+DATA_V)).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();}).then(b=>{rel();LOADOK++;LOADMB+=b.byteLength/1048576;loadNote();return b;}).catch(e=>{rel();loadFail(f,e);throw e;});};
+let FAILED=0;
+function loadFail(f,e){if(++FAILED>1)return;const el=document.getElementById('loading');if(el)el.innerHTML='Could not load <b>'+f+'</b><br><span style="font-size:.7em;opacity:.8">'+(e&&e.message?e.message:e)+'</span><br><br><span style="font-size:.7em;opacity:.8">Reload to try again.</span>';console.warn('load failed',f,e);}
+addEventListener('error',e=>{if(FAILED)return;const el=document.getElementById('loading');if(el&&el.textContent.indexOf('LOADING')===0)el.innerHTML='Stopped while loading:<br><span style="font-size:.7em;opacity:.8">'+((e.message||'')+'').slice(0,160)+'</span>';});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone','hq','bldA','bldB','bldC','bldD','bldE','bldF','d_tent','d_tentbig','d_radio','d_watchtower','d_fueltank','d_generator'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock','s_dozer','s_m4','s_mg']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
 const MUS_KEYS=['m_drums','m_diesirae','m_bumblebee','m_hallelujah','m_mars','m_mountain','m_tell','m_valkyries'];
@@ -536,13 +552,14 @@ const PARSED=new Map();let MD_READY=null;
 function parsed(buf){if(!buf)return Promise.resolve(null);let p=PARSED.get(buf);if(!p){p=new Promise((res,rej)=>{const L=new GLTFLoader();if(MD_READY)L.setMeshoptDecoder(MD_READY);L.parse(buf,'',res,rej);});PARSED.set(buf,p);}return p;}
 function parseAhead(){const kick=pr=>Promise.resolve(pr).then(b=>{if(b&&b.byteLength)parsed(b).catch(()=>{});}).catch(()=>{});for(const k in PRE){const v=PRE[k];if(!v)continue;if(v instanceof Promise)kick(v);else if(typeof v==='object')for(const kk in v)kick(v[kk]);}}
 async function loadAssets(){
+  try{const {MeshoptDecoder:MDearly}=await import('three/addons/libs/meshopt_decoder.module.js');await MDearly.ready;MD_READY=MDearly;}catch(e){console.warn('meshopt',e);} /* before the first parse: the phone set is meshopt-compressed throughout, and a loader without the decoder fails on it */
   const bin=await PRE.assets;
   const gltf=await parsed(bin);
   for(const c of [...gltf.scene.children])A[c.name]=c;
   // infantry: Kenney animated character + painted team uniforms
   const ex={};for(const k of EXTRA_KEYS)ex[k]=await PRE.ex[k];
   const sb=ex.soldier;if(!sb)throw new Error('soldier model missing');
-  const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;MD_READY=MD0;if(!TEX_CAP)parseAhead(); /* phones parse one model at a time: parsing them all at once holds every file's full-size textures in memory at the same moment, which is what a phone cannot spare */
+  const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;MD_READY=MD_READY||MD0;if(!LOWMEM)parseAhead(); /* phones parse one model at a time: parsing them all at once holds every file's full-size textures in memory at the same moment, which is what a phone cannot spare */
   const sg=await parsed(sb);
   A.soldier={scene:sg.scene,idle:sg.animations.find(a=>a.name==='idle'),run:sg.animations.find(a=>a.name==='run')};
   try{const tb=await PRE.troop;if(tb){const tg=await parsed(tb);
@@ -6173,7 +6190,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
 
 // boot
 (async()=>{
-  try{await loadAssets();}catch(e){$('#loading').textContent='Could not load models: '+e.message;return;}
+  try{await loadAssets().catch(e=>{console.error('loadAssets',e);const el=document.getElementById('loading');if(el)el.innerHTML='Stopped while loading:<br><span style="font-size:.7em;opacity:.8">'+((e&&e.message)||e)+'</span>';});}catch(e){$('#loading').textContent='Could not load models: '+e.message;return;}
   PARSED.clear(); /* the parse cache only exists to share a file between two awaits during load; holding it keeps every scene and texture alive for the session */
   prefetchAudio();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);

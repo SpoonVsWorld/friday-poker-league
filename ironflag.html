@@ -479,7 +479,7 @@ const tmpBox=new THREE.Box3();
 // Models and sounds live next to the game in sp-data/ (they used to be base64 inside this file, which was
 // pushing it past 10 MB). Downloads start the moment the page runs; sounds after the models so the title
 // screen comes up first. Bump DATA_V whenever a file in sp-data/ is replaced so phones don't keep an old copy.
-const DATA='sp-data/',DATA_V='13';
+const DATA='sp-data/',DATA_V='14'; /* sp-data is served with a one-year immutable cache (vercel.json), so BUMP DATA_V WHENEVER ANY FILE IN sp-data CHANGES or players keep the old file */
 const fetchBin=f=>fetch(DATA+f+'?v='+DATA_V).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone','hq','bldA','bldB','bldC','bldD','bldE','bldF','d_tent','d_tentbig','d_radio','d_watchtower','d_fueltank','d_generator'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock','s_dozer','s_m4','s_mg']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -530,17 +530,22 @@ function adaptClip(c){ // Vanguard-era clips on the troop skeleton: joint frames
   const k=c.clone();k.tracks=k.tracks.filter(t=>(!t.name.endsWith('.position')||t.name==='mixamorigHips.position')&&A.troop.getObjectByName(t.name.split('.')[0]));
   for(const t of k.tracks)if(t.name==='mixamorigHips.position')for(let i=0;i<t.values.length;i++)t.values[i]*=.01;return k;}
 const TEAM_MAT=[],CAMO_MAT=[],CAMO_TINT=[];
+/* GLTF parsing (10 Nov 2026): one parse per file, started for every file as soon as its download lands, instead of one after another.
+   Image decoding is off the main thread, so decoding one file's textures overlaps with decoding the next file's geometry. */
+const PARSED=new Map();let MD_READY=null;
+function parsed(buf){if(!buf)return Promise.resolve(null);let p=PARSED.get(buf);if(!p){p=new Promise((res,rej)=>{const L=new GLTFLoader();if(MD_READY)L.setMeshoptDecoder(MD_READY);L.parse(buf,'',res,rej);});PARSED.set(buf,p);}return p;}
+function parseAhead(){const kick=pr=>Promise.resolve(pr).then(b=>{if(b&&b.byteLength)parsed(b).catch(()=>{});}).catch(()=>{});for(const k in PRE){const v=PRE[k];if(!v)continue;if(v instanceof Promise)kick(v);else if(typeof v==='object')for(const kk in v)kick(v[kk]);}}
 async function loadAssets(){
   const bin=await PRE.assets;
-  const gltf=await new Promise((res,rej)=>new GLTFLoader().parse(bin,'',res,rej));
+  const gltf=await parsed(bin);
   for(const c of [...gltf.scene.children])A[c.name]=c;
   // infantry: Kenney animated character + painted team uniforms
   const ex={};for(const k of EXTRA_KEYS)ex[k]=await PRE.ex[k];
   const sb=ex.soldier;if(!sb)throw new Error('soldier model missing');
-  const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;
-  const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));
+  const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;MD_READY=MD0;parseAhead();
+  const sg=await parsed(sb);
   A.soldier={scene:sg.scene,idle:sg.animations.find(a=>a.name==='idle'),run:sg.animations.find(a=>a.name==='run')};
-  try{const tb=await PRE.troop;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));
+  try{const tb=await PRE.troop;if(tb){const tg=await parsed(tb);
     A.troop=tg.scene;A.soldier.scene=tg.scene;A.soldier.idle=adaptClip(A.soldier.idle);A.soldier.run=adaptClip(A.soldier.run);
     const camo=tg.scene.getObjectByName('Uniform')?.material;if(camo){camo.onBeforeCompile=sh=>{ // camo sampled triplanar in bind-pose space: seamless over the fatigues and helmet cover, sticks to the body while it moves
       sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vCamoP;varying vec3 vCamoN;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCamoP=position;vCamoN=normal;');
@@ -549,53 +554,53 @@ async function loadAssets(){
     for(const T of [0,1])CAMO_TINT[T]={};tg.scene.traverse(o=>{if(o.isMesh&&/^(Shirt_Tactical|Pants_Holster|Vest1|Helmet_Cloth|Utility_Belt)/.test(o.name)){for(const T of [0,1]){if(CAMO_TINT[T][o.material.uuid])continue;const m=o.material.clone();m.color.setRGB(...(T===0?[.8,.9,1.14]:[1.14,.86,.78]));CAMO_TINT[T][o.material.uuid]=m;}}}); // CC3 troop: team hue on the fatigues (no 'Uniform' mesh there)
     const bootM=tg.scene.getObjectByName('Boots')?.material;if(bootM&&!tg.scene.getObjectByName('Helmet_Cloth'))bootM.color.multiplyScalar(.5);
     tg.scene.traverse(o=>{if(o.isMesh){o.material.roughness=Math.max(o.material.roughness,.55);if(/^Head\d/.test(o.name))o.userData.head=+o.name[4];if(o.name==='HelmetBand'||/^ArmBand/.test(o.name)||o.name==='GoggleStrap')o.userData.team=true;}});}}catch(e){console.warn('troop model',e);}
-  try{const jb=await PRE.jeepOpen;if(jb){const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
-  try{const tb=await PRE.truck;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));const tr=tg.scene.getObjectByName('truck')||tg.scene;tr.traverse(o=>{if(o.isMesh&&o.material){const m=o.material;m.envMapIntensity=.8;m.metalness=Math.min(m.metalness,.3);m.roughness=Math.max(m.roughness,.42);if(m.emissiveIntensity>1)m.emissiveIntensity=1;}});A.truck=tr; /* the showroom clearcoat paint reads black under the game's sky light: tone it down */}}catch(e){console.warn('truck model',e);}
-  try{const hb=await PRE.heli;if(hb){const hg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(hb,'',res,rej));const hl=hg.scene.getObjectByName('heli');if(hl&&hl.getObjectByName('Blade_001')&&hl.getObjectByName('Blade_002')){hl.traverse(o=>{if(!o.isMesh||!o.material)return;o.castShadow=true;const m=o.material;if(m.map){m.map.anisotropy=4;m.envMap=skyEnv();m.envMapIntensity=.35;m.metalness=Math.min(m.metalness,.2);m.needsUpdate=true;}else{m.envMap=skyEnv();m.envMapIntensity=.6;m.metalness=Math.min(m.metalness,.5);}});A.heli=hl;}}}catch(e){console.warn('heli model',e);}
-  try{const jb2=await PRE.jet2;if(jb2){const jg2=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(jb2,'',res,rej));
+  try{const jb=await PRE.jeepOpen;if(jb){const jg=await parsed(jb);const j=jg.scene.getObjectByName('jeep')||jg.scene.children[0];if(j){j.name='jeep';A.jeep=j;}}}catch(e){console.warn('open jeep',e);}
+  try{const tb=await PRE.truck;if(tb){const tg=await parsed(tb);const tr=tg.scene.getObjectByName('truck')||tg.scene;tr.traverse(o=>{if(o.isMesh&&o.material){const m=o.material;m.envMapIntensity=.8;m.metalness=Math.min(m.metalness,.3);m.roughness=Math.max(m.roughness,.42);if(m.emissiveIntensity>1)m.emissiveIntensity=1;}});A.truck=tr; /* the showroom clearcoat paint reads black under the game's sky light: tone it down */}}catch(e){console.warn('truck model',e);}
+  try{const hb=await PRE.heli;if(hb){const hg=await parsed(hb);const hl=hg.scene.getObjectByName('heli');if(hl&&hl.getObjectByName('Blade_001')&&hl.getObjectByName('Blade_002')){hl.traverse(o=>{if(!o.isMesh||!o.material)return;o.castShadow=true;const m=o.material;if(m.map){m.map.anisotropy=4;m.envMap=skyEnv();m.envMapIntensity=.35;m.metalness=Math.min(m.metalness,.2);m.needsUpdate=true;}else{m.envMap=skyEnv();m.envMapIntensity=.6;m.metalness=Math.min(m.metalness,.5);}});A.heli=hl;}}}catch(e){console.warn('heli model',e);}
+  try{const jb2=await PRE.jet2;if(jb2){const jg2=await parsed(jb2);
     jg2.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;const m=o.material,n=m.name||'';if(/^Decal/.test(n)){m.transparent=true;m.depthWrite=false;m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=1;o.castShadow=false;}
       else if(n==='Canopy'){m.color.setHex(0x16222e);m.emissive.setHex(0x000000);m.transparent=true;m.opacity=.88;m.roughness=.2;m.metalness=.5;m.envMapIntensity=.5;m.depthWrite=true;}else{m.envMapIntensity=.9;}m.needsUpdate=true;});A.jet2=jg2.scene;}}catch(e){console.warn('jet skin model',e);}
-  try{const db=await PRE.dozer;if(db){const dg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(db,'',res,rej));
+  try{const db=await PRE.dozer;if(db){const dg=await parsed(db);
     dg.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;const m=o.material,n=m.name||'';
       if(/^Decal/.test(n)){m.transparent=true;m.depthWrite=false;m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=1;o.castShadow=false;}
       else if(n==='Lens'||n==='Slit'){m.roughness=.1;m.metalness=.6;m.envMapIntensity=1;}else{m.envMapIntensity=.5;}m.needsUpdate=true;});A.dozer=dg.scene;}}catch(e){console.warn('killdozer model',e);}
-  try{const bb=await PRE.boat;if(bb){const bg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(bb,'',res,rej));const gm=new THREE.MeshStandardMaterial({color:0x2b2d2a,roughness:.45,metalness:.6});
+  try{const bb=await PRE.boat;if(bb){const bg=await parsed(bb);const gm=new THREE.MeshStandardMaterial({color:0x2b2d2a,roughness:.45,metalness:.6});
     bg.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;if(/^Gun/.test(o.name)||!o.geometry.attributes.uv)o.material=gm;else{const m=o.material;m.normalMap=null;m.color.setScalar(1.5);m.envMapIntensity=.7;m.roughness=Math.max(m.roughness,.6);m.metalness=Math.min(m.metalness,.3);m.side=THREE.FrontSide;m.needsUpdate=true;}});A.boat=bg.scene; /* the old .blend wired the paint texture into the normal slot too */}}catch(e){console.warn('boat model',e);}
-  try{const sb=await PRE.sub;if(sb){const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));const sr=sg.scene.getObjectByName('sub')||sg.scene;sr.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(sr);sr.scale.setScalar(NUKE.subLen/Math.max(1,bb.max.z-bb.min.z));sr.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.7;}});A.sub=sr;const nm=sg.scene.getObjectByName('NukeMissile');if(nm){nm.position.set(0,0,0);nm.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.8;}});A.nukeMissile=nm;}}}catch(e){console.warn('sub model',e);}
-  try{const hb=await PRE.hero;if(hb){const hg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(hb,'',res,rej));
+  try{const sb=await PRE.sub;if(sb){const sg=await parsed(sb);const sr=sg.scene.getObjectByName('sub')||sg.scene;sr.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(sr);sr.scale.setScalar(NUKE.subLen/Math.max(1,bb.max.z-bb.min.z));sr.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.7;}});A.sub=sr;const nm=sg.scene.getObjectByName('NukeMissile');if(nm){nm.position.set(0,0,0);nm.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material)o.material.envMapIntensity=.8;}});A.nukeMissile=nm;}}}catch(e){console.warn('sub model',e);}
+  try{const hb=await PRE.hero;if(hb){const hg=await parsed(hb);
     const hs=hg.scene.getObjectByName('Hero'),fp=hg.scene.getObjectByName('FPView');
     hg.scene.traverse(o=>{if(o.isMesh&&o.material&&o.material.name==='rf_glass'){o.material.color.setRGB(.04,.07,.07);o.material.metalness=.2;o.material.roughness=.05;o.material.emissive=new THREE.Color(.09,0,0);}
       if(o.isMesh){const m=o.material;if(m.transparent||m.alphaTest===0&&m.map){m.transparent=false;m.alphaTest=.45;m.depthWrite=true;}m.side=THREE.FrontSide;if(m.metalness>.5){m.metalness=.55;m.roughness=Math.max(m.roughness,.4);}}});
     const wrap=new THREE.Group();wrap.add(hs);wrap.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(hs,true);wrap.scale.setScalar(HERO_H/Math.max(.5,bb.max.y-bb.min.y));
     const strip=c=>{const k=c.clone();k.tracks=k.tracks.filter(t=>!t.name.endsWith('.position')&&!t.name.startsWith('mixamorigHips.')&&hs.getObjectByName(t.name.split('.')[0])); /* the troop clips' hip rotation is in a different armature frame: keep this rig's own upright hips */return k;};
     A.hero={body:wrap,fp,idle:strip(A.soldier.idle),run:strip(A.soldier.run)};fpSetup();}}catch(e){console.warn('hero model',e);}
-  try{const cb=await PRE.carrier;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(cb,'',res,rej));const cr=cg.scene.getObjectByName('Carrier')||cg.scene;cr.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.4;o.material.flatShading=false;o.material.fog=false;o.material.color.lerp(new THREE.Color(FOG),.22);}}});A.carrier=cr;}}catch(e){console.warn('carrier model',e);}
-  try{const mb=await PRE.m4;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const m4=mg.scene.getObjectByName('M4')||mg.scene;m4.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;if(o.material){o.material.envMapIntensity=.7;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}}});A.m4=m4;RIFLE.tpl=null;RIFLE.grip.copy(RIFLE.m4.grip);RIFLE.fore.copy(RIFLE.m4.fore);}}catch(e){console.warn('m4 model',e);}
-  try{const cb2=await PRE.cargo;if(cb2){const cg2=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(cb2,'',res,rej));
+  try{const cb=await PRE.carrier;if(cb){const cg=await parsed(cb);const cr=cg.scene.getObjectByName('Carrier')||cg.scene;cr.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.4;o.material.flatShading=false;o.material.fog=false;o.material.color.lerp(new THREE.Color(FOG),.22);}}});A.carrier=cr;}}catch(e){console.warn('carrier model',e);}
+  try{const mb=await PRE.m4;if(mb){const mg=await parsed(mb);const m4=mg.scene.getObjectByName('M4')||mg.scene;m4.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;if(o.material){o.material.envMapIntensity=.7;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}}});A.m4=m4;RIFLE.tpl=null;RIFLE.grip.copy(RIFLE.m4.grip);RIFLE.fore.copy(RIFLE.m4.fore);}}catch(e){console.warn('m4 model',e);}
+  try{const cb2=await PRE.cargo;if(cb2){const cg2=await parsed(cb2);
     cg2.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.material.envMap=skyEnv();o.material.envMapIntensity=.35;}});A.cargo=cg2.scene;}}catch(e){console.warn('cargo model',e);}
-  try{const sb=await PRE.station;if(sb){const sg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(sb,'',res,rej));const st=sg.scene.getObjectByName('Station')||sg.scene;st.traverse(o=>{if(o.isMesh&&o.material){o.material.metalness=Math.min(o.material.metalness,.35);o.material.envMapIntensity=.5;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}});A.station=st;}await PRE.orbtex;}catch(e){console.warn('station model',e);}
-  try{const hb=await PRE.hazmat;if(hb&&hb[0]&&hb[1]){A.hazmat={};for(const [k,buf] of [['trooper',hb[0]],['troop',hb[1]]]){const g=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(buf,'',res,rej));A.hazmat[k]=g.scene;}}}catch(e){console.warn('hazmat model',e);}
-  try{const pb=await PRE.props;if(pb){const pg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(pb,'',res,rej));A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
-  try{const tb=await PRE.trooper;if(tb){const tg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(tb,'',res,rej));trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
-  for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(vb,'',res,rej));
+  try{const sb=await PRE.station;if(sb){const sg=await parsed(sb);const st=sg.scene.getObjectByName('Station')||sg.scene;st.traverse(o=>{if(o.isMesh&&o.material){o.material.metalness=Math.min(o.material.metalness,.35);o.material.envMapIntensity=.5;o.material.envMap=skyEnv();if(o.material.map)o.material.map.anisotropy=4;}});A.station=st;}await PRE.orbtex;}catch(e){console.warn('station model',e);}
+  try{const hb=await PRE.hazmat;if(hb&&hb[0]&&hb[1]){A.hazmat={};for(const [k,buf] of [['trooper',hb[0]],['troop',hb[1]]]){const g=await parsed(buf);A.hazmat[k]=g.scene;}}}catch(e){console.warn('hazmat model',e);}
+  try{const pb=await PRE.props;if(pb){const pg=await parsed(pb);A.props={};for(const n of ['Grenade','Mine','Bomb']){const o=pg.scene.getObjectByName(n);if(o){o.traverse(m=>{if(m.isMesh){m.castShadow=true;if(m.material){m.material.envMapIntensity=.6;if(m.material.map)m.material.map.anisotropy=4;}}});A.props[n]=o;}}}}catch(e){console.warn('props model',e);}
+  try{const tb=await PRE.trooper;if(tb){const tg=await parsed(tb);trooperSetup(tg);}}catch(e){console.warn('trooper model',e);}
+  for(const [k,len,tw] of [['tank',8.2,'Abrams_Tower']]){try{const vb=await PRE[k];if(!vb)continue;const vg=await parsed(vb);
     A[k+'Real']=fitReal(vg.scene,len,tw);}catch(e){console.warn(k+' model',e);}}
-  try{const mb=await PRE.turrets;if(mb){const mg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(mb,'',res,rej));const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
+  try{const mb=await PRE.turrets;if(mb){const mg=await parsed(mb);const base=mg.scene.getObjectByName('Base'),ring=mg.scene.getObjectByName('Ring'),pods={missile:mg.scene.getObjectByName('PodMissile'),gun:mg.scene.getObjectByName('PodGun'),cannon:mg.scene.getObjectByName('PodCannon')};
     if(base&&ring&&pods.missile&&pods.gun&&pods.cannon){mg.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material.map)o.material.map.anisotropy=4;o.material.envMapIntensity=.6;if(!o.material.map&&/^(GunMetal|Barrel|OliveSteel)/.test(o.material.name))o.material=vehRealMat(o.material,o);}});A.turrets={base,ring,pods,headY:ring.position.y};}}}catch(e){console.warn('turret models',e);}
-  for(const ipr of PRE.items)try{const ib=await ipr;if(ib){const ig=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(ib,'',res,rej));A.items=A.items||{};
+  for(const ipr of PRE.items)try{const ib=await ipr;if(ib){const ig=await parsed(ib);A.items=A.items||{};
     for(const r of [...ig.scene.children]){const m=/^(item|bt)(\d\d)$/.exec(r.name);if(!m)continue;r.position.set(0,0,0);r.updateMatrixWorld(true);
       const bx=new THREE.Box3().setFromObject(r),sz=bx.getSize(new V3()),c=bx.getCenter(new V3()),k=(r.userData.gameSize||ITEM_SIZE)/Math.max(sz.x,sz.z); /* per-item size from the Blender custom property gameSize (the cargo crate is bigger) */
       r.position.set(-c.x,-bx.min.y,-c.z);const inner=new THREE.Group();inner.add(r);inner.scale.setScalar(k);const wrap=new THREE.Group();wrap.add(inner);wrap.userData.inner=inner;
       r.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material){o.material.envMap=skyEnv();o.material.envMapIntensity=o.material.metalness>.5?1:.5;}}});(m[1]==='bt'?(A.itemsBT=A.itemsBT||{}):A.items)[+m[2]]=wrap; /* sky reflections so the metal parts (aluminium, chrome, steel) read as metal instead of black */}}}catch(e){console.warn('items model',e);}
-  try{const lb=await PRE.launcher;if(lb){const lg=await new Promise((res,rej)=>new GLTFLoader().setMeshoptDecoder(MD0).parse(lb,'',res,rej));const L=lg.scene.getObjectByName('Launcher');
+  try{const lb=await PRE.launcher;if(lb){const lg=await parsed(lb);const L=lg.scene.getObjectByName('Launcher');
     if(L){L.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;const mn=o.material.name;if(/^Decal/.test(mn)){o.material.polygonOffset=true;o.material.polygonOffsetFactor=-2;o.material.depthWrite=false;o.renderOrder=2;}else if(o.material.map){o.material.envMap=skyEnv();o.material.envMapIntensity=.35;o.material.needsUpdate=true;} /* (interiors branch) baked in Blender: paint wear, grime and AO are in the texture */else if(!/Glass|Lamp/.test(mn)){if(/^Olive/.test(mn))o.material.userData.camo=1;o.material=vehRealMat(o.material,o);}else o.material.envMapIntensity=.6;}});A.launcher=L;}}}catch(e){console.warn('launcher model',e);}
-  try{const cb=await PRE.crew;if(cb){const cg=await new Promise((res,rej)=>new GLTFLoader().parse(cb,'',res,rej));let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
+  try{const cb=await PRE.crew;if(cb){const cg=await parsed(cb);let R=cg.animations.find(a=>a.name==='jeepAimR'),L=cg.animations.find(a=>a.name==='jeepAimL');if(A.troop){R=adaptClip(R);L=adaptClip(L);}if(R&&L)A.crew={R,L};}}catch(e){console.warn('crew poses',e);}
   // YF-23 (from Matt's Kenney folder, cgtrader_optimized_YF23-FBX.fbx -> glb): campaign air strikes, see updateAir
-  if(ex.jet){try{const jb=ex.jet;const jg=await new Promise((res,rej)=>new GLTFLoader().parse(jb,'',res,rej));A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
+  if(ex.jet){try{const jb=ex.jet;const jg=await parsed(jb);A.jet=jg.scene;}catch(e){console.warn('jet model',e);}}
   // hospital + ammo depot (built in Blender for Matt, SpoonPlatoon_Buildings/*_web.glb): field repair / rearm, see field supply
   try{const {MeshoptDecoder}=await import('three/addons/libs/meshopt_decoder.module.js');await MeshoptDecoder.ready;const ml=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-    for(const k of ['hospital','ammodepot','gasstation','drone','hq','bldA','bldB','bldC','bldD','bldE','bldF','d_tent','d_tentbig','d_radio','d_watchtower','d_fueltank','d_generator']){if(!ex[k])continue;try{const kb=ex[k];const kg=await new Promise((res,rej)=>ml.parse(kb,'',res,rej));kg.scene.traverse(o=>{if(o.isMesh){o.material.flatShading=true;if(o.material.map){o.material.envMap=skyEnv();o.material.envMapIntensity=.25;}o.material.needsUpdate=true;o.castShadow=true;o.receiveShadow=true;}});A[k]=kg.scene;}catch(e){console.warn(k+' model',e);}}}catch(e){console.warn('meshopt decoder',e);}
+    for(const k of ['hospital','ammodepot','gasstation','drone','hq','bldA','bldB','bldC','bldD','bldE','bldF','d_tent','d_tentbig','d_radio','d_watchtower','d_fueltank','d_generator']){if(!ex[k])continue;try{const kb=ex[k];const kg=await parsed(kb);kg.scene.traverse(o=>{if(o.isMesh){o.material.flatShading=true;if(o.material.map){o.material.envMap=skyEnv();o.material.envMapIntensity=.25;}o.material.needsUpdate=true;o.castShadow=true;o.receiveShadow=true;}});A[k]=kg.scene;}catch(e){console.warn(k+' model',e);}}}catch(e){console.warn('meshopt decoder',e);}
   try{const tl=new GLTFLoader(),got={};
-    for(const [f,pr] of Object.entries(PRE.trees)){const b=await pr;if(b)got[f]=(await new Promise((res,rej)=>tl.parse(b,'',res,rej))).scene;}
+    for(const [f,pr] of Object.entries(PRE.trees)){const b=await pr;if(b)got[f]=(await parsed(b)).scene;}
     for(const [k,f] of Object.entries(RT_MAP)){const src=got[f],ref=A[k];if(!src||!ref)continue;
       const rb=new THREE.Box3().setFromObject(ref),g=src.clone(true),gb=new THREE.Box3().setFromObject(g);
       g.scale.setScalar((rb.max.y-rb.min.y)/(gb.max.y-gb.min.y)*1.3); // a touch taller than the cartoon tree it replaces
@@ -605,13 +610,13 @@ async function loadAssets(){
       if(!done.has(m)){done.add(m);m.color.multiplyScalar(m.alphaTest?2.3:1.6);m.side=THREE.DoubleSide;}
       if(m.alphaTest&&!o.userData.up){o.userData.up=1;const n=o.geometry.attributes.normal;if(n){for(let i=0;i<n.count;i++)n.setXYZ(i,0,1,0);n.needsUpdate=true;}}});
   }catch(e){console.warn('retro trees',e);}
-  try{const pb=await PRE.plants;if(pb){const ps=(await new Promise((res,rej)=>new GLTFLoader().parse(pb,'',res,rej))).scene;const fixed=new Set();
+  try{const pb=await PRE.plants;if(pb){const ps=(await parsed(pb)).scene;const fixed=new Set();
     for(const c of [...ps.children]){if(!c.name.startsWith('P_'))continue;
       c.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(fixed.has(m))return;fixed.add(m); // alpha-cut instead of blended: no sorting problems when instanced
         m.transparent=false;m.alphaTest=.45;m.depthWrite=true;m.side=THREE.DoubleSide;if(/flower|lilly/i.test(m.name))m.color.multiplyScalar(1.1);else if(/grass-sheet|S11_A/i.test(m.name))m.color.multiply(new THREE.Color(1.15,1.6,.85));else m.color.multiplyScalar(1.45);}); // grass sheet is straw-coloured: green it up to sit on the game's turf
       A[c.name]=c;}}}catch(e){console.warn('plants',e);}
   await PRE.tex;await PRE.texd;await PRE.ocean;
-  try{const pb=await PRE.props2;if(pb){const ps=(await new Promise((res,rej)=>new GLTFLoader().parse(pb,'',res,rej))).scene;const fixed=new Set();
+  try{const pb=await PRE.props2;if(pb){const ps=(await parsed(pb)).scene;const fixed=new Set();
     const WOODMAP={'Wood-crates':'crate','wood-planks':'planks','wood-material-plain':'woodplain','wood-planks-continuous':'planks2','Dark-wood-planks':'planksD','Dark-wood-material-plain':'woodplainD','Dark-wood-planks-continuous':'planks2D'};
     for(const c of [...ps.children]){if(!c.name.startsWith('G_'))continue;
       c.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(fixed.has(m))return;fixed.add(m);
@@ -5084,13 +5089,23 @@ function readHuman(view,inp){
 
 // ============================================================ HUD & views
 const thumbs={};
-function makeThumbs(){
-  const r=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});r.setSize(240,165);r.outputColorSpace=THREE.SRGBColorSpace;r.toneMapping=THREE.ACESFilmicToneMapping;
-  const sc=new THREE.Scene();sc.add(new THREE.HemisphereLight(0xffffff,0x555544,1.6));const dl=new THREE.DirectionalLight(0xffffff,2.2);dl.position.set(4,8,6);sc.add(dl);
-  for(const T of [0,1])for(const type of VORDER){if((type==='truck'&&!A.truck)||(type==='boat'&&!A.boat))continue;const {g}=buildVehicleObj(type,T);sc.add(g);const bx=new THREE.Box3().setFromObject(g),c=bx.getCenter(new V3()),s=bx.getSize(new V3()).length();
-    const cam=new THREE.PerspectiveCamera(30,240/165,.1,200);cam.position.copy(c).add(new V3(.9,.65,1.1).normalize().multiplyScalar(s*1.55));cam.lookAt(c);r.render(sc,cam);thumbs[type+T]=r.domElement.toDataURL();sc.remove(g);}
-  r.dispose();r.forceContextLoss();
+/* Vehicle card thumbnails (10 Nov 2026): used to be rendered all at once before the title screen appeared (every vehicle x both teams, each
+   one compiling shaders and uploading textures on a second GL context - several seconds on a slow PC). Now they're rendered one per idle
+   tick behind the title screen, and ensureThumbs() finishes whatever is left the moment a match needs the cards. */
+let thumbQ=null,thumbR=null,thumbSc=null;
+function thumbInit(){
+  thumbR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});thumbR.setSize(240,165);thumbR.outputColorSpace=THREE.SRGBColorSpace;thumbR.toneMapping=THREE.ACESFilmicToneMapping;
+  thumbSc=new THREE.Scene();thumbSc.add(new THREE.HemisphereLight(0xffffff,0x555544,1.6));const dl=new THREE.DirectionalLight(0xffffff,2.2);dl.position.set(4,8,6);thumbSc.add(dl);
+  thumbQ=[];for(const T of [0,1])for(const type of VORDER){if((type==='truck'&&!A.truck)||(type==='boat'&&!A.boat))continue;thumbQ.push([type,T]);}
 }
+function thumbOne(){
+  const [type,T]=thumbQ.shift();const sc=thumbSc,r=thumbR;const {g}=buildVehicleObj(type,T);sc.add(g);const bx=new THREE.Box3().setFromObject(g),c=bx.getCenter(new V3()),s=bx.getSize(new V3()).length();
+  const cam=new THREE.PerspectiveCamera(30,240/165,.1,200);cam.position.copy(c).add(new V3(.9,.65,1.1).normalize().multiplyScalar(s*1.55));cam.lookAt(c);r.render(sc,cam);thumbs[type+T]=r.domElement.toDataURL();sc.remove(g);
+  if(!thumbQ.length){r.dispose();r.forceContextLoss();thumbR=null;}
+}
+function thumbsIdle(){if(!thumbQ)thumbInit();if(!thumbQ.length)return;thumbOne();if(thumbQ.length)(window.requestIdleCallback||(f=>setTimeout(f,40)))(thumbsIdle);}
+function ensureThumbs(){if(!thumbQ)thumbInit();while(thumbQ.length)thumbOne();}
+function makeThumbs(){ensureThumbs();}
 function buildHud(view){
   const el=document.createElement('div');el.className='hud';el.style.setProperty('--tc',TEAMS[view.team.team].css);
   el.innerHTML=`<div class="status"><div class="vname"><span class="vn">—</span><em>${G.views.length>1?'PLAYER '+(view.index+1):TEAMS[view.team.team].name.toUpperCase()}</em></div>
@@ -5105,7 +5120,7 @@ function buildHud(view){
   view.q.nuke.addEventListener('click',()=>{audioInit();view.sel=NUKE_SLOT;launchFromMenu(view);});view.q.nuke.addEventListener('pointerenter',()=>{if(nukeReady())view.sel=NUKE_SLOT;});
   view.q.orb.addEventListener('click',()=>{audioInit();view.sel=ORB_SLOT;launchFromMenu(view);});view.q.orb.addEventListener('pointerenter',()=>{if(orbReady())view.sel=ORB_SLOT;});
   view.q.doz.addEventListener('click',()=>{audioInit();view.sel=DOZ_SLOT;launchFromMenu(view);});view.q.doz.addEventListener('pointerenter',()=>{if(dozerReady())view.sel=DOZ_SLOT;});
-  view.q.cards.innerHTML=VORDER.map((k,i)=>`<button class="card" data-k="${k}" id="card${view.index}${k}"><img alt="" src="${thumbs[k+view.team.team]}"><div class="nm">${VDEF[k].name}<i></i></div><div class="ds">${VDEF[k].desc}</div></button>`).join('');
+  ensureThumbs();view.q.cards.innerHTML=VORDER.map((k,i)=>`<button class="card" data-k="${k}" id="card${view.index}${k}"><img alt="" src="${thumbs[k+view.team.team]}"><div class="nm">${VDEF[k].name}<i></i></div><div class="ds">${VDEF[k].desc}</div></button>`).join('');
   {const nv=VORDER.filter(k=>cardShown(view.team,k)).length;view.q.cards.classList.toggle('five',nv===5);view.q.cards.classList.toggle('six',nv===6);view.q.cards.classList.toggle('seven',nv===7);}view.q.cards.querySelectorAll('.card').forEach((c,i)=>{c.hidden=!cardShown(view.team,VORDER[i]);c.addEventListener('click',()=>{audioInit();view.sel=i;launchFromMenu(view);});c.addEventListener('pointerenter',()=>{view.sel=i;});});
   const km=view.ctrl===0?'<kbd>A</kbd>/<kbd>D</kbd> choose · <kbd>Space</kbd> launch':'<kbd>←</kbd>/<kbd>→</kbd> choose · <kbd>K</kbd> launch';
   view.q.hint.innerHTML=opts.touch&&view.ctrl===0?'Tap a vehicle to launch it':G.views.length===1?'Click a vehicle, press <kbd>1</kbd>–<kbd>4</kbd>'+(view.team.truckOn?' (<kbd>6</kbd> six-wheeler)':'')+', or '+km+((G.op||devActive())&&G.launcher?' · <kbd>5</kbd> missile strike':'')+(nukeShown()?' · <kbd>7</kbd> nuclear strike':'')+(view.team.navyOn?' · <kbd>9</kbd> boat · <kbd>0</kbd> jet':''):km+(view.team.truckOn?' · <kbd>6</kbd> six-wheeler':'')+((G.op||devActive())&&G.launcher?' · <kbd>5</kbd> missile strike':'')+(nukeShown()?' · <kbd>7</kbd> nuclear strike':'');
@@ -6160,8 +6175,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
 (async()=>{
   try{await loadAssets();}catch(e){$('#loading').textContent='Could not load models: '+e.message;return;}
   prefetchAudio();
-  makeThumbs();
-  $('#loading').remove();startDemo();requestAnimationFrame(loop);
+  $('#loading').remove();startDemo();requestAnimationFrame(loop);setTimeout(thumbsIdle,400);
   if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,toggleFoot,footWalls,footBlocked,inRect,HQ_RECTS,PICKUPS,nearPickup,takePickup,dropItem,fire,wallHit,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>

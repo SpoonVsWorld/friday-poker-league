@@ -459,7 +459,7 @@ const TEAMS=[
 ];
 
 // ============================================================ renderer / scene
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.domElement.addEventListener('webglcontextlost',function(e){e.preventDefault();var n=document.createElement('div');n.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;background:#0b0e13;color:#e8ecf1;font:16px system-ui;z-index:9999';n.innerHTML='<div>The browser dropped the 3D view, usually because the device ran out of memory.<br><br>Close some tabs and reload.</div>';document.body.appendChild(n);});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
@@ -542,7 +542,7 @@ async function loadAssets(){
   // infantry: Kenney animated character + painted team uniforms
   const ex={};for(const k of EXTRA_KEYS)ex[k]=await PRE.ex[k];
   const sb=ex.soldier;if(!sb)throw new Error('soldier model missing');
-  const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;MD_READY=MD0;parseAhead();
+  const {MeshoptDecoder:MD0}=await import('three/addons/libs/meshopt_decoder.module.js');await MD0.ready;MD_READY=MD0;if(!TEX_CAP)parseAhead(); /* phones parse one model at a time: parsing them all at once holds every file's full-size textures in memory at the same moment, which is what a phone cannot spare */
   const sg=await parsed(sb);
   A.soldier={scene:sg.scene,idle:sg.animations.find(a=>a.name==='idle'),run:sg.animations.find(a=>a.name==='run')};
   try{const tb=await PRE.troop;if(tb){const tg=await parsed(tb);
@@ -5094,13 +5094,13 @@ const thumbs={};
    tick behind the title screen, and ensureThumbs() finishes whatever is left the moment a match needs the cards. */
 let thumbQ=null,thumbR=null,thumbSc=null;
 function thumbInit(){
-  thumbR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});thumbR.setSize(240,165);thumbR.outputColorSpace=THREE.SRGBColorSpace;thumbR.toneMapping=THREE.ACESFilmicToneMapping;
+  const TW=TEX_CAP?160:240,TH=TEX_CAP?110:165;thumbR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});thumbR.setSize(TW,TH);thumbR.outputColorSpace=THREE.SRGBColorSpace;thumbR.toneMapping=THREE.ACESFilmicToneMapping;
   thumbSc=new THREE.Scene();thumbSc.add(new THREE.HemisphereLight(0xffffff,0x555544,1.6));const dl=new THREE.DirectionalLight(0xffffff,2.2);dl.position.set(4,8,6);thumbSc.add(dl);
   thumbQ=[];for(const T of [0,1])for(const type of VORDER){if((type==='truck'&&!A.truck)||(type==='boat'&&!A.boat))continue;thumbQ.push([type,T]);}
 }
 function thumbOne(){
   const [type,T]=thumbQ.shift();const sc=thumbSc,r=thumbR;const {g}=buildVehicleObj(type,T);sc.add(g);const bx=new THREE.Box3().setFromObject(g),c=bx.getCenter(new V3()),s=bx.getSize(new V3()).length();
-  const cam=new THREE.PerspectiveCamera(30,240/165,.1,200);cam.position.copy(c).add(new V3(.9,.65,1.1).normalize().multiplyScalar(s*1.55));cam.lookAt(c);r.render(sc,cam);thumbs[type+T]=r.domElement.toDataURL();sc.remove(g);
+  const cam=new THREE.PerspectiveCamera(30,thumbR.domElement.width/thumbR.domElement.height,.1,200);cam.position.copy(c).add(new V3(.9,.65,1.1).normalize().multiplyScalar(s*1.55));cam.lookAt(c);r.render(sc,cam);thumbs[type+T]=r.domElement.toDataURL();sc.remove(g);
   if(!thumbQ.length){r.dispose();r.forceContextLoss();thumbR=null;}
 }
 function thumbsIdle(){if(!thumbQ)thumbInit();if(!thumbQ.length)return;thumbOne();if(thumbQ.length)(window.requestIdleCallback||(f=>setTimeout(f,40)))(thumbsIdle);}
@@ -6174,8 +6174,10 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
 // boot
 (async()=>{
   try{await loadAssets();}catch(e){$('#loading').textContent='Could not load models: '+e.message;return;}
+  PARSED.clear(); /* the parse cache only exists to share a file between two awaits during load; holding it keeps every scene and texture alive for the session */
   prefetchAudio();
-  $('#loading').remove();startDemo();requestAnimationFrame(loop);setTimeout(thumbsIdle,400);
+  $('#loading').remove();startDemo();requestAnimationFrame(loop);
+  if(!TEX_CAP)setTimeout(thumbsIdle,400); /* on a phone the cards build their own thumbnails when first opened, rather than running a second WebGL context alongside the game */
   if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,toggleFoot,footWalls,footBlocked,inRect,HQ_RECTS,PICKUPS,nearPickup,takePickup,dropItem,fire,wallHit,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>

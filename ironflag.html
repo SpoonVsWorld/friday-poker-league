@@ -1944,7 +1944,7 @@ function interiorSetup(s,o,yaw,spec,roofName,innerName){if(o.userData.foot)s.ext
   const c=Math.cos(yaw),sn=Math.sin(yaw);const toW=(lx,lz)=>{lx+=off.x;lz+=off.z;return [x+lx*c+lz*sn,z-lx*sn+lz*c];};
   const [cx,cz]=toW(0,0);s.rect=null;
   const w=spec.w.map(r=>{const [wx,wz]=toW(r.x,r.z);return {x:wx,z:wz,sx:r.sx,sz:r.sz,yaw};});
-  s.interior={open:true,w,outer:{x:cx,z:cz,sx:spec.sx,sz:spec.sz,yaw},roof:o.getObjectByName(roofName),inner:o.getObjectByName(innerName),door:toW(spec.door[0],spec.door[1]),occupied:false,cy:o.position.y+Math.min(spec.h,3.4)*.8};
+  s.interior={open:true,w,outer:{x:cx,z:cz,sx:spec.sx,sz:spec.sz,yaw},roof:o.getObjectByName(roofName),inner:o.getObjectByName(innerName),door:toW(spec.door[0],spec.door[1]),occupied:false,cy:o.position.y+Math.min(spec.h,3.4)*.8,toW,y0:o.position.y};
   G.interiors=G.interiors||[];G.interiors.push(s);return s;}
 function hqSetup(T,x,z,yaw,o){
   const inner=o.children[0],off=inner?inner.position:{x:0,z:0}; // proto() recentres the model on its bounding box; undo that for the local rectangles
@@ -1954,12 +1954,30 @@ function hqSetup(T,x,z,yaw,o){
   const s=addStatic({kind:'hq',team:T,x:cx,z:cz,y0:o.position.y,h:4,hp:420,obj:o,pts,reach:12});
   s.rect=null; // on foot the walls do the work
   const w=HQ_RECTS.map(r=>{const [wx,wz]=toW(r.x,r.z);return {x:wx,z:wz,sx:r.sx,sz:r.sz,yaw};});
-  s.interior={open:true,w,outer:{x:cx,z:cz,sx:HQ_OUTER.sx,sz:HQ_OUTER.sz,yaw},roof:o.getObjectByName('HQ_Roof')||o.getObjectByName('Roof'),inner:o.getObjectByName('HQ_Interior')||o.getObjectByName('Interior'),door:toW(0,5.4),occupied:false};
+  s.interior={open:true,w,outer:{x:cx,z:cz,sx:HQ_OUTER.sx,sz:HQ_OUTER.sz,yaw},roof:o.getObjectByName('HQ_Roof')||o.getObjectByName('Roof'),inner:o.getObjectByName('HQ_Interior')||o.getObjectByName('Interior'),door:toW(0,5.4),occupied:false,toW,y0:o.position.y};
   s.interior.cy=o.position.y+3.1; // the shared room light sits here while you are inside (the ceiling stays on in first person; it only lifts for an overhead/spectator view)
   G.interiors=G.interiors||[];G.interiors.push(s);o.updateMatrixWorld(true);s.interior.pickup=hqBriefcase(s,o);return s;}
 function interiorLight(){if(!G.intLight){const li=new THREE.PointLight(0xffe0b0,0,19,1.4);world.add(li);G.intLight=li;}return G.intLight;}
 // ---- pickups (interiors branch, step 5): things you can walk up to and take. One item slot per player; it rides along in whatever you get into
-const PICKUPS={case:{name:'Intel briefcase',hud:'BRIEFCASE',r:2.0}};
+const PICKUPS={case:{name:'Intel briefcase',hud:'BRIEFCASE',r:2.0},med:{name:'Medkit',hud:'MEDKIT',r:3.0,use:v=>{if(v.hp>=v.def.hp-.5)return 'You are not hurt';v.hp=Math.min(v.def.hp,v.hp+30);return 'Patched up: +30 health';}},ammo:{name:'Ammo can',hud:'AMMO',r:3.0,use:v=>{if(v.ammo>=v.def.ammo&&v.ammo2>=v.def.ammo2)return 'You are already full';v.ammo=Math.min(v.def.ammo,v.ammo+90);v.ammo2=Math.min(v.def.ammo2,v.ammo2+10);return 'Rifle and grenades topped up';}}};
+function makeMedkit(){const g=new THREE.Group();const b=new THREE.Mesh(new THREE.BoxGeometry(.42,.18,.3),new THREE.MeshStandardMaterial({color:0xf2f0ea,roughness:.6}));g.add(b);
+  const r=new THREE.MeshStandardMaterial({color:0xc62828,roughness:.6});const c1=new THREE.Mesh(new THREE.BoxGeometry(.2,.01,.06),r);c1.position.y=.095;g.add(c1);const c2=new THREE.Mesh(new THREE.BoxGeometry(.06,.01,.2),r);c2.position.y=.095;g.add(c2);
+  const h=new THREE.Mesh(new THREE.BoxGeometry(.16,.03,.03),new THREE.MeshStandardMaterial({color:0x333333}));h.position.set(0,.105,-.12);g.add(h);g.traverse(m=>{if(m.isMesh)m.castShadow=true;});return g;}
+function makeAmmoCan(){const g=new THREE.Group();const b=new THREE.Mesh(new THREE.BoxGeometry(.3,.2,.16),new THREE.MeshStandardMaterial({color:0x3f4a2c,roughness:.7,metalness:.3}));g.add(b);
+  const l=new THREE.Mesh(new THREE.BoxGeometry(.31,.03,.17),new THREE.MeshStandardMaterial({color:0x2c3320,roughness:.7,metalness:.3}));l.position.y=.105;g.add(l);const h=new THREE.Mesh(new THREE.BoxGeometry(.12,.03,.03),new THREE.MeshStandardMaterial({color:0x222222}));h.position.set(0,.13,0);g.add(h);
+  const s=new THREE.Mesh(new THREE.BoxGeometry(.18,.08,.005),new THREE.MeshStandardMaterial({color:0xd8c89a,roughness:.9}));s.position.set(0,-.01,.083);g.add(s);g.traverse(m=>{if(m.isMesh)m.castShadow=true;});return g;}
+function placeSupplies(){ // (interiors branch) medkits in the hospitals, ammo cans in the depots and armories: walk up, G to use
+  if(!G.interiors)return;G.pickups=G.pickups||[];
+  for(const s of G.interiors){const I=s.interior;if(!I.toW)continue;const spots=s.kind==='hospital'?[['med',0,.5,.8],['med',-3.2,4.1,.56],['med',4.2,4.0,.56]]:s.kind==='depot'?[['ammo',-1.5,-2.6,1.06],['ammo',0,-2.6,1.58],['ammo',2.0,.6,.42]]:s.name==='bldC'?[['ammo',0,.8,.8],['ammo',-2.2,2.6,1.58]]:s.name==='bldA'?[['med',0,.6,.78]]:null;
+    if(!spots)continue;for(const [kind,lx,lz,ly] of spots){const [wx,wz]=I.toW(lx,lz);const o=kind==='med'?makeMedkit():makeAmmoCan();o.position.set(wx,I.y0+ly,wz);o.rotation.y=I.outer.yaw+rr(-.4,.4);world.add(o);addPickup(kind,o,wx,I.y0+ly,wz,s);}}}
+function placeGuards(){ // (interiors branch) men posted inside the enemy's command post and a couple of its buildings: they hold their ground and shoot anyone who comes through the door
+  if(!G.interiors||!A.soldier||G.net)return;const T=1;if(!(G.cfg[T].soldiers>0))return;
+  const post=(s,lx,lz,face)=>{const I=s.interior;const [x,z]=I.toW(lx,lz);const sd=spawnSoldier(T,x,z,'guard');if(!sd)return;sd.guard=s;sd.mode='guard';sd.wp=null;sd.idleT=1e9;const [fx,fz]=I.toW(face[0],face[1]);sd.heading=Math.atan2(fx-x,fz-z);sd.obj.rotation.y=sd.heading;};
+  const hq=G.interiors.find(s=>s.kind==='hq'&&s.team===T);if(hq){post(hq,-3.5,1.0,[0,5]);post(hq,4.0,-1.5,[0,5]);}
+  const blds=G.interiors.filter(s=>s.team===T&&s.kind==='building'&&s!==hq).sort(()=>RND()-.5).slice(0,2);for(const b of blds){post(b,0,-1.0,[0,5]);}}
+function wallBetween(ax,az,bx,bz){ // only the long rectangles (walls) count, so furniture does not hide a man
+  if(!G.interiors)return false;for(const s of G.interiors){if(!s.alive||!s.interior.open)continue;const O=s.interior.outer;if(Math.abs(ax-O.x)>O.sx+4&&Math.abs(bx-O.x)>O.sx+4)continue;if(Math.abs(az-O.z)>O.sz+4&&Math.abs(bz-O.z)>O.sz+4)continue;
+    for(const r of s.interior.w)if((r.sx>=3.5||r.sz>=3.5)&&segRect(ax,az,bx,bz,r))return true;}return false;}
 function pickName(p){const M=G.mission;if(p.kind==='case'&&M&&M.retrieve===p&&G.flags[1].item)return G.flags[1].item.n;return PICKUPS[p.kind].name;}
 function addPickup(kind,obj,x,y,z,home){const p={kind,obj,x,y,z,alive:true,home:home||null,delivered:false};G.pickups=G.pickups||[];G.pickups.push(p);return p;}
 function pickupTick(dt){const t=G.time;
@@ -1969,9 +1987,10 @@ function pickupTick(dt){const t=G.time;
     const h=p.hl;h.visible=true;const k=.5+.5*Math.sin(t*4);const base=p.obj.parent===world?p.obj.position:p.obj.getWorldPosition(_hlv);
     h.position.set(base.x,base.y+.55+k*.12,base.z);h.userData.ring.rotation.z=t*1.5;h.userData.ring.scale.setScalar(1+k*.25);h.userData.ring.material.opacity=.45+k*.5;h.userData.spr.material.opacity=.25+k*.45;}}
 const _hlv=new THREE.Vector3();let _glowTex=null;function glowTex(){if(_glowTex)return _glowTex;const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,2,32,32,30);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.4,'rgba(255,220,140,.6)');g.addColorStop(1,'rgba(255,200,100,0)');x.fillStyle=g;x.fillRect(0,0,64,64);_glowTex=new THREE.CanvasTexture(c);return _glowTex;}
-function nearPickup(v){if(!G.pickups||!v||v.type!=='foot'||v.state!=='active'||v.item)return null;let best=null,bd=1e9;
-  for(const p of G.pickups){if(!p.alive)continue;const d=Math.hypot(p.x-v.x,p.z-v.z);if(d<PICKUPS[p.kind].r&&Math.abs(p.y-v.y)<2.6&&d<bd){bd=d;best=p;}}return best;}
-function takePickup(v,p){p.alive=false;p.obj.visible=false;v.item=p;sfx('click',v.x,v.z);
+function nearPickup(v){if(!G.pickups||!v||v.type!=='foot'||v.state!=='active')return null;let best=null,bd=1e9;
+  for(const p of G.pickups){if(!p.alive||(v.item&&!PICKUPS[p.kind].use))continue;const d=Math.hypot(p.x-v.x,p.z-v.z);if(d<PICKUPS[p.kind].r&&Math.abs(p.y-v.y)<2.6&&d<bd){bd=d;best=p;}}return best;}
+function takePickup(v,p){const K=PICKUPS[p.kind];if(K.use){const msg=K.use(v);if(/not hurt|already full/.test(msg)){note(v.team,msg,'warn');return;}p.alive=false;p.obj.visible=false;if(p.hl)p.hl.visible=false;sfx('click',v.x,v.z);note(v.team,msg,'good');return;}
+  p.alive=false;p.obj.visible=false;v.item=p;sfx('click',v.x,v.z);
   note(v.team,`${pickName(p)} taken — get it back to your bunker`,'good',true);
   if(p.home&&p.home.alive&&p.home.team!==v.team)alertBase(p.home,v);}
 function dropItem(v,x,z){const p=v.item;if(!p)return;v.item=null;p.alive=true;p.obj.visible=true;
@@ -4670,7 +4689,7 @@ function soldierBlocked(x,z,T,home){staticsNear(x,z,_sn);for(const s of _sn){if(
   if(Math.abs(x-G.bases[0].x)<7.5&&Math.abs(z-G.bases[0].z)<7.5)return true;if(Math.abs(x-G.bases[1].x)<7.5&&Math.abs(z-G.bases[1].z)<7.5)return true;return !passable(x,z);}
 const _sn=[];
 function spawnSoldier(T,x,z,mode){
-  if(!A.soldier||soldierBlocked(x,z,T)){const p=patrolPoint(G.bases[T]);x=p[0];z=p[1];}
+  if(!A.soldier||(mode!=='guard'&&soldierBlocked(x,z,T))){const p=patrolPoint(G.bases[T]);x=p[0];z=p[1];}
   const o=SkeletonUtils.clone(A.soldier.scene);o.scale.setScalar(SOLDIER_SCALE);
   const hv=A.troop?(Math.abs((x*73+z*131)|0)%3):-1; // which of the 3 faces this man gets (by spawn spot, so online clients agree)
   o.traverse(m=>{if(m.isMesh){if(!A.troop)m.material=SOLDIER_MAT[T];else if(m.userData.team)m.material=TEAM_MAT[T];else if(CAMO_MAT[T]&&m.material.name==='Camo')m.material=CAMO_MAT[T];else if(CAMO_TINT[T]&&CAMO_TINT[T][m.material.uuid])m.material=CAMO_TINT[T][m.material.uuid];if(G&&G.snowCamo&&(m.material===CAMO_MAT[T]||Object.values(CAMO_TINT[T]||{}).includes(m.material)))m.material=snowCamoOf(m.material,T);if(m.userData.head!==undefined)m.visible=m.userData.head===hv;m.castShadow=true;m.frustumCulled=false;}});
@@ -4837,9 +4856,11 @@ function updateSoldiers(dt){
     if(sd.alert>0)sd.alert-=dt;
     if(sd.think<=0){sd.think=.4;
       let best=null,bd=sd.alert>0?95:38;for(const v of G.vehicles){if(v.team===sd.team||v.state!=='active')continue;const d=Math.hypot(v.x-sd.x,v.z-sd.z);if(d<bd){bd=d;best=v;}}
-      if(sd.mode==='pow'){sd.target=null;sd.wp=null;best=null;}
+      if(sd.guard){ // posted inside: never moves; opens up on anyone within 24 m that it can actually see
+        if(best&&(bd>24||wallBetween(sd.x,sd.z,best.x,best.z)))best=null;sd.target=best;sd.mode=best?'attack':'guard';sd.wp=null;sd.goHome=false;}
+      else if(sd.mode==='pow'){sd.target=null;sd.wp=null;best=null;}
       else{sd.target=sd.goHome?null:best;if(best&&!sd.goHome&&sd.mode!=='flee')sd.mode='attack';else if(!best&&sd.mode==='attack')sd.mode='patrol';}
-      if(sd.mode==='attack'){const d=bd,ang=Math.atan2(sd.x-best.x,sd.z-best.z);
+      if(sd.mode==='attack'&&!sd.guard){const d=bd,ang=Math.atan2(sd.x-best.x,sd.z-best.z);
         if(d<13){sd.wp=[sd.x+Math.sin(ang)*8,sd.z+Math.cos(ang)*8];}else if(d>26){sd.wp=[best.x+Math.sin(ang)*20,best.z+Math.cos(ang)*20];}else sd.wp=null;}
       else if(sd.mode==='patrol'&&(!sd.wp||sd.wpT>14)){if(!sd.wp&&RND()<.35){sd.idleT=rr(1,4);}else{sd.wp=patrolPoint(G.bases[sd.team]);sd.wpT=0;}}
       if(sd.mode==='parade'){sd.wp=null;sd.idleT=0;if(G.parade&&G.parade.officer)sd.heading=Math.atan2(G.parade.officer.x-sd.x,G.parade.officer.z-sd.z);}}
@@ -4847,7 +4868,7 @@ function updateSoldiers(dt){
     if(sd.goHome&&Math.hypot(sd.x-G.bases[sd.team].x,sd.z-G.bases[sd.team].z)<11){world.remove(sd.obj);G.soldiers.splice(i,1);continue;}
     if(sd.goHome&&!sd.wp)sd.wp=[G.bases[sd.team].x,G.bases[sd.team].z];
     if(sd.idleT>0){sd.idleT-=dt;}
-    if(A.crew){const j=crewBoardable(sd);if(j){const d=Math.hypot(j.x-sd.x,j.z-sd.z),si=crewSeatFree(j);if(d<j.r+1.4&&si>=0){boardJeep(j,sd,si);sfx('click',sd.x,sd.z);continue;}sd.wp=[j.x,j.z];sd.idleT=0;if(sd.mode==='patrol')sd.mode='board';}else if(sd.mode==='board')sd.mode='patrol';} // hop into a stopped/slow friendly jeep
+    if(A.crew&&!sd.guard){const j=crewBoardable(sd);if(j){const d=Math.hypot(j.x-sd.x,j.z-sd.z),si=crewSeatFree(j);if(d<j.r+1.4&&si>=0){boardJeep(j,sd,si);sfx('click',sd.x,sd.z);continue;}sd.wp=[j.x,j.z];sd.idleT=0;if(sd.mode==='patrol')sd.mode='board';}else if(sd.mode==='board')sd.mode='patrol';} // hop into a stopped/slow friendly jeep
     // move
     let moving=0;
     if(sd.wp&&!(sd.idleT>0)){sd.wpT+=dt;const dx=sd.wp[0]-sd.x,dz=sd.wp[1]-sd.z,d=Math.hypot(dx,dz);
@@ -4863,7 +4884,7 @@ function updateSoldiers(dt){
     // grenades: lobbed at ground vehicles in the 8-26m band on a slow, independent cooldown
     // (ballistic lob: fixed vy, horizontal speed solved from the flight time so it lands on the target, with a little lead)
     sd.gcd=(sd.gcd===undefined?rr(2,7):sd.gcd)-dt;
-    if(sd.target&&sd.mode==='attack'&&sd.gcd<=0&&!sd.target.def.air){const t=sd.target;const d=Math.hypot(t.x-sd.x,t.z-sd.z);
+    if(sd.target&&sd.mode==='attack'&&sd.gcd<=0&&!sd.target.def.air&&!sd.guard){const t=sd.target;const d=Math.hypot(t.x-sd.x,t.z-sd.z);
       if(d>8&&d<26){sd.gcd=rr(6,11);const vy=11,tt=2*vy/PK.sgrenade.grav,lead=.35;const tx=t.x+(t.vx||0)*lead,tz=t.z+(t.vz||0)*lead;
         const ddx=tx-sd.x,ddz=tz-sd.z,dd=Math.hypot(ddx,ddz)||1;const hs=Math.min(30,dd/tt)*rr(.92,1.08);const a=Math.atan2(ddx,ddz)+rr(-.06,.06);
         fire('sgrenade',sd.team,sd.x+Math.sin(a)*.9,sd.y+1.5,sd.z+Math.cos(a)*.9,ddx,0,ddz,{mul:G.infMul[sd.team],vel:{vx:Math.sin(a)*hs,vy,vz:Math.cos(a)*hs}});sfx('gthrow',sd.x,sd.z);}
@@ -5219,6 +5240,7 @@ function newGame(mode,seed,demo=false){
   scatterNature();
   G.flags=[makeFlag(0),makeFlag(1)];
   for(const b of bases)for(let i=0;i<G.cfg[b.team].soldiers;i++){const p=patrolPoint(b);spawnSoldier(b.team,p[0],p[1],'patrol');}
+  placeSupplies();if(G.op&&!demo)placeGuards();
   try{placeCarrier();}catch(e){console.warn('carrier',e);}
   if(G.op&&G.op.mission&&!demo)try{missionSetup(G.op.mission);}catch(e){console.warn('mission',e);}
   if(!demo&&mode!=='online'&&!SPEC.watching)try{paradeSetup(0);}catch(e){console.warn('parade',e);}

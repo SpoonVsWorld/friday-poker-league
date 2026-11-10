@@ -1869,9 +1869,388 @@
       if (n < 3600) return Math.round(n / 60) + " min";
       return (n / 3600).toFixed(1).replace(/\.0$/, "") + " h";
     };
-    const tile = (v, label, hint) =>
-      `<div class="adm-tile"><div class="v">${escapeHtml(String(v))}</div><div class="l">${escapeHtml(label)}</div>${hint ? `<div class="h">${escapeHtml(hint)}</div>` : ""}</div>`;
+    const tile = (v, label, hint, kind, arg) => {
+      const body = `<div class="v">${escapeHtml(String(v))}</div><div class="l">${escapeHtml(label)}</div>${hint ? `<div class="h">${escapeHtml(hint)}</div>` : ""}`;
+      if (!kind) return `<div class="adm-tile">${body}</div>`;
+      return `<button type="button" class="adm-tile adm-tile-btn" data-drill="${escapeHtml(kind)}"${arg == null ? "" : ` data-arg="${escapeHtml(String(arg))}"`} data-drill-title="${escapeHtml(label)}" aria-expanded="false">${body}<span class="adm-more">See the list</span></button>`;
+    };
     const dayLabel = (d) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+    // ------------------------------------------------------------------
+    // Drill-down (Matt, 10 Nov 2026). Every tile, chart bar and funnel rung on the dashboard opens the rows the
+    // number was counted from, so a figure can always be checked against the real visits, sessions, players or
+    // Fridays behind it. The two Spoon Platoon tables are fetched once per dashboard visit and every breakdown is
+    // worked out from that copy, so opening one tile after another costs nothing extra.
+    // ------------------------------------------------------------------
+    const E = (v) => escapeHtml(String(v == null ? "" : v));
+    const DRILL_MAX = 5000;
+    const drillCache = {};
+    function cached(key, run) {
+      if (!drillCache[key]) drillCache[key] = run().catch((e) => { delete drillCache[key]; throw e; });
+      return drillCache[key];
+    }
+    const drillViews = () => cached("pv", async () => {
+      const { data, error } = await supabaseClient
+        .from("page_views").select("ip_address, viewed_at, city, region, country, user_agent, name")
+        .eq("page", "spoonplatoon").order("viewed_at", { ascending: false }).limit(DRILL_MAX);
+      if (error) throw error;
+      return data || [];
+    });
+    const drillSessions = () => cached("gs", async () => {
+      const { data, error } = await supabaseClient
+        .from("game_sessions").select("*").order("first_seen", { ascending: false }).limit(DRILL_MAX);
+      if (error) throw error;
+      return data || [];
+    });
+    const capNote = (rows) => (rows.length >= DRILL_MAX ? ` Showing the most recent ${DRILL_MAX} only.` : "");
+
+    // one row of a drill-down list, in the same shape as the visit log
+    const drillRow = (r) => `
+      <div class="visit-row">
+        <div class="visit-info">
+          <span class="visit-name">${r.t}</span>
+          ${r.s ? `<span class="visit-mode">${r.s}</span>` : ""}
+          ${r.l ? `<span class="visit-location">${r.l}</span>` : ""}
+          ${r.ip ? `<span class="visit-ip">${r.ip}</span>` : ""}
+        </div>
+        <div class="visit-meta">
+          ${r.r ? `<span class="visit-time">${r.r}</span>` : ""}
+          ${r.d ? `<span class="visit-device">${r.d}</span>` : ""}
+        </div>
+      </div>`;
+
+    const secsOf = (s) => Math.max(0, (new Date(s.last_seen) - new Date(s.first_seen)) / 1000);
+    const plural = (n, w) => n + " " + w + (n === 1 ? "" : /(s|x|ch|sh)$/.test(w) ? "es" : "s");
+
+    // page views grouped by address: who the "unique visitors" number is actually made of
+    function viewsByIp(rows) {
+      const m = new Map();
+      for (const v of rows) {
+        const k = v.ip_address || "Unknown IP";
+        let g = m.get(k);
+        if (!g) m.set(k, (g = { ip: k, n: 0, first: v.viewed_at, last: v.viewed_at, names: new Set(), place: "", ua: null }));
+        g.n++;
+        if (v.viewed_at < g.first) g.first = v.viewed_at;
+        if (v.viewed_at > g.last) g.last = v.viewed_at;
+        if (v.name) g.names.add(v.name);
+        if (!g.place) { const p = formatVisitLocation(v); if (p !== "Unknown location") g.place = p; }
+        if (!g.ua && v.user_agent) g.ua = v.user_agent;
+      }
+      return [...m.values()];
+    }
+    const ipRow = (g) => ({
+      t: E(g.ip) + (g.names.size ? ` <span class="muted">· ${E([...g.names].join(", "))}</span>` : ""),
+      s: `${plural(g.n, "view")} · first ${E(formatVisitTime(g.first))}`,
+      l: E(g.place || "Unknown location"),
+      r: E(formatVisitTime(g.last)),
+      d: E(summarizeUserAgent(g.ua)),
+    });
+    const sessionRow = (s) => {
+      const bits = [];
+      if (s.mode) bits.push(E(s.mode));
+      if (s.max_op) bits.push("furthest Op " + E(s.max_op));
+      bits.push("played " + E(fmtSecs(secsOf(s))));
+      return {
+        t: E(s.name || "No call sign") + (s.self ? ' <span class="muted">(you / dev device)</span>' : ""),
+        s: bits.join(" · "),
+        l: E(formatVisitLocation(s)),
+        ip: E(s.ip_address || "Unknown IP"),
+        r: E(formatVisitTime(s.first_seen)),
+        d: E(summarizeUserAgent(s.user_agent)),
+      };
+    };
+    const realSessions = (rows) => rows.filter((s) => !s.self);
+    const byLongest = (rows) => [...rows].sort((a, b) => secsOf(b) - secsOf(a));
+
+    async function playerLastPlayed() {
+      const [{ data: players, error: pe }, { data: results, error: re }] = await Promise.all([
+        supabaseClient.from("players").select("id, name, nickname, is_active").order("name"),
+        supabaseClient.from("results").select("player_id, fridays(game_date)").limit(DRILL_MAX),
+      ]);
+      if (pe) throw pe;
+      if (re) throw re;
+      const last = new Map();
+      for (const r of results || []) {
+        const d = r.fridays?.game_date;
+        if (d && (!last.has(r.player_id) || last.get(r.player_id) < d)) last.set(r.player_id, d);
+      }
+      return { players: players || [], last };
+    }
+
+    const DRILLS = {
+      visitors: {
+        title: "Unique visitors",
+        async run() {
+          const views = await drillViews();
+          const g = viewsByIp(views).sort((a, b) => (a.last < b.last ? 1 : -1));
+          return { note: `${plural(g.length, "address")} have opened the game, most recent first. One address can cover a whole household or a phone network, so it is a floor, not a headcount.${capNote(views)}`, rows: g.map(ipRow) };
+        },
+      },
+      visitors30: {
+        title: "Visitors in the last 30 days",
+        async run() {
+          const cut = new Date(Date.now() - 30 * 86400000).toISOString();
+          const views = (await drillViews()).filter((v) => v.viewed_at > cut);
+          const g = viewsByIp(views).sort((a, b) => (a.last < b.last ? 1 : -1));
+          return { note: `${plural(g.length, "address")} in the last 30 days, most recent first.`, rows: g.map(ipRow) };
+        },
+      },
+      returning: {
+        title: "Visitors who came back",
+        async run() {
+          const views = await drillViews();
+          const g = viewsByIp(views).filter((x) => x.n > 1).sort((a, b) => b.n - a.n);
+          return { note: `${plural(g.length, "address")} opened the game more than once, busiest first. A reload counts as a visit, so a few of these are one sitting.`, rows: g.map(ipRow) };
+        },
+      },
+      sessions: {
+        title: "Play sessions",
+        async run() {
+          const all = await drillSessions();
+          const rows = realSessions(all);
+          const mine = all.length - rows.length;
+          return { note: `${plural(rows.length, "session")} since 7 Nov, newest first. A session is one browser with the game open; it ends when the tab closes.${mine ? ` ${plural(mine, "session")} on your own dev device are left out, as they are in the tiles.` : ""}`, rows: rows.map(sessionRow) };
+        },
+      },
+      devices: {
+        title: "What people play on",
+        async run() {
+          const rows = realSessions(await drillSessions()).filter((s) => s.user_agent);
+          const phone = rows.filter((s) => /mobile|android|iphone|ipad/i.test(s.user_agent));
+          const m = new Map();
+          for (const s of rows) {
+            const k = summarizeUserAgent(s.user_agent);
+            const g = m.get(k) || { k, n: 0, secs: 0, last: s.first_seen };
+            g.n++; g.secs += secsOf(s);
+            if (s.first_seen > g.last) g.last = s.first_seen;
+            m.set(k, g);
+          }
+          const out = [...m.values()].sort((a, b) => b.n - a.n).map((g) => ({
+            t: E(g.k),
+            s: `${plural(g.n, "session")} · ${Math.round((g.n / rows.length) * 100)}% of all sessions · ${E(fmtSecs(g.secs / g.n))} each on average`,
+            r: E(formatVisitTime(g.last)),
+            d: "last seen",
+          }));
+          return { note: `${phone.length} of ${rows.length} sessions were on a phone or tablet. Grouped by device and browser, most used first.`, rows: out };
+        },
+      },
+      median: {
+        title: "Session lengths",
+        async run() {
+          const rows = byLongest(realSessions(await drillSessions()).filter((s) => s.beats > 1));
+          const mid = rows.length ? rows[Math.floor((rows.length - 1) / 2)] : null;
+          return {
+            note: `Every session that lasted past the first check-in, longest first. Half ran longer than ${E(fmtSecs(mid ? secsOf(mid) : null))} and half shorter — that is the median the tile shows.`,
+            rows: rows.map((s) => { const r = sessionRow(s); if (s === mid) r.t += ' <span class="muted">· the median one</span>'; return r; }),
+          };
+        },
+      },
+      longest: {
+        title: "Longest sessions",
+        async run() {
+          const rows = byLongest(realSessions(await drillSessions()));
+          return { note: "Every session by how long the game stayed open, longest first. A tab left open on the title screen still counts, so the top one is not always the most playing.", rows: rows.map(sessionRow) };
+        },
+      },
+      callsigns: {
+        title: "Call signs seen",
+        async run() {
+          const m = new Map();
+          for (const s of realSessions(await drillSessions())) {
+            if (!s.name) continue;
+            const k = s.name.toLowerCase();
+            const g = m.get(k) || { name: s.name, n: 0, op: 0, secs: 0, last: s.last_seen, place: "", ua: s.user_agent, ip: s.ip_address };
+            g.n++; g.secs += secsOf(s);
+            g.op = Math.max(g.op, s.max_op || 0);
+            if (s.last_seen > g.last) g.last = s.last_seen;
+            if (!g.place) { const p = formatVisitLocation(s); if (p !== "Unknown location") g.place = p; }
+            m.set(k, g);
+          }
+          const out = [...m.values()].sort((a, b) => (a.last < b.last ? 1 : -1)).map((g) => ({
+            t: E(g.name),
+            s: `${plural(g.n, "session")} · ${g.op ? "furthest Op " + g.op : "no campaign operation reached"} · ${E(fmtSecs(g.secs))} in total`,
+            l: E(g.place || "Unknown location"),
+            ip: E(g.ip || ""),
+            r: E(formatVisitTime(g.last)),
+            d: E(summarizeUserAgent(g.ua)),
+          }));
+          return { note: `${plural(out.length, "name")} typed into the game's lobby, most recent first. Anyone who never entered one is not here.`, rows: out };
+        },
+      },
+      day: {
+        title: "Views on a day",
+        async run(arg) {
+          const views = (await drillViews()).filter((v) => v.viewed_at.slice(0, 10) === arg);
+          return {
+            note: `${plural(views.length, "view")} on ${E(dayLabel(arg))}, newest first.`,
+            rows: views.map((v) => ({
+              t: E(v.ip_address || "Unknown IP") + (v.name ? ` <span class="muted">· ${E(v.name)}</span>` : ""),
+              l: E(formatVisitLocation(v)),
+              r: E(new Date(v.viewed_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
+              d: E(summarizeUserAgent(v.user_agent)),
+            })),
+          };
+        },
+      },
+      op: {
+        title: "Reached this operation",
+        async run(arg) {
+          const op = +arg;
+          const rows = realSessions(await drillSessions()).filter((s) => (s.max_op || 0) >= op);
+          const stopped = rows.filter((s) => (s.max_op || 0) === op);
+          return { note: `${plural(rows.length, "session")} got to Operation ${op} or past it. ${stopped.length ? `${plural(stopped.length, "session")} stopped here.` : "None stopped here."}`, rows: rows.map(sessionRow) };
+        },
+      },
+
+      // ---- League health -------------------------------------------------
+      lastfriday: {
+        title: "Last Friday played",
+        async run() {
+          const { data: frs, error } = await supabaseClient.from("fridays").select("id, game_date, status, location").order("game_date", { ascending: false }).limit(40);
+          if (error) throw error;
+          const ids = (frs || []).map((f) => f.id);
+          if (!ids.length) return { note: "No Fridays recorded yet.", rows: [] };
+          const { data: rs, error: e2 } = await supabaseClient.from("results").select("friday_id, placement, total_points, bounty_winner, players(name)").in("friday_id", ids);
+          if (e2) throw e2;
+          const byF = new Map();
+          for (const r of rs || []) { if (!byF.has(r.friday_id)) byF.set(r.friday_id, []); byF.get(r.friday_id).push(r); }
+          const f = (frs || []).find((x) => byF.has(x.id));
+          if (!f) return { note: "None of the recent Fridays has results recorded.", rows: [] };
+          const rows = byF.get(f.id).sort((a, b) => (a.placement || 99) - (b.placement || 99)).map((r) => ({
+            t: E((r.placement ? "#" + r.placement + "  " : "") + (r.players?.name || "Unknown")) + (r.bounty_winner ? ' <span class="muted">· bounty</span>' : ""),
+            r: r.total_points == null ? "" : E(r.total_points + " pts"),
+          }));
+          return { note: `${E(f.game_date)}${f.location ? " · " + E(f.location) : ""} — ${plural(rows.length, "player")}, in finishing order.`, rows };
+        },
+      },
+      nextfriday: {
+        title: "On the calendar",
+        async run() {
+          const today = new Date().toISOString().slice(0, 10);
+          const { data, error } = await supabaseClient.from("fridays").select("game_date, status, location").gte("game_date", today).order("game_date").limit(30);
+          if (error) throw error;
+          return {
+            note: (data || []).length ? `${plural(data.length, "Friday")} scheduled from today on.` : "Nothing on the calendar from today on.",
+            rows: (data || []).map((f) => ({ t: E(new Date(f.game_date + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })), s: E(f.status || ""), l: E(f.location || "") })),
+          };
+        },
+      },
+      playersactive: {
+        title: "Active players",
+        async run() {
+          const { players, last } = await playerLastPlayed();
+          const rows = players.filter((p) => p.is_active == null || p.is_active);
+          return {
+            note: `${plural(rows.length, "active player")} of ${players.length} on the books, by name.`,
+            rows: rows.map((p) => ({ t: E(p.name) + (p.nickname ? ` <span class="muted">“${E(p.nickname)}”</span>` : ""), s: last.get(p.id) ? "last played " + E(last.get(p.id)) : "no result recorded yet" })),
+          };
+        },
+      },
+      playersmissing: {
+        title: "Not seen in 5 weeks",
+        async run() {
+          const { players, last } = await playerLastPlayed();
+          const cut = new Date(Date.now() - 35 * 86400000).toISOString().slice(0, 10);
+          const rows = players.filter((p) => (p.is_active == null || p.is_active) && !(last.get(p.id) > cut))
+            .sort((a, b) => (last.get(a.id) || "") < (last.get(b.id) || "") ? -1 : 1);
+          return {
+            note: `Still marked active, but no result since ${E(cut)}. Longest away first.`,
+            rows: rows.map((p) => ({ t: E(p.name), s: last.get(p.id) ? "last played " + E(last.get(p.id)) : "never recorded a result" })),
+          };
+        },
+      },
+      fridays: {
+        title: "Fridays recorded",
+        async run() {
+          const { data, error } = await supabaseClient.from("fridays").select("id, game_date, status, location, pot_players").order("game_date", { ascending: false }).limit(300);
+          if (error) throw error;
+          return {
+            note: `${plural((data || []).length, "Friday")} on record, newest first.`,
+            rows: (data || []).map((f) => ({ t: E(f.game_date), s: E(f.status || ""), l: E(f.location || ""), r: f.pot_players == null ? "" : E(plural(f.pot_players, "player")) })),
+          };
+        },
+      },
+      highhands: {
+        title: "High hands logged",
+        async run() {
+          const { data, error } = await supabaseClient.from("high_hands").select("description, recorded_at, fridays(game_date), players(name)").order("recorded_at", { ascending: false }).limit(300);
+          if (error) throw error;
+          return {
+            note: `${plural((data || []).length, "high hand")}, newest first.`,
+            rows: (data || []).map((h) => ({ t: E(h.players?.name || "Unknown"), s: E(h.description || ""), r: E(h.fridays?.game_date || "") })),
+          };
+        },
+      },
+      feedback: {
+        title: "Feedback and problems",
+        async run() {
+          const { data, error } = await supabaseClient.from("feedback").select("*").order("created_at", { ascending: false }).limit(300);
+          if (error) throw error;
+          const rows = data || [];
+          const problems = rows.filter((f) => (f.type || "") !== "comment");
+          return {
+            note: `${plural(problems.length, "problem")} reported — that is the tile's number — plus ${plural(rows.length - problems.length, "plain comment")}. Newest first.`,
+            rows: rows.map((f) => ({
+              t: E(f.name || "Anonymous") + (f.type ? ` <span class="muted">· ${E(f.type)}</span>` : ""),
+              s: E(f.message || ""),
+              r: E(formatVisitTime(f.created_at)),
+            })),
+          };
+        },
+      },
+    };
+
+    // The open list lives directly under whichever grid, chart or funnel was clicked, so it reads as part of it.
+    function drillPanelFor(el) {
+      const anchor = el.closest(".adm-tiles, .adm-chart, .adm-funnel") || el.parentElement;
+      let p = anchor.nextElementSibling;
+      if (!p || !p.classList.contains("adm-drill")) {
+        p = document.createElement("div");
+        p.className = "adm-drill";
+        anchor.insertAdjacentElement("afterend", p);
+      }
+      return p;
+    }
+    function markDrill(b, open) {
+      b.classList.toggle("on", open);
+      b.setAttribute("aria-expanded", open ? "true" : "false");
+      const more = b.querySelector(".adm-more");
+      if (more) more.textContent = open ? "Hide the list" : "See the list";
+    }
+    function closeDrill(panel) {
+      const root = panel.closest(".adm-panel") || document;
+      root.querySelectorAll("[data-drill].on").forEach((b) => markDrill(b, false));
+      panel.remove();
+    }
+    async function openDrill(el) {
+      const kind = el.dataset.drill, arg = el.dataset.arg, def = DRILLS[kind];
+      if (!def) return;
+      const panel = drillPanelFor(el), key = kind + "|" + (arg || "");
+      if (panel.dataset.key === key) { closeDrill(panel); return; }
+      const root = el.closest(".adm-panel") || document;
+      root.querySelectorAll("[data-drill].on").forEach((b) => markDrill(b, false));
+      root.querySelectorAll(".adm-drill").forEach((d) => { if (d !== panel) d.remove(); });   // one list open at a time
+      markDrill(el, true);
+      panel.dataset.key = key;
+      const title = el.dataset.drillTitle || def.title;
+      const head = `<div class="adm-drill-head"><b>${E(title)}</b><button type="button" class="adm-drill-x" aria-label="Close">✕</button></div>`;
+      panel.innerHTML = head + '<p class="muted adm-drill-note">Loading…</p>';
+      try {
+        const { note, rows } = await def.run(arg);
+        if (panel.dataset.key !== key) return;
+        panel.innerHTML = head
+          + (note ? `<p class="muted adm-drill-note">${note}</p>` : "")
+          + (rows.length ? `<div class="visit-log-wrap adm-drill-body">${rows.map(drillRow).join("")}</div>` : '<p class="muted">Nothing recorded for this one yet.</p>');
+      } catch (e) {
+        panel.innerHTML = head + `<p class="error">Could not open that: ${E(e.message || e)}</p>`;
+      }
+    }
+    document.addEventListener("click", (e) => {
+      const x = e.target.closest(".adm-drill-x");
+      if (x) { closeDrill(x.closest(".adm-drill")); return; }
+      const b = e.target.closest("[data-drill]");
+      if (b) openDrill(b).catch((err) => console.warn("drill", err));
+    });
 
     async function loadGameInsights() {
       const el = document.getElementById("game-insights");
@@ -1890,7 +2269,7 @@
       for (let i = 29; i >= 0; i--) {
         const dt = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
         const n = byDay.get(dt) || 0;
-        bars.push(`<span class="adm-bar" style="height:${Math.max(2, Math.round((n / peak) * 100))}%" title="${dayLabel(dt)}: ${n} view${n === 1 ? "" : "s"}"></span>`);
+        bars.push(`<button type="button" class="adm-bar" data-drill="day" data-arg="${dt}" data-drill-title="Views on ${dayLabel(dt)}" aria-expanded="false" style="height:${Math.max(2, Math.round((n / peak) * 100))}%" title="${dayLabel(dt)}: ${n} view${n === 1 ? "" : "s"} — click for the list"></button>`);
       }
       // trim the tail of operations nobody has reached yet, keeping one empty rung as the next target
       let fn = d.funnel || [];
@@ -1899,21 +2278,21 @@
       const started = fn.length ? fn[0].reached : 0;
       const funnelRows = fn.map((f) => {
         const pct = started ? Math.round((f.reached / started) * 100) : 0;
-        return `<div class="adm-fn"><span class="n">Op ${f.op}</span><span class="track"><span style="width:${pct}%"></span></span><span class="c">${f.reached}</span></div>`;
+        return `<button type="button" class="adm-fn" data-drill="op" data-arg="${f.op}" data-drill-title="Sessions that reached Operation ${f.op}" aria-expanded="false"><span class="n">Op ${f.op}</span><span class="track"><span style="width:${pct}%"></span></span><span class="c">${f.reached}</span></button>`;
       }).join("");
       const noSessions = !d.sessions;
       el.innerHTML = `
         <div class="adm-chart" aria-label="Spoon Platoon views, last 30 days">${bars.join("")}</div>
         <p class="muted adm-chart-cap">Views per day, last 30 days — busiest hour of the day is around ${d.busiest_hour != null ? escapeHtml(d.busiest_hour) + ":00" : "—"}.</p>
         <div class="adm-tiles">
-          ${tile(d.visitors_total ?? 0, "Unique visitors", "by IP, all time")}
-          ${tile(d.visitors_window ?? 0, "Visitors, 30 days", "")}
-          ${tile(d.returning ?? 0, "Came back", "visited more than once")}
-          ${tile(d.sessions ?? 0, "Play sessions", "recorded since 7 Nov")}
-          ${tile(d.mobile_pct == null ? "—" : d.mobile_pct + "%", "On a phone", "")}
-          ${tile(fmtSecs(d.median_secs), "Typical session", "median")}
-          ${tile(fmtSecs(d.longest_secs), "Longest session", "")}
-          ${tile(d.call_signs ?? 0, "Call signs seen", "")}
+          ${tile(d.visitors_total ?? 0, "Unique visitors", "by IP, all time", "visitors")}
+          ${tile(d.visitors_window ?? 0, "Visitors, 30 days", "", "visitors30")}
+          ${tile(d.returning ?? 0, "Came back", "visited more than once", "returning")}
+          ${tile(d.sessions ?? 0, "Play sessions", "recorded since 7 Nov", "sessions")}
+          ${tile(d.mobile_pct == null ? "—" : d.mobile_pct + "%", "On a phone", "", "devices")}
+          ${tile(fmtSecs(d.median_secs), "Typical session", "median", "median")}
+          ${tile(fmtSecs(d.longest_secs), "Longest session", "", "longest")}
+          ${tile(d.call_signs ?? 0, "Call signs seen", "", "callsigns")}
         </div>
         <h4 class="adm-sub">How far people get</h4>
         ${noSessions
@@ -1937,13 +2316,13 @@
       const dateStr = (iso) => (iso ? new Date(iso + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
       el.innerHTML = `
         <div class="adm-tiles">
-          ${tile(dateStr(d.last_friday), "Last Friday played", since == null ? "" : since + " day" + (since === 1 ? "" : "s") + " ago")}
-          ${tile(dateStr(d.next_friday), "Next on the calendar", until == null ? "not scheduled" : until === 0 ? "today" : "in " + until + " day" + (until === 1 ? "" : "s"))}
-          ${tile(d.players_active ?? 0, "Active players", (d.players_total ?? 0) + " on the books")}
-          ${tile(d.players_missing ?? 0, "Not seen in 5 weeks", "active, but no recent result")}
-          ${tile(d.fridays_total ?? 0, "Fridays recorded", "")}
-          ${tile(d.high_hands ?? 0, "High hands logged", "")}
-          ${tile(d.feedback_open ?? 0, "Problems reported", (d.feedback_recent ?? 0) + " message" + (d.feedback_recent === 1 ? "" : "s") + " in 30 days")}
+          ${tile(dateStr(d.last_friday), "Last Friday played", since == null ? "" : since + " day" + (since === 1 ? "" : "s") + " ago", "lastfriday")}
+          ${tile(dateStr(d.next_friday), "Next on the calendar", until == null ? "not scheduled" : until === 0 ? "today" : "in " + until + " day" + (until === 1 ? "" : "s"), "nextfriday")}
+          ${tile(d.players_active ?? 0, "Active players", (d.players_total ?? 0) + " on the books", "playersactive")}
+          ${tile(d.players_missing ?? 0, "Not seen in 5 weeks", "active, but no recent result", "playersmissing")}
+          ${tile(d.fridays_total ?? 0, "Fridays recorded", "", "fridays")}
+          ${tile(d.high_hands ?? 0, "High hands logged", "", "highhands")}
+          ${tile(d.feedback_open ?? 0, "Problems reported", (d.feedback_recent ?? 0) + " message" + (d.feedback_recent === 1 ? "" : "s") + " in 30 days", "feedback")}
         </div>`;
     }
 

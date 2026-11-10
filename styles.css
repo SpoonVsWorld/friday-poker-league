@@ -2795,6 +2795,37 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
   background: linear-gradient(90deg, #d4a017, #c0392b); }
 .adm-fn .c { text-align: right; color: var(--text, #e8ecf1); font-variant-numeric: tabular-nums; }
 
+/* (Matt, 10 Nov 2026) Drill-down: tiles, chart bars and funnel rungs are buttons that open the rows behind
+   the number, in a panel directly under the grid they belong to. */
+.adm-tile-btn { font: inherit; text-align: left; cursor: pointer; width: 100%; position: relative;
+  padding-bottom: 24px; transition: border-color .12s, background .12s; }
+.adm-tile-btn:hover, .adm-tile-btn:focus-visible { border-color: #4aa3df; background: rgba(74, 163, 223, .07); }
+.adm-tile-btn .adm-more { position: absolute; left: 13px; bottom: 9px; font-size: .68rem; font-weight: 600;
+  letter-spacing: .02em; color: #6ab6e8; opacity: .85; }
+.adm-tile-btn .adm-more::after { content: " \203A"; }
+.adm-tile-btn.on { border-color: #4aa3df; background: rgba(74, 163, 223, .12); }
+.adm-tile-btn.on .adm-more { color: #9fd0f0; }
+.adm-tile-btn.on .adm-more::after { content: " \2715"; }
+
+.adm-chart .adm-bar { border: 0; padding: 0; cursor: pointer; appearance: none; }
+.adm-chart .adm-bar.on { background: #f2b632; }
+.adm-fn { font: inherit; width: 100%; text-align: left; background: none; border: 0; padding: 2px 4px;
+  border-radius: 6px; cursor: pointer; }
+.adm-fn:hover, .adm-fn:focus-visible { background: rgba(255, 255, 255, .05); }
+.adm-fn.on { background: rgba(74, 163, 223, .14); }
+
+.adm-drill { background: var(--card, #161a22); border: 1px solid #39506a; border-radius: 10px;
+  padding: 12px 14px; margin: -6px 0 18px; }
+.adm-drill-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.adm-drill-head b { font-size: .98rem; }
+.adm-drill-x { background: none; border: 0; color: var(--muted, #9aa4b2); font-size: 1rem; cursor: pointer;
+  line-height: 1; padding: 2px 4px; }
+.adm-drill-x:hover { color: var(--text, #e8ecf1); }
+.adm-drill-note { margin: 0 0 10px; font-size: .8rem; }
+.adm-drill-body { max-height: 420px; }
+.adm-drill .visit-row { padding: 8px 10px; margin-bottom: 6px; }
+.adm-drill .visit-mode { font-size: .8rem; color: var(--muted, #9aa4b2); }
+
 .adm-since { background: var(--card, #161a22); border: 1px solid var(--line, #2a2f3a);
   border-left: 3px solid #d4a017; border-radius: 10px; padding: 10px 14px; margin: 4px 0 18px; }
 .adm-since-list { margin: 0; padding-left: 18px; }
@@ -2802,4 +2833,7 @@ ul#public-comment-list, ul#admin-problem-list, ul#admin-comment-list {
 @media (max-width: 520px) {
   .adm-tiles { grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 8px; }
   .adm-tile .v { font-size: 1.2rem; }
+  .adm-tile-btn { padding-bottom: 22px; }
+  .adm-tile-btn .adm-more { left: 11px; bottom: 7px; font-size: .64rem; }
+  .adm-drill-body { max-height: 320px; }
 }

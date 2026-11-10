@@ -418,6 +418,15 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+/* Texture budget (10 Nov 2026). Phones were dropping the tab when Black Tide loaded: the baked buildings and vehicles add up to well over a gigabyte of decoded texture memory at 2048². On coarse-pointer / low-memory devices every GLTF texture is shrunk to TEX_CAP on load (drawn to a canvas before its first upload), which cuts that by 4-16x. Desktops keep full size. */
+const TEX_CAP=(()=>{try{const m=navigator.deviceMemory||8,coarse=matchMedia('(pointer: coarse)').matches&&!matchMedia('(hover: hover)').matches;if(location.search.includes('texcap='))return +location.search.match(/texcap=(\d+)/)[1]||0;if(coarse||m<=4)return m<=2?512:1024;return 0;}catch(e){return 0;}})();
+if(TEX_CAP){const seen=new WeakMap();const shrink=t=>{const im=t.image;if(!im)return;const w=im.width||im.videoWidth,h=im.height||im.videoHeight;if(!(w>TEX_CAP||h>TEX_CAP))return;if(seen.has(im)){t.image=seen.get(im);t.needsUpdate=true;return;}
+  const k=TEX_CAP/Math.max(w,h),cw=Math.max(1,Math.round(w*k)),ch=Math.max(1,Math.round(h*k));const c=document.createElement('canvas');c.width=cw;c.height=ch;try{c.getContext('2d').drawImage(im,0,0,cw,ch);}catch(e){return;}
+  seen.set(im,c);t.image=c;t.needsUpdate=true;if(im.close)try{im.close();}catch(e){}};
+  const SLOTS=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap','alphaMap','specularMap','bumpMap'];
+  const fix=g=>{const roots=g.scenes||[g.scene];for(const r of roots)if(r)r.traverse(o=>{const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];for(const m of ms)for(const sl of SLOTS)if(m[sl]&&m[sl].image)shrink(m[sl]);});};
+  const _parse=GLTFLoader.prototype.parse;GLTFLoader.prototype.parse=function(data,path,onLoad,onError){return _parse.call(this,data,path,g=>{try{fix(g);}catch(e){console.warn('texcap',e);}onLoad(g);},onError);};
+  console.log('texture cap',TEX_CAP);}
 
 // ============================================================ utils
 const $=s=>document.querySelector(s);

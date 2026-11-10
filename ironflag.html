@@ -4001,8 +4001,15 @@ function damage(e,amount,byTeam){
   if(!e.alive||e.hp===Infinity)return;e.hp-=amount;if(netLive()&&e.netIdx!==undefined)NET.dirty.add(e.netIdx);if(e.hp<=0)destroyStatic(e,byTeam);
 }
 function collapseSafe(s){try{return collapseBuilding(s);}catch(e){console.warn('collapse',e);return false;}}
+function interiorCollapse(s,byTeam){ // (interiors branch, step 8) the roof comes down on anyone inside: heavy damage, dragged clear through the door
+  const I=s.interior,d=I.door,yaw=I.outer.yaw,nx=Math.sin(yaw),nz=Math.cos(yaw);
+  for(const t of G.teams){const v=t.vehicle;if(!v||v.type!=='foot'||v.state!=='active'||!inRect(v.x,v.z,I.outer,.4))continue;
+    v.x=d[0]+nx*2.6+rr(-.8,.8);v.z=d[1]+nz*2.6+rr(-.8,.8);v.vx=nx*7;v.vz=nz*7;v.landDip=.5;v.inside=null;if(v.crouch)v.crouch=false;
+    damage(v,38,byTeam);sfx('splat',v.x,v.z);
+    if(v.state==='active'){note(v.team,'The roof came down on you — you crawled out, barely','bad',true);if(t.human&&t.view)t.view.shake=Math.max(t.view.shake||0,1.2);}}
+}
 function destroyStatic(s,byTeam){
-  s.alive=false;const y=s.y0+Math.min(s.h*.4,4);
+  s.alive=false;const y=s.y0+Math.min(s.h*.4,4);if(s.interior&&s.interior.open)interiorCollapse(s,byTeam);
   if(s.batch)s.batch.hide(s.idx);
   switch(s.kind){
     case 'tree':debris(s.x,y,s.z,3,5);for(let i=0;i<8;i++)puff(s.x,y+rr(0,4),s.z,[.25,.4,.2],2.2,1);break;

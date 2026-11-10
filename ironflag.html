@@ -1560,6 +1560,9 @@ function missionSetup(m){
   if(m.decoys&&A.launcher){for(const [cx,cz] of [[-160,-200],[160,-200],[0,-215]]){const o=tintObj(A.launcher.clone(),'tel1',teamMark(1));parkProp(o,cx,cz,1,'decoy',18,3.4,320,{h:5});}}
   if(m.jets){const used=[];for(let i=0;i<m.jets;i++){const o=makeJetObj(1,true);let st=null;for(let dx=0;dx<=60&&!st;dx+=6)for(const sgn of [1,-1]){const x=-75+i*50+dx*sgn;if(st||used.some(u=>Math.abs(u-x)<16))continue;st=parkProp(o,x,-192,1,'jetp',14,9,70,{hd:Math.PI/2,h:4,explosive:1.6,onRoad:true,exact:true,only:true});if(st)used.push(x);}if(st)M.jets.push(st);}
     if(M.jets.length)setTimeout(()=>{if(G&&G.mission===M)note(0,`${M.jets.length} enemy jets on the runway — destroy them all`,'warn');},5200);}
+  if(m.retrieve){const hq=G.statics.find(st=>st.kind==='hq'&&st.alive&&st.interior&&st.interior.pickup);
+    if(hq){M.retrieve=hq.interior.pickup;for(const st of G.statics)if(st.hasFlag)st.hasFlag=false; /* no building hides it: the case does */
+      setTimeout(()=>{if(G&&G.mission===M)note(0,`The ${G.flags[1].item?G.flags[1].item.n.toLowerCase():'objective'} is in a case inside the enemy command post — go in on foot and take it (G)`,'warn',true);},5200);}}
   if(m.launcher&&A.launcher){ // the objective rides on a launcher truck that patrols the enemy's roads; it is exposed where the truck dies
     const b0=G.bases[0],b1=G.bases[1];let best=null;
     for(const c of G.corr){const pts=[...c].reverse(); /* from the enemy base outward */const a=pts.findIndex(p=>Math.hypot(p[0]-b1.x,p[1]-b1.z)>85);let bI=-1;for(let i=pts.length-1;i>a;i--){if(Math.hypot(pts[i][0]-b0.x,pts[i][1]-b0.z)>150){bI=i;break;}}
@@ -1954,18 +1957,22 @@ function hqSetup(T,x,z,yaw,o){
 function interiorLight(){if(!G.intLight){const li=new THREE.PointLight(0xffe0b0,0,19,1.4);world.add(li);G.intLight=li;}return G.intLight;}
 // ---- pickups (interiors branch, step 5): things you can walk up to and take. One item slot per player; it rides along in whatever you get into
 const PICKUPS={case:{name:'Intel briefcase',hud:'BRIEFCASE',r:2.0}};
+function pickName(p){const M=G.mission;if(p.kind==='case'&&M&&M.retrieve===p&&G.flags[1].item)return G.flags[1].item.n;return PICKUPS[p.kind].name;}
 function addPickup(kind,obj,x,y,z,home){const p={kind,obj,x,y,z,alive:true,home:home||null,delivered:false};G.pickups=G.pickups||[];G.pickups.push(p);return p;}
 function nearPickup(v){if(!G.pickups||!v||v.type!=='foot'||v.state!=='active'||v.item)return null;let best=null,bd=1e9;
   for(const p of G.pickups){if(!p.alive)continue;const d=Math.hypot(p.x-v.x,p.z-v.z);if(d<PICKUPS[p.kind].r&&Math.abs(p.y-v.y)<2.6&&d<bd){bd=d;best=p;}}return best;}
 function takePickup(v,p){p.alive=false;p.obj.visible=false;v.item=p;sfx('click',v.x,v.z);
-  note(v.team,`${PICKUPS[p.kind].name} taken — get it back to your bunker`,'good',true);
+  note(v.team,`${pickName(p)} taken — get it back to your bunker`,'good',true);
   if(p.home&&p.home.alive&&p.home.team!==v.team)alertBase(p.home,v);}
 function dropItem(v,x,z){const p=v.item;if(!p)return;v.item=null;p.alive=true;p.obj.visible=true;
   const gy=Math.max(groundAt(x,z),0);p.x=x;p.z=z;p.y=gy;world.attach(p.obj);p.obj.position.set(x,gy+.07,z);p.obj.rotation.set(0,RND()*6.28,0);p.obj.scale.setScalar(1);
-  note(v.team,`${PICKUPS[p.kind].name} dropped`,'warn');}
+  note(v.team,`${pickName(p)} dropped`,'warn');}
 function passItem(from,to){if(from.item){to.item=from.item;from.item=null;}}
 function deliverItem(v){const p=v.item;if(!p)return;v.item=null;p.delivered=true;p.alive=false;p.obj.visible=false;const t=G.teams[v.team];t.stash=t.stash||[];t.stash.push(p.kind);
-  note(v.team,`${PICKUPS[p.kind].name} secured in the bunker`,'good',true);sfx('lift',v.x,v.z);}
+  const M=G.mission;
+  if(M&&M.retrieve===p){note(v.team,`${pickName(p)} secured`,'good',true);if(G.flags[1])G.flags[1].state='captured';gameOver(v.team,'flag');return;}
+  note(v.team,`${pickName(p)} secured in the bunker`+(G.op&&!G.net?' — intel bonus: +1 missile strike':''),'good',true);sfx('lift',v.x,v.z);
+  if(G.op&&!G.net&&!devActive())setStrikes(strikesBanked()+1);}
 function alertBase(s,v){ // the guards hear the latches: everyone near the command post turns on you
   for(const sd of G.soldiers)if(sd.alive&&!sd.ride&&sd.team===s.team&&Math.hypot(sd.x-s.x,sd.z-s.z)<45){sd.alert=15;if(sd.mode==='patrol')sd.wp=[v.x+rr(-6,6),v.z+rr(-6,6)];}}
 function hqBriefcase(s,o){ // the briefcase modelled on the side table becomes the pickup (its meshes move into their own group so it can be carried off)
@@ -2034,8 +2041,8 @@ function buildBase(b){
       addStatic({kind,team:T,x,z,y0:o.position.y,h:sz.y,hp,obj:o,pts,reach:Math.max(wx,wz)/2+7});break;}}
   // (interiors branch, 9 Nov 2026) the enemy Command Post: a concrete bunker you can walk into on foot. Black Tide only, enemy base only.
   if(T===1&&G.op&&CAMP===2&&A.hq){const e=G.bases[0];
-    for(let tr=0;tr<400;tr++){const a=RND()*TAU,rad=rr(20,46);const [x,z]=toW(Math.cos(a)*rad,Math.sin(a)*rad);
-      if(near(x,z,13)||H(x,z)<1.2||Math.hypot(x-b.x,z-b.z)<20||G.statics.some(st=>st.alive&&st.kind!=='wall'&&st.kind!=='hedge'&&Math.hypot(st.x-x,st.z-z)<(st.kind==='building'?11:(st.r||5))+13))continue;
+    for(let tr=0;tr<900;tr++){const a=RND()*TAU,rad=rr(20,tr<400?46:54),cl=tr<300?13:tr<600?9:6;const [x,z]=toW(Math.cos(a)*rad,Math.sin(a)*rad); // the bigger Spoon-built buildings leave less room: relax the clearance as the tries run out
+      if(near(x,z,tr<600?13:9)||H(x,z)<1.2||Math.hypot(x-b.x,z-b.z)<20||G.statics.some(st=>st.alive&&st.kind!=='wall'&&st.kind!=='hedge'&&Math.hypot(st.x-x,st.z-z)<(st.kind==='building'?11:(st.r||5))+cl))continue;
       const yaw=Math.round(Math.atan2(e.x-x,e.z-z)/(Math.PI/2))*(Math.PI/2); // door (model +Z) faces the attacker's side of the island
       const o=placeObj('hq',1,x,z,yaw);o.position.y=Math.min(H(x,z),3);hqSetup(T,x,z,yaw,o);break;}}
   // decor: tents, fuel, crates, barrels, tower, radio
@@ -4006,7 +4013,8 @@ function destroyStatic(s,byTeam){
     case 'gate':{explosion(s.x,y+1,s.z,2.2);sfx('bigboom',s.x,s.z);s.panel.visible=false;tintObj(s.obj,'rubble',darken);s.smoke=12;G.smokers.push(s);debris(s.x,y,s.z,8,9);
       note(s.team,'Your base gate was blown open!','bad',true);note(1-s.team,'Enemy gate breached!','good',true);break;}
     case 'hq':{explosion(s.x,y,s.z,3.2);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=24;G.smokers.push(s);debris(s.x,y,s.z,10,12);
-      if(s.interior){s.interior.open=false;if(s.interior.roof)s.interior.roof.visible=true;s.rect=s.interior.outer;} // collapsed: solid rubble now
+      if(s.interior){s.interior.open=false;if(s.interior.roof)s.interior.roof.visible=true;s.rect=s.interior.outer;
+        const p=s.interior.pickup;if(p&&p.alive){const d=s.interior.door,gy=Math.max(groundAt(d[0],d[1]),0);p.x=d[0];p.z=d[1];p.y=gy;world.attach(p.obj);p.obj.position.set(d[0],gy+.07,d[1]);p.obj.rotation.set(0,RND()*6.28,0);note(byTeam,`${pickName(p)} is in the rubble by the door`,'info');}} // collapsed: solid rubble now
       note(s.team,'Your command post was destroyed!','bad',true);note(1-s.team,'Enemy command post destroyed','good');break;}
     case 'hospital':case 'depot':case 'gas':{const dep=s.kind!=='hospital';explosion(s.x,y,s.z,dep?3.4:2.6);sfx('bigboom',s.x,s.z);if(!collapseSafe(s)){s.obj.scale.y*=.22;s.obj.position.y-=.2;tintObj(s.obj,'rubble',darken);}s.smoke=dep?26:18;G.smokers.push(s);debris(s.x,y,s.z,10,12);
       if(dep){splashDamage(s.x,y,s.z,15,95,-2,s);for(let i=0;i<4;i++)explosion(s.x+rr(-6,6),y+rr(0,2),s.z+rr(-6,6),rr(1.2,1.8));}
@@ -5064,7 +5072,9 @@ function drawMini(view){
     if(Sk.m&&Sk.phase==='fly'){const [mx,my]=P(Sk.m.position.x,Sk.m.position.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2,0,TAU);x.fill();}if(Sk.beam){const [mx,my]=P(Sk.beam.ip.x,Sk.beam.ip.z);x.fillStyle='#fff';x.beginPath();x.arc(mx,my,2.5,0,TAU);x.fill();}}
   for(const sd of G.soldiers){if(!sd.alive)continue;const [px,py]=P(sd.x,sd.z);x.fillStyle=sd.team===T?'rgba(170,200,255,.8)':'rgba(255,170,160,.8)';x.fillRect(px-.5,py-.5,1,1);}
   for(const v of G.vehicles){const [px,py]=P(v.x,v.z);x.fillStyle=TEAMS[v.team].css;x.beginPath();x.arc(px,py,v===view.team.vehicle?3.2:2.4,0,TAU);x.fill();if(v===view.team.vehicle){x.strokeStyle='#fff';x.lineWidth=1;x.stroke();}}
-  const blink=(G.time*3|0)%2;for(const f of G.flags){if(f.state==='hidden'||f.state==='captured')continue;const p=f.state==='carried'?f.carrier:f;const [px,py]=P(p.x,p.z);if(f.state==='exposed'){const k=(G.time*1.2)%1;x.strokeStyle=f.team===0?'rgba(90,150,255,'+(1-k)+')':'rgba(255,90,80,'+(1-k)+')';x.lineWidth=2;x.beginPath();x.arc(px,py-3,4+k*9,0,TAU);x.stroke();}if(blink){x.fillStyle='#f2b632';x.beginPath();x.moveTo(px,py-6);x.lineTo(px+5,py-3.5);x.lineTo(px,py-1);x.fill();x.fillRect(px-.5,py-6,1.2,7);}}
+  const blink=(G.time*3|0)%2;
+  {const M=G.mission;const p=M&&M.retrieve;if(p&&!p.delivered){const c=p.alive?p:(G.teams.map(t=>t.vehicle).find(v=>v&&v.item===p));if(c){const [px,py]=P(c.x,c.z);const k=(G.time*1.2)%1;x.strokeStyle='rgba(255,200,60,'+(1-k)+')';x.lineWidth=2;x.beginPath();x.arc(px,py,4+k*9,0,TAU);x.stroke();x.fillStyle='#f2b632';x.fillRect(px-3,py-2,6,4);}}}
+  for(const f of G.flags){if(f.state==='hidden'||f.state==='captured')continue;const p=f.state==='carried'?f.carrier:f;const [px,py]=P(p.x,p.z);if(f.state==='exposed'){const k=(G.time*1.2)%1;x.strokeStyle=f.team===0?'rgba(90,150,255,'+(1-k)+')':'rgba(255,90,80,'+(1-k)+')';x.lineWidth=2;x.beginPath();x.arc(px,py-3,4+k*9,0,TAU);x.stroke();}if(blink){x.fillStyle='#f2b632';x.beginPath();x.moveTo(px,py-6);x.lineTo(px+5,py-3.5);x.lineTo(px,py-1);x.fill();x.fillRect(px-.5,py-6,1.2,7);}}
   x.restore();
 }
 const lastHud=new WeakMap();
@@ -5092,7 +5102,7 @@ function updateHud(view){
     const tf=view.index===0?document.getElementById('tFoot'):null;if(tf){const show=!!(opts.touch&&footOk()&&v&&v.state==='active'&&!v.def.air&&v.type!=='boat');if(tf.hidden===show)tf.hidden=!show;if(show){const txt=foot?(nearPickup(v)?'TAKE':'IN'):'OUT';if(tf.textContent!==txt)tf.textContent=txt;}}}
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
     q.fuel.style.width=(v.fuel/d.fuel*100).toFixed(1)+'%';
-    s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.type==='jeep'&&A.crew?`<div>Riflemen <span>${crewCount(v)}/3</span></div>`:'')+(v.carrying?`<div style="color:var(--signal)">${v.carrying.item?v.carrying.item.s:'FLAG'} ABOARD</div>`:'')+(v.item?`<div style="color:var(--signal)">${PICKUPS[v.item.kind].hud} ABOARD</div>`:'');
+    s=`<div>${d.w1} <span>${v.ammo}</span></div>`+(d.w2?`<div>${d.w2} <span>${v.ammo2}</span></div>`:'')+(v.type==='jeep'&&A.crew?`<div>Riflemen <span>${crewCount(v)}/3</span></div>`:'')+(v.carrying?`<div style="color:var(--signal)">${v.carrying.item?v.carrying.item.s:'FLAG'} ABOARD</div>`:'')+(v.item?`<div style="color:var(--signal)">${G.mission&&G.mission.retrieve===v.item&&G.flags[1].item?G.flags[1].item.s:PICKUPS[v.item.kind].hud} ABOARD</div>`:'');
     q.warn.textContent=v.scuttle>0?'SCUTTLING…':v.landHint?(opts.touch?'PULL BACK TO LAND':'HOLD BRAKE TO LAND'):v.supplyMsg?v.supplyMsg:v.type==='foot'&&v.winded?'WINDED — catch your breath':v.type==='foot'&&v.ammo<=0?'OUT OF AMMO — FIND AN AMMO TENT':v.type==='foot'&&nearPickup(v)?(opts.touch?`TAP TAKE FOR THE ${PICKUPS[nearPickup(v).kind].hud}`:`PRESS G TO TAKE THE ${PICKUPS[nearPickup(v).kind].hud}`):v.type==='foot'&&G.vehicles.some(o=>o!==v&&o.team===v.team&&o.type!=='foot'&&o.state==='active'&&Math.hypot(o.x-v.x,o.z-v.z)-o.r<2.4)?(opts.touch?'TAP IN TO GET IN':'PRESS G TO GET IN'):v.floats?'TIRES INFLATED':v.fuel<d.fuel*.2?(v.fuel<=0?'OUT OF FUEL':'LOW FUEL'):'';q.warn.style.color=v.supplyMsg||v.floats?'var(--ok)':'';}
   else{q.vn.textContent='In bunker';q.hp.style.width='0';q.fuel.style.width='0';s='';q.warn.textContent='';}
   if(lastHud.get(q.ammo)!==s){q.ammo.innerHTML=s;lastHud.set(q.ammo,s);}
@@ -5308,8 +5318,10 @@ const OPS2=(()=>{
   //  pows: friendly prisoners held in the enemy camp; drive a slow jeep up to them and they climb in - bring them home
   //  decoys: launcher trucks parked on every island, only one of them matters     jets: enemy jets parked on the runway, blow them up
   //  limit: seconds before the enemy launches and the operation is lost
+  //  retrieve: the objective is the briefcase in the enemy command post (interiors): walk in and take it, no building hides it
   const MISSION={0:{active:true,enemyStock:{tank:3,heli:2,asv:1,jeep:3},tip:'The enemy is attacking: it will come for your orders if you leave them unguarded.'},
     2:{pows:4,tip:'Four of our men are held in the camp. Pull a jeep up slowly beside them and they will climb in. Bring them home.'},
+    8:{retrieve:true,tip:'The tracker is locked in a case inside the enemy command post. Get in on foot, take it (G) and bring it home. Flatten the post and the case ends up in the rubble by the door.'},
     9:{active:true,enemyStock:{tank:2,heli:2,jeep:2},tip:'The enemy knows where you are and is coming for your codebook.'},
     10:{launcher:true,escort:['jeep'],tip:'The launcher never stops moving and travels with an escort. Find it on the roads, destroy it, and the route map is yours.'},
     11:{pows:3,tip:'Three survivors of the recon team are still alive out there. Pick them up with a jeep.'},

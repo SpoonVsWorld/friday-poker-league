@@ -4576,12 +4576,13 @@ let DRONE_TPL=null;
 function floatGeo(g,m){ // de-quantize + de-index + bake a matrix
   const src=g.index?g.toNonIndexed():g,pa=src.attributes.position,na=src.attributes.normal,n=pa.count,P=new Float32Array(n*3),N=new Float32Array(n*3),v=new V3(),nm=new THREE.Matrix3().getNormalMatrix(m);
   for(let i=0;i<n;i++){v.fromBufferAttribute(pa,i).applyMatrix4(m);P[i*3]=v.x;P[i*3+1]=v.y;P[i*3+2]=v.z;if(na){v.fromBufferAttribute(na,i).applyMatrix3(nm).normalize();N[i*3]=v.x;N[i*3+1]=v.y;N[i*3+2]=v.z;}}
-  const o=new THREE.BufferGeometry();o.setAttribute('position',new THREE.BufferAttribute(P,3));if(na)o.setAttribute('normal',new THREE.BufferAttribute(N,3));else o.computeVertexNormals();return o;}
+  const o=new THREE.BufferGeometry();o.setAttribute('position',new THREE.BufferAttribute(P,3));if(na)o.setAttribute('normal',new THREE.BufferAttribute(N,3));else o.computeVertexNormals();
+  const ua=src.attributes.uv;if(ua){const U=new Float32Array(n*2);for(let i=0;i<n;i++){U[i*2]=ua.getX(i);U[i*2+1]=ua.getY(i);}o.setAttribute('uv',new THREE.BufferAttribute(U,2));} /* (interiors branch) keep UVs: the drone is texture-baked now */return o;}
 function mergeByMat(list){ // [{geo,mat}] -> Group of one Mesh per material
   const by=new Map();for(const {geo,mat} of list){let a=by.get(mat.name);if(!a)by.set(mat.name,a={mat,g:[]});a.g.push(geo);}
-  const grp=new THREE.Group();for(const {mat,g} of by.values()){let n=0;for(const x of g)n+=x.attributes.position.count;const P=new Float32Array(n*3),N=new Float32Array(n*3);let o=0;
-    for(const x of g){P.set(x.attributes.position.array,o*3);N.set(x.attributes.normal.array,o*3);o+=x.attributes.position.count;}
-    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(P,3));geo.setAttribute('normal',new THREE.BufferAttribute(N,3));geo.computeBoundingSphere();
+  const grp=new THREE.Group();for(const {mat,g} of by.values()){let n=0;for(const x of g)n+=x.attributes.position.count;const P=new Float32Array(n*3),N=new Float32Array(n*3),hasUV=g.every(x=>x.attributes.uv),U=hasUV?new Float32Array(n*2):null;let o=0;
+    for(const x of g){P.set(x.attributes.position.array,o*3);N.set(x.attributes.normal.array,o*3);if(hasUV)U.set(x.attributes.uv.array,o*2);o+=x.attributes.position.count;}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(P,3));geo.setAttribute('normal',new THREE.BufferAttribute(N,3));if(hasUV)geo.setAttribute('uv',new THREE.BufferAttribute(U,2));geo.computeBoundingSphere();
     const m=new THREE.Mesh(geo,mat);m.castShadow=true;m.name=mat.name;grp.add(m);}
   return grp;}
 function droneTemplate(){

@@ -686,8 +686,9 @@ const RIFLE={grip:new V3(0,-.06,-.1),fore:new V3(0,-.045,.26),rightSign:1,tpl:nu
    it sways unless you crouch, and it barely scratches a vehicle - the launcher and grenades keep their job. */
 const WEAPONS={
   m4:{name:'M4 carbine',hud:'M4',model:'m4',shot:'pbullet',cd:.105,mag:210,spread:.01,moveSpread:.018,recoil:1,flash:.055,snd:'m4',auto:true,zoom:0},
-  sniper:{name:'Sniper rifle',hud:'SNIPER',model:'sniper',shot:'srnd',cd:1.5,mag:40,spread:.0012,moveSpread:.055,recoil:3.4,flash:.085,snd:'sniper',auto:false,zoom:11,bolt:.9,
-    sway:{amp:.0085,crouch:.3,settle:.9}}};
+  sniper:{name:'Sniper rifle',hud:'SNIPER',model:'sniper',shot:'srnd',cd:1.5,mag:40,spread:.0012,moveSpread:.055,recoil:3.4,flash:.085,snd:'sniper',auto:false,zoom:11,bolt:.9}};
+/* (Matt, 11 Nov 2026) No breathing sway through the scope - he wants the sight picture to hold still.
+   Crouching and standing still still tighten the shot; what moves the view is you, not the rifle. */
 function weapOf(v){return WEAPONS[(v&&v.weapon)||'m4'];} // .m4: the same hand points on the Blender M4 (RIFLE.grip/fore are switched to these once it loads)
 function rifleModel(w){
   if(w==='sniper'&&A.sniper)return A.sniper;
@@ -3708,7 +3709,7 @@ function spawnHero(T,x,z,heading){
   const team=G.teams[T],{g,parts}=buildHeroObj(T),keep=team.hero||{};
   const v={type:'foot',def:VDEF.foot,team:T,x,z,y:vehGround(x,z),heading,pitch:0,speed:0,vx:0,vz:0,strafe:0,turret:0,hp:keep.hp||VDEF.foot.hp,fuel:1,ammo:keep.ammo??VDEF.foot.ammo,ammo2:keep.ammo2??VDEF.foot.ammo2,gcd:0,cd:0,cd2:0,
     state:'active',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:VDEF.foot.r,alt:0,smokeT:0,scuttle:0,steer:0,wheelRot:0,lowFuelWarned:true,dustT:0,moving:0,
-    weapon:keep.weapon||'m4',scope:false,scopeK:0,boltT:0,scopeSettle:0,swayT:0};
+    weapon:keep.weapon||'m4',scope:false,scopeK:0,boltT:0};
   g.position.set(x,v.y,z);g.rotation.y=heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);return v;
 }
 function removeHero(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);v.state='gone';}
@@ -3762,7 +3763,7 @@ function heroShoot(v){
   fire(W.shot,v.team,v.x+ex*1.6,y0+ey*1.6-.06,v.z+ez*1.6,ex,ey,ez,{mul:G.vehMul[v.team]});
   v.ammo--;v.cd=W.cd;v.aimT=0;sfx(W.snd,v.x,v.z);FP.recoil=Math.min(1.8,FP.recoil+W.recoil);FP.flashT=W.flash;
   v.pitch=Math.min(1.25,v.pitch+(W.zoom?.022:.005));v.heading+=rr(-.002,.002)*W.recoil;
-  if(W.bolt){v.boltT=W.bolt;v.scopeSettle=W.sway.settle;}
+  if(W.bolt)v.boltT=W.bolt;
 }
 function heroThrow(v){ // lobbed along the look direction (aim higher to throw further); bursts where it lands
   const p=clamp(v.pitch+.34,-.3,1.1),sp=23,hs=Math.cos(p)*sp,vy=Math.sin(p)*sp,sx=Math.sin(v.heading),sz=Math.cos(v.heading),rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
@@ -3825,11 +3826,9 @@ function updateFoot(v,inp,dt){
     if(v.air){v.vy-=13.5*dt;v.y+=v.vy*dt;if(v.y<=g0){v.y=g0;v.air=false;v.landDip=.35;v.vy=0;puff(v.x,v.y+.1,v.z,C_DUST,1,.6,.4);footstep('dirt',v.x,v.z,1,G.teams[T].view);}}else v.y=lerp(v.y,g0,1-Math.exp(-dt*16));}
   {const W=weapOf(v);const want=(W.zoom&&inp.scope&&!sprint&&!v.air)?1:0;v.scope=!!want;
     v.scopeK=lerp(v.scopeK||0,want,1-Math.exp(-dt*(want?11:16)));if(v.scopeK<.002)v.scopeK=0;
-    if(v.scopeK>.05&&W.sway){                                  // breathing: steadies when you crouch, unsettled right after a shot
-      const st=v.scopeSettle>0?1+v.scopeSettle*2.2:1,k=W.sway.amp*(v.crouch?W.sway.crouch:1)*st*v.scopeK;
-      v.swayT=(v.swayT||0)+dt;v.heading+=Math.sin(v.swayT*.9)*k*dt*5.5;v.pitch=clamp(v.pitch+Math.sin(v.swayT*1.37+1.1)*k*dt*4.2,-1.25,1.25);}}
+}
   v.cd-=dt;{const W=weapOf(v),ok=W.auto?inp.fire:(inp.fire&&!v.prevFire);if(ok&&v.cd<=0&&v.ammo>0&&!sprint)heroShoot(v);v.prevFire=!!inp.fire;
-    if(v.boltT>0)v.boltT=Math.max(0,v.boltT-dt);if(v.scopeSettle>0)v.scopeSettle=Math.max(0,v.scopeSettle-dt);}
+    if(v.boltT>0)v.boltT=Math.max(0,v.boltT-dt);}
   v.gcd-=dt;if(inp.grenade&&!v.prevGren&&v.gcd<=0&&v.ammo2>0)heroThrow(v);v.prevGren=!!inp.grenade;
   // field supply: any hospital heals, your ammo tents and any ammo depot refill the rifle
   if(v.speed<2){staticsNear(v.x,v.z,_vn);let what='';for(const st of _vn){if(!st.alive||Math.hypot(st.x-v.x,st.z-v.z)>(st.reach||11))continue;

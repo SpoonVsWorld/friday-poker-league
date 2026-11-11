@@ -248,6 +248,9 @@ body.cine #huds,body.cine #touch,body.cine #topbtn{visibility:hidden}
 #tLook{position:absolute;left:55%;right:0;top:0;bottom:0;pointer-events:none;touch-action:none;z-index:0}
 #touch .tbtn,#touch .tpause{z-index:2}#touch .tzone{z-index:1}
 body.onfoot #tLook{pointer-events:auto}
+/* on the mount the stick does nothing, so the gun is laid with the left hand and the buttons stay under the right */
+body.lsgun .tzone{pointer-events:none}
+body.lsgun #tLook{left:0;right:45%}
 .tpause.tfoot{top:calc(294px + var(--sat));font-size:11px;letter-spacing:.5px}.tpause.tfoot[hidden]{display:none}
 /* short landscape phones: II / CAM / OUT sit in a row along the top, left of the minimap, instead of dropping onto FIRE */
 @media (max-height:520px){#touch .tpause{top:calc(10px + var(--sat))}#touch .tpause.tcam{right:calc(186px + var(--sar))}#touch .tpause:not(.tcam):not(.tfoot){right:calc(136px + var(--sar))}#touch .tpause.tfoot{right:calc(236px + var(--sar))}}
@@ -339,6 +342,8 @@ body.onfoot #tLook{pointer-events:auto}
 #lssight .ls-vig{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,transparent 34%,rgba(0,22,10,.42) 74%,rgba(0,14,6,.80) 100%)}
 #lssight .ls-tint{position:absolute;inset:0;background:rgba(18,86,44,.13);mix-blend-mode:screen}
 @supports (backdrop-filter:contrast(1.1)){#lssight .ls-tint{backdrop-filter:contrast(1.08) saturate(.72) brightness(.94)}}
+@supports (backdrop-filter:contrast(1.1)){#lssight.thermal .ls-tint{backdrop-filter:grayscale(1) contrast(1.25) brightness(.62)}}
+#lssight.thermal .ls-vig{background:radial-gradient(ellipse at 50% 50%,transparent 36%,rgba(0,4,14,.46) 76%,rgba(0,2,10,.82) 100%)}
 body.lsgun .hud .status,body.lsgun .hud canvas.mini,body.lsgun .hud .bodies,body.lsgun .hud .xhair,body.lsgun .hud .stock{display:none}
 #lssight.alert .ls-vig{background:radial-gradient(ellipse at 50% 50%,transparent 38%,rgba(40,0,0,.34) 76%,rgba(40,0,0,.66) 100%)}
 .lsboard{margin-top:12px}
@@ -353,6 +358,8 @@ body.lsgun .hud .status,body.lsgun .hud canvas.mini,body.lsgun .hud .bodies,body
 .tair{right:calc(146px + var(--sar));bottom:calc(122px + var(--sab));width:60px;height:60px;font-size:12px;background:rgba(59,111,214,.6)}
 .tscope{right:calc(214px + var(--sar));bottom:calc(120px + var(--sab));width:62px;height:62px;font-size:11px;background:rgba(14,19,14,.55)}
 .tscope.on{background:rgba(242,182,50,.45);border-color:rgba(242,182,50,.9)}
+.ttherm{right:calc(146px + var(--sar));bottom:calc(122px + var(--sab));width:60px;height:60px;font-size:11px;background:rgba(14,19,14,.55)}
+.ttherm.on{background:rgba(255,214,120,.42);border-color:rgba(255,214,120,.9)}
 .tpause{position:absolute;right:calc(12px + var(--sar));top:calc(206px + var(--sat));pointer-events:auto;width:44px;height:36px;border-radius:3px;background:var(--panel);border:1px solid var(--line);color:var(--sand);font:700 14px var(--ui)}
 .tpause.tcam{top:calc(250px + var(--sat));font-size:11px;letter-spacing:.5px}.tpause.tcam.on{background:rgba(59,111,214,.6)}
 .touchnote{margin:0;font-size:12px;color:var(--khaki);line-height:1.45}
@@ -433,7 +440,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <div id="pause" class="screen" hidden><div class="box"><h2>Paused</h2><div class="btns"><button id="pResume">Resume</button><button id="pMusic">Music on/off</button><button id="pRestart">Restart map</button><button id="pQuit">Quit to title</button></div></div></div>
 <div id="over" class="screen" hidden><canvas id="confetti"></canvas><div class="box"><h2 id="oTitle">Victory</h2><p id="oText"></p><div id="oStory" hidden></div><div class="btns"><button id="oNext" hidden>Next operation</button><button id="oAgain">Rematch</button><button id="oNew">New map</button><button id="oOps" hidden>Operations</button><button id="oQuit">Title screen</button></div></div></div>
 <div id="touch" hidden><div class="tzone" id="tzone"><div class="sbase" id="sbase" hidden><div class="sknob" id="sknob"></div></div></div>
-  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tpause tfoot" id="tFoot" aria-label="Get out or in" hidden>OUT</button><div id="tLook"></div><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button><button class="tbtn tscope" id="tScope" aria-label="Look through the scope" hidden>SCOPE</button></div>
+  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tpause tfoot" id="tFoot" aria-label="Get out or in" hidden>OUT</button><div id="tLook"></div><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button><button class="tbtn tscope" id="tScope" aria-label="Look through the scope" hidden>SCOPE</button><button class="tbtn ttherm" id="tTherm" aria-label="Thermal sight" hidden>THRM</button></div>
 <div id="lssight" hidden><canvas id="lscv"></canvas><i class="ls-tint"></i><i class="ls-scan"></i><i class="ls-vig"></i></div>
 <div id="scopeview" hidden><div class="sv-glass"><svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet"><g stroke="#0c0c0c" fill="#0c0c0c"><path d="M100 2V72M100 128V198M2 100H72M128 100H198" stroke-width="2.6"/><path d="M100 72V96M100 104V128M72 100H96M104 100H128" stroke-width="1"/><circle cx="100" cy="100" r="1.1"/><g><circle cx="100" cy="86" r="1.1"/><circle cx="100" cy="72" r="1.1"/><circle cx="100" cy="114" r="1.1"/><circle cx="100" cy="128" r="1.1"/><circle cx="86" cy="100" r="1.1"/><circle cx="72" cy="100" r="1.1"/><circle cx="114" cy="100" r="1.1"/><circle cx="128" cy="100" r="1.1"/></g></g></svg></div><div class="sv-mask"></div><div class="sv-mil">6&#215;</div></div>
 <div id="loading">LOADING ARMOR…</div>
@@ -5204,6 +5211,7 @@ addEventListener('keydown',e=>{audioInit();if(GAME_KEYS.has(e.code)&&state!=='ti
   if(e.code==='KeyM'&&state!=='title')setMusic(!AU.music);
   if(e.code==='KeyF'&&G&&(G.air||onFoot())&&state==='play')callStrike();
   if(e.code==='KeyV'&&G&&!G.demo&&state==='play')toggleChase();
+  if(e.code==='KeyT'&&G&&G.ls&&!G.demo&&state==='play'&&!paused)lsTherm();
   if(e.code==='KeyG'&&G&&!G.demo&&state==='play'&&G.views.length===1&&G.views[0].team.human)toggleFoot(G.views[0]);});
 addEventListener('keyup',e=>keys.delete(e.code));
 addEventListener('blur',()=>keys.clear());
@@ -5397,7 +5405,7 @@ function updateHud(view){
   let s;
   if(G.ls&&view.index===0){const el=$('#lssight'),on=!!(v&&v.type==='gunpit'&&v.state==='active'&&!G.over);
     if(el.hidden===on)el.hidden=!on;el.classList.toggle('on',on);
-    el.classList.toggle('alert',!!(on&&v.hp<v.def.hp*.4));document.body.classList.toggle('lsgun',on);}
+    el.classList.toggle('alert',!!(on&&v.hp<v.def.hp*.4));el.classList.toggle('thermal',!!(on&&LSH.therm));document.body.classList.toggle('lsgun',on);}
   {const sv=$('#scopeview'),k=(v&&v.type==='foot'&&view.index===0&&!G.demo)?(v.scopeK||0):0;
    if(sv){const on=k>.5;if(sv.hidden===on)sv.hidden=!on;sv.classList.toggle('on',on);if(view.index===0)document.body.classList.toggle('scoped',on);}}
   {const foot=!!(v&&v.type==='foot');if(view.el&&view.el.classList.contains('foot')!==foot){view.el.classList.toggle('foot',foot);const hb=view.el.querySelector('.bar.hp');if(hb)hb.firstChild.nodeValue=foot?'HEALTH':'ARMOR';}
@@ -5616,7 +5624,11 @@ function lsBoardHtml(){
 
 // ---- The gunner's display. Everything you see through the sight is drawn here, on a canvas over the 3D view:
 // reference grid, horizon and pitch ladder, a compass strip, tracking brackets on every hostile, and the readouts.
-const LSH={cv:null,x:null,w:0,h:0,dpr:1,t:0,lock:null,lockT:0,logT:0,log:[],killT:-9};
+const LSH={cv:null,x:null,w:0,h:0,dpr:1,t:0,lock:null,lockT:0,logT:0,log:[],killT:-9,therm:false};
+// thermal: the picture goes cold and every body on it burns - T on a keyboard, THRM on a phone
+function lsTherm(on){const want=on==null?!LSH.therm:!!on;if(want===LSH.therm)return;LSH.therm=want;
+  const b=document.getElementById('tTherm');if(b)b.classList.toggle('on',LSH.therm);
+  if(G&&G.ls)note(0,LSH.therm?'Thermal sight on':'Thermal sight off','info');}
 const LS_LOG=['TRACKING','THERMAL  +OK','BALLISTIC SOLVE','LASER RANGE ON','CLASS: INFANTRY','FEED PRESS NOM','BARREL WEAR 04%','GYRO LOCK TRUE','IFF  NO FRIEND','SECTOR SWEEP 7','SERVO TEMP 41C','DRIFT COMP ON'];
 const _lsp=new THREE.Vector3(),_lsd=new THREE.Vector3();
 function lsCv(){
@@ -5640,6 +5652,9 @@ function lsSight(view,v,dt){
   const def=v.def,hpK=clamp(v.hp/def.hp,0,1),hot=clamp(v.heat/2.6,0,1),crit=hpK<.4;
   const pulse=.5+.5*Math.sin(T*6);
   x.save();x.lineCap='butt';x.textBaseline='alphabetic';x.shadowColor='rgba(0,26,10,.9)';x.shadowBlur=3;
+  if(LSH.therm){const wash=x.createLinearGradient(0,0,0,H);   // sky coldest, ground a shade warmer
+    wash.addColorStop(0,'rgba(4,8,22,.86)');wash.addColorStop(.44,'rgba(8,14,28,.74)');wash.addColorStop(1,'rgba(18,24,34,.52)');
+    x.save();x.shadowBlur=0;x.fillStyle=wash;x.fillRect(0,0,W,H);x.restore();}
   // reference grid
   const gs=Math.max(34,Math.round(S/13));
   for(const pass of [0,1]){x.strokeStyle=GR(pass?.17:.075);x.beginPath();
@@ -5681,6 +5696,15 @@ function lsSight(view,v,dt){
       x.moveTo(ex+Math.cos(a)*9,ey+Math.sin(a)*9);x.lineTo(ex+Math.cos(a+2.5)*9,ey+Math.sin(a+2.5)*9);
       x.lineTo(ex+Math.cos(a-2.5)*9,ey+Math.sin(a-2.5)*9);x.closePath();x.stroke();x.lineWidth=1;continue;}
     const hh=Math.max(8,(1.95/Math.max(6,d))*fpx*.5),hw=Math.max(6,hh*.62);
+    if(LSH.therm){const R=Math.max(11,hh*2.2);x.save();x.shadowBlur=0;
+      const halo=x.createRadialGradient(sx,sy,0,sx,sy,R*2.1);
+      halo.addColorStop(0,'rgba(255,170,70,.34)');halo.addColorStop(.5,'rgba(220,90,36,.16)');halo.addColorStop(1,'rgba(120,30,16,0)');
+      x.fillStyle=halo;x.beginPath();x.arc(sx,sy,R*2.1,0,TAU);x.fill();
+      const hot=x.createRadialGradient(sx,sy,0,sx,sy,R);
+      hot.addColorStop(0,'rgba(255,255,250,1)');hot.addColorStop(.28,'rgba(255,232,160,.95)');
+      hot.addColorStop(.58,'rgba(248,146,56,.7)');hot.addColorStop(.82,'rgba(176,58,28,.32)');hot.addColorStop(1,'rgba(90,20,14,0)');
+      x.fillStyle=hot;x.beginPath();x.arc(sx,sy,R,0,TAU);x.fill();
+      x.fillStyle='rgba(255,255,255,.97)';x.beginPath();x.ellipse(sx,sy,Math.max(2.4,hw*.42),Math.max(3.4,hh*.62),0,0,TAU);x.fill();x.restore();}
     x.strokeStyle=col(.8);lsBracket(x,sx,sy,hw,hh,Math.min(7,hh*.45),1);
     if(hh>11){x.fillStyle=col(.9);x.font=MO(9);x.textAlign='center';x.fillText(Math.round(d)+'M',sx,sy+hh+11);
       if(rpg){x.fillStyle=AM(.95);x.font=MO(9,1);x.fillText('RPG',sx,sy-hh-4);}}
@@ -5738,7 +5762,7 @@ function lsSight(view,v,dt){
   for(let i=0;i<LSH.log.length;i++){x.fillStyle=GD(.9-i*.14);x.fillText(LSH.log[i],L,H-100+i*11);}
   // top left stamp
   x.font=MO(12,1);x.fillStyle=GR(.95);x.fillText('LAST STAND',L+10,topY+2);
-  x.font=MO(9);x.fillStyle=GD(.78);x.fillText('AUTO  ·  SECTOR N  ·  '+(v.sight?'MAG 2.0x':'MAG 1.0x'),L+10,topY+15);
+  x.font=MO(9);x.fillStyle=GD(.78);x.fillText((LSH.therm?'THERMAL':'DAYLIGHT')+'  ·  SECTOR N  ·  '+(v.sight?'MAG 2.0x':'MAG 1.0x'),L+10,topY+15);
   if(pulse>.5){x.fillStyle=RD(.85);x.fillRect(L-2,topY-7,6,6);}
   // the one line that matters, bottom centre
   let msg='',mc=GR;
@@ -6144,10 +6168,13 @@ function loop(now){
   if(G.mslMap)mslMapTick(dt);
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
-  const showAir=showT&&airLeft()>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;
+  const showAir=showT&&airLeft()>0&&!G.ls;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;
   {const hv=G&&G.teams&&G.teams[0].vehicle,showSc=showT&&!!(hv&&(hv.type==='gunpit'||hv.type==='foot'&&weapOf(hv).zoom));const sc=$('#tScope');
    if(sc.hidden===showSc)sc.hidden=!showSc;
-   if(!showSc&&TOUCH.scope){TOUCH.scope=false;sc.classList.remove('on');}}  // putting the rifle back, or getting into something, drops the scope
+   if(!showSc&&TOUCH.scope){TOUCH.scope=false;sc.classList.remove('on');}
+   const onGun=!!(hv&&hv.type==='gunpit'),showTh=showT&&onGun,th=$('#tTherm');
+   if(th&&th.hidden===showTh)th.hidden=!showTh;
+   if(!onGun&&LSH.therm)lsTherm(false);}   // the thermal sight belongs to the mount: leaving it puts the picture back  // putting the rifle back, or getting into something, drops the scope
 }
 
 // ============================================================ online multiplayer (Supabase Realtime)
@@ -6690,6 +6717,7 @@ $('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dat
   fb.addEventListener('pointermove',e=>{if(lx===null||!document.body.classList.contains('onfoot'))return;FP.look.dx+=(e.clientX-lx);FP.look.dy+=(e.clientY-ly);lx=e.clientX;ly=e.clientY;});
   const off=()=>{lx=ly=null;};fb.addEventListener('pointerup',off);fb.addEventListener('pointercancel',off);}hold($('#tSpec'),'special');
  {const sc=$('#tScope');sc.addEventListener('pointerdown',e=>{audioInit();e.preventDefault();TOUCH.scope=!TOUCH.scope;sc.classList.toggle('on',TOUCH.scope);});}
+ {const th=$('#tTherm');if(th)th.addEventListener('pointerdown',e=>{audioInit();e.preventDefault();lsTherm();});}
  $('#tAir').addEventListener('pointerdown',e=>{audioInit();e.preventDefault();callStrike();});
  $('#tPause').addEventListener('click',()=>{if(G&&!G.demo&&!G.over)togglePause();});
  $('#tCam').addEventListener('click',()=>{if(G&&!G.demo)toggleChase();});

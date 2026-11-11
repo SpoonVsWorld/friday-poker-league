@@ -342,7 +342,10 @@ body.lsgun #tLook{left:0;right:45%}
 #lssight .ls-vig{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,transparent 34%,rgba(0,22,10,.42) 74%,rgba(0,14,6,.80) 100%)}
 #lssight .ls-tint{position:absolute;inset:0;background:rgba(18,86,44,.13);mix-blend-mode:screen}
 @supports (backdrop-filter:contrast(1.1)){#lssight .ls-tint{backdrop-filter:contrast(1.08) saturate(.72) brightness(.94)}}
-@supports (backdrop-filter:contrast(1.1)){#lssight.thermal .ls-tint{backdrop-filter:grayscale(1) contrast(1.25) brightness(.62)}}
+@supports (backdrop-filter:contrast(1.1)){#lssight.thermal .ls-tint{backdrop-filter:grayscale(1) contrast(1.75) brightness(.5)}}
+/* in thermal nothing may sit on top of a hot body and grey it down: the glass tint goes, the scan lines thin out */
+#lssight.thermal .ls-tint{background:transparent}
+#lssight.thermal .ls-scan{opacity:.22}
 #lssight.thermal .ls-vig{background:radial-gradient(ellipse at 50% 50%,transparent 36%,rgba(0,4,14,.46) 76%,rgba(0,2,10,.82) 100%)}
 body.lsgun .hud .status,body.lsgun .hud canvas.mini,body.lsgun .hud .bodies,body.lsgun .hud .xhair,body.lsgun .hud .stock{display:none}
 #lssight.alert .ls-vig{background:radial-gradient(ellipse at 50% 50%,transparent 38%,rgba(40,0,0,.34) 76%,rgba(40,0,0,.66) 100%)}
@@ -5652,6 +5655,41 @@ function lsBracket(x,px,py,hw,hh,len,lw){
     x.moveTo(px+sx*hw,py+sy*hh-sy*len);x.lineTo(px+sx*hw,py+sy*hh);x.lineTo(px+sx*hw-sx*len,py+sy*hh);}
   x.stroke();x.lineWidth=1;
 }
+// A thermal signature is a body, not a blob: the man's own bones are projected to the glass and
+// drawn as hot limbs, so he reads as standing, running or kneeling exactly as he is.
+const LS_BONE=['Hips','Spine2','Head','LeftArm','LeftForeArm','LeftHand','RightArm','RightForeArm','RightHand','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
+const _tbv=new THREE.Vector3();
+function lsBody(sd,cam,W,H){
+  let B=sd._tb;
+  if(B===undefined){B=null;
+    if(sd.obj){const b={};let ok=true;
+      for(const n of LS_BONE){const o=sd.obj.getObjectByName('mixamorig'+n);if(o)b[n]=o;else if(n==='Hips'||n==='Head')ok=false;}
+      B=ok?b:null;}
+    sd._tb=B;}
+  if(!B)return null;
+  const P={};
+  for(const n in B){_tbv.setFromMatrixPosition(B[n].matrixWorld).project(cam);
+    P[n]=[(_tbv.x*.5+.5)*W,(-_tbv.y*.5+.5)*H];}
+  return P;
+}
+function lsDrawBody(x,P,px){
+  x.lineCap='round';x.lineJoin='round';
+  const seg=(a,b,w)=>{if(!P[a]||!P[b])return;x.lineWidth=Math.max(1.2,w);x.beginPath();x.moveTo(P[a][0],P[a][1]);x.lineTo(P[b][0],P[b][1]);x.stroke();};
+  // the trunk is a filled shape between the shoulders and the hip joints, not a fat line: at close range a
+  // stroked spine swells into a lump and swallows the limbs
+  if(P.LeftArm&&P.RightArm&&P.LeftUpLeg&&P.RightUpLeg){
+    x.beginPath();x.moveTo(P.LeftArm[0],P.LeftArm[1]);x.lineTo(P.RightArm[0],P.RightArm[1]);
+    x.lineTo(P.RightUpLeg[0],P.RightUpLeg[1]);x.lineTo(P.LeftUpLeg[0],P.LeftUpLeg[1]);x.closePath();
+    x.fill();x.lineWidth=Math.max(1.4,px*.075);x.stroke();
+  }else seg('Hips','Spine2',px*.22);
+  seg('Spine2','Head',px*.072);
+  seg('LeftArm','LeftForeArm',px*.078);seg('LeftForeArm','LeftHand',px*.062);
+  seg('RightArm','RightForeArm',px*.078);seg('RightForeArm','RightHand',px*.062);
+  seg('LeftUpLeg','LeftLeg',px*.10);seg('LeftLeg','LeftFoot',px*.082);
+  seg('RightUpLeg','RightLeg',px*.10);seg('RightLeg','RightFoot',px*.082);
+  if(P.Head){x.beginPath();x.arc(P.Head[0],P.Head[1],Math.max(1.5,px*.062),0,TAU);x.fill();}
+  x.lineWidth=1;
+}
 function lsSight(view,v,dt){
   const x=lsCv(),run=G.ls;if(!x||!run)return;
   const W=LSH.w,H=LSH.h,cx=W/2,cy=H/2,S=Math.min(W,H),T=(LSH.t=performance.now()/1000);
@@ -5661,7 +5699,7 @@ function lsSight(view,v,dt){
   const pulse=.5+.5*Math.sin(T*6);
   x.save();x.lineCap='butt';x.textBaseline='alphabetic';x.shadowColor='rgba(0,26,10,.9)';x.shadowBlur=3;
   if(LSH.therm){const wash=x.createLinearGradient(0,0,0,H);   // sky coldest, ground a shade warmer
-    wash.addColorStop(0,'rgba(4,8,22,.86)');wash.addColorStop(.44,'rgba(8,14,28,.74)');wash.addColorStop(1,'rgba(18,24,34,.52)');
+    wash.addColorStop(0,'rgba(2,3,8,.93)');wash.addColorStop(.42,'rgba(4,6,12,.80)');wash.addColorStop(1,'rgba(14,16,20,.56)');
     x.save();x.shadowBlur=0;x.fillStyle=wash;x.fillRect(0,0,W,H);x.restore();}
   // reference grid
   const gs=Math.max(34,Math.round(S/13));
@@ -5704,15 +5742,20 @@ function lsSight(view,v,dt){
       x.moveTo(ex+Math.cos(a)*9,ey+Math.sin(a)*9);x.lineTo(ex+Math.cos(a+2.5)*9,ey+Math.sin(a+2.5)*9);
       x.lineTo(ex+Math.cos(a-2.5)*9,ey+Math.sin(a-2.5)*9);x.closePath();x.stroke();x.lineWidth=1;continue;}
     const hh=Math.max(8,(1.95/Math.max(6,d))*fpx*.5),hw=Math.max(6,hh*.62);
-    if(LSH.therm){const R=Math.max(11,hh*2.2);x.save();x.shadowBlur=0;
-      const halo=x.createRadialGradient(sx,sy,0,sx,sy,R*2.1);
-      halo.addColorStop(0,'rgba(255,170,70,.34)');halo.addColorStop(.5,'rgba(220,90,36,.16)');halo.addColorStop(1,'rgba(120,30,16,0)');
-      x.fillStyle=halo;x.beginPath();x.arc(sx,sy,R*2.1,0,TAU);x.fill();
-      const hot=x.createRadialGradient(sx,sy,0,sx,sy,R);
-      hot.addColorStop(0,'rgba(255,255,250,1)');hot.addColorStop(.28,'rgba(255,232,160,.95)');
-      hot.addColorStop(.58,'rgba(248,146,56,.7)');hot.addColorStop(.82,'rgba(176,58,28,.32)');hot.addColorStop(1,'rgba(90,20,14,0)');
-      x.fillStyle=hot;x.beginPath();x.arc(sx,sy,R,0,TAU);x.fill();
-      x.fillStyle='rgba(255,255,255,.97)';x.beginPath();x.ellipse(sx,sy,Math.max(2.4,hw*.42),Math.max(3.4,hh*.62),0,0,TAU);x.fill();x.restore();}
+    if(LSH.therm){const R=Math.max(11,hh*2.2),px=hh*2;x.save();x.shadowBlur=0;x.lineCap='round';x.lineJoin='round';
+      const halo=x.createRadialGradient(sx,sy,0,sx,sy,R*1.9);   // the bloom around him, before the body itself
+      halo.addColorStop(0,'rgba(255,252,240,.26)');halo.addColorStop(.45,'rgba(228,224,210,.12)');halo.addColorStop(1,'rgba(180,176,166,0)');
+      x.fillStyle=halo;x.beginPath();x.arc(sx,sy,R*1.9,0,TAU);x.fill();
+      const P=px>9?lsBody(sd,view.cam,W,H):null;
+      if(P){x.strokeStyle='rgba(255,255,252,.99)';x.fillStyle='rgba(255,255,252,.99)';
+            if(px>16){x.shadowColor='rgba(255,246,228,.9)';x.shadowBlur=Math.min(14,px*.3);}   // the heat bleeding off him, close in only: blur is the dear part of this draw
+            lsDrawBody(x,P,px);x.shadowBlur=0;}
+      else{const hot=x.createRadialGradient(sx,sy,0,sx,sy,R);   // too far off to make out limbs: a warm mark
+        hot.addColorStop(0,'rgba(255,255,252,1)');hot.addColorStop(.32,'rgba(246,244,236,.9)');
+        hot.addColorStop(.66,'rgba(214,210,200,.5)');hot.addColorStop(1,'rgba(150,146,140,0)');
+        x.fillStyle=hot;x.beginPath();x.arc(sx,sy,R*.8,0,TAU);x.fill();
+        x.fillStyle='rgba(255,255,255,.97)';x.beginPath();x.ellipse(sx,sy,Math.max(1.8,hw*.4),Math.max(2.8,hh*.6),0,0,TAU);x.fill();}
+      x.restore();}
     x.strokeStyle=col(.8);lsBracket(x,sx,sy,hw,hh,Math.min(7,hh*.45),1);
     if(hh>11){x.fillStyle=col(.9);x.font=MO(9);x.textAlign='center';x.fillText(Math.round(d)+'M',sx,sy+hh+11);
       if(rpg){x.fillStyle=AM(.95);x.font=MO(9,1);x.fillText('RPG',sx,sy-hh-4);}}

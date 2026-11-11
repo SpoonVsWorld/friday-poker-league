@@ -3898,7 +3898,7 @@ function fpCamera(view,v,dt){
     if(cam.near!==.08){cam.near=.08;cam.updateProjectionMatrix();}
     const cp=Math.cos(v.pitch);
     {const fx=Math.sin(v.heading),fz=Math.cos(v.heading);                                  // the gunner's eye: beside the breech, over the shield, barrel running out to the right
-     cam.position.set(v.x+fx*.30+fz*.22,v.y+2.38,v.z+fz*.30-fx*.22);}
+     cam.position.set(v.x+fx*.80+fz*.20,v.y+3.02,v.z+fz*.80-fx*.20);}
     cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,0);
     if(view.shake>0){cam.position.x+=rr(-1,1)*view.shake*.1;cam.position.y+=rr(-1,1)*view.shake*.1;}
     return;}
@@ -4387,8 +4387,10 @@ function updateVehicle(v,inp,dt){
 function updateGunpit(v,inp,dt){
   const def=v.def,home=Math.PI;                               // the way the pit faces: down the slope
   if(v.hitFlash>0)v.hitFlash-=dt;
-  const want=clamp(angDiff(v.heading,home),-1.75,1.75);v.heading=home+want;
-  v.pitch=clamp(v.pitch,-.42,.30);
+  if(inp.turn)v.heading-=inp.turn*1.15*dt;                     // keys, stick or the touch pad swing the mount
+  if(inp.thr)v.pitch+=inp.thr*.62*dt;
+  const want=clamp(angDiff(home,v.heading),-1.75,1.75);v.heading=home+want;   // angDiff(a,b) is b-a: the other way round mirrors the traverse back every frame
+  v.pitch=clamp(v.pitch,-.58,.30);
   v.speed=0;v.vx=0;v.vz=0;
   if(v.parts&&v.parts.head){v.parts.head.rotation.y=v.heading;v.parts.head.rotation.x=-v.pitch*.55;}
   v.obj.position.set(v.x,v.y,v.z);
@@ -5187,7 +5189,7 @@ const mouse={x:0,y:0,moved:-99,l:false,r:false};
 // menu buttons (title, operations, briefings, pause/end screens, bunker cards): Matt's military-case latch. The in-game touch controls keep their own feel.
 document.addEventListener('pointerdown',e=>{const b=e.target&&e.target.closest&&e.target.closest('button,.op,.card');if(!b||b.disabled||b.closest('#touch'))return;audioInit();if(AU.ctx&&AU.buf.s_case)sample('s_case',.7,1);},true);
 renderer.domElement.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;mouse.moved=performance.now();});
-renderer.domElement.addEventListener('pointerdown',e=>{audioInit();if(e.pointerType==='mouse'&&G&&!G.demo&&state==='play'&&!paused&&G.views[0]?.team.vehicle?.type==='foot'&&document.pointerLockElement!==renderer.domElement){try{renderer.domElement.requestPointerLock();}catch(_){}} /* ON FOOT: capture the mouse for mouse look */
+renderer.domElement.addEventListener('pointerdown',e=>{audioInit();if(e.pointerType==='mouse'&&G&&!G.demo&&state==='play'&&!paused&&['foot','gunpit'].includes(G.views[0]?.team.vehicle?.type||'')&&document.pointerLockElement!==renderer.domElement){try{renderer.domElement.requestPointerLock();}catch(_){}} /* ON FOOT: capture the mouse for mouse look */
   if(e.button===0)mouse.l=true;if(e.button===2)mouse.r=true;mouse.moved=performance.now();});
 addEventListener('pointerup',e=>{if(e.button===0)mouse.l=false;if(e.button===2)mouse.r=false;});
 document.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){FP.look.dx+=e.movementX||0;FP.look.dy+=e.movementY||0;}});
@@ -5235,12 +5237,15 @@ function readHuman(view,inp){
       const p=ray.ray.intersectPlane(plane,_v);if(p)aimYaw=Math.atan2(p.x-v.x,p.z-v.z);}}
   if(v&&v.type==='gunpit'){const locked=document.pointerLockElement===renderer.domElement;
     const sens=FP.sens*(v.sight?.35:1);
-    if(locked){v.heading-=FP.look.dx*sens;v.pitch=clamp(v.pitch-FP.look.dy*sens,-.42,.30);}FP.look.dx=FP.look.dy=0;
+    if(locked){v.heading-=FP.look.dx*sens;v.pitch=clamp(v.pitch-FP.look.dy*sens,-.58,.30);}FP.look.dx=FP.look.dy=0;
     const pad2=navigator.getGamepads?navigator.getGamepads()[0]:null;
+    const d3=x=>Math.abs(x)>.18?x:0,ax3=pad2?pad2.axes:null;
+    const tn2=(any(km.right)?1:0)-(any(km.left)?1:0)+(ax3?d3(ax3[2]||0)+d3(ax3[0]||0):0)+d3(TOUCH.ax||0);
+    const el2=(any(km.up)?1:0)-(any(km.down)?1:0)-(ax3?d3(ax3[3]||0):0)-d3(TOUCH.ay||0);
     v.sight=keys.has('KeyZ')||TOUCH.scope||!!(pad2&&pad2.buttons[4]?.pressed);   // the sight magnifies; the weapons stay where they are on every other vehicle
     const fire1=!!(mouse.l&&opts.mouse)||any(km.fire)||TOUCH.fire||!!(pad2&&pad2.buttons[7]?.pressed);
     const fire2=!!(mouse.r&&opts.mouse)||any(km.special)||keys.has('KeyX')||TOUCH.special||!!(pad2&&(pad2.buttons[1]?.pressed||pad2.buttons[5]?.pressed));
-    Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:fire1,special:fire2,grenade:false,scope:false,abandon:false,aimYaw:null,look:null,jump:false,crouch:false});
+    Object.assign(inp,{thr:clamp(el2,-1,1),turn:clamp(tn2,-1,1),tur:0,strafe:0,fire:fire1,special:fire2,grenade:false,scope:false,abandon:false,aimYaw:null,look:null,jump:false,crouch:false});
     return;}
   if(v&&v.type==='foot'){const locked=document.pointerLockElement===renderer.domElement,kx=(any(km.right)?1:0)-(any(km.left)?1:0),qe=(any(km.tr)?1:0)-(any(km.tl)?1:0);
     let mz=(any(km.up)?1:0)-(any(km.down)?1:0),mx=(locked?kx:0)+qe,tn=locked?0:kx,look=null;
@@ -5442,6 +5447,7 @@ const LS_LAYOUT=(R,n)=>({
     v=Math.max(v,1.55-Math.hypot(x,z-34)/88);                 // the spur under the gun
     v=Math.max(v,1-Math.hypot(x,z-300)/150);                  // where they come from
     for(const gx of [-40,40]){const d=Math.hypot((x-gx)/26,(z+60)/150);if(d<1)v-=.5*(1-d);}   // two gullies: three ways up
+    {const a=Math.hypot(x/150,(z+46)/98);if(a<1)v-=.36*(1-a)*(1-a);}   // the approach sits low, so the hill gives you a clear field of fire
     return v;},
   corr:[[[0,142],[-58,60],[-72,-40],[-44,-170],[0,-300]],[[0,142],[58,60],[72,-40],[44,-170],[0,-300]]],roads:[],islets:[]});   // the ways round the spur: keep them off it, a corridor flattens what it crosses
 
@@ -5458,17 +5464,18 @@ function lsSetup(){
   run.gates=G.statics.filter(s=>s.kind==='gate'&&Math.hypot(s.x-b.x,s.z-b.z)<120).map(s=>[s.x,s.z]);
   if(!run.gates.length)run.gates=[[b.x-40,b.z-51],[b.x+40,b.z-51]];   // they have to funnel through the gates — two lanes you can sweep
   note(0,'They are coming up the hill. Hold the gate.','info',true);
-  setTimeout(()=>{if(G&&G.ls&&!G.over)note(0,'Left click the gun, right click missiles. You cannot leave the mount.','info');},3200);
+  setTimeout(()=>{if(G&&G.ls&&!G.over)note(0,'Click once to take the gun. Mouse or A/D to traverse, left click fires, right click missiles.','info');},3200);
 }
 // the mount: a sandbagged pit, a traversing head carrying the gun barrel and a missile pod
 function lsBuildGun(x,z){
-  const y=Math.max(H(x,z),0);
+  const y=Math.max(H(x,z),0)+2.45;   // dug in on a built-up emplacement: you look over the crest, not into it
   const g=new THREE.Group();
   const bagMat=new THREE.MeshStandardMaterial({color:0x6d6a4e,roughness:.95}),steel=new THREE.MeshStandardMaterial({color:0x33372c,roughness:.6,metalness:.4});
   for(let i=0;i<16;i++){const a=i*TAU/16;if(Math.abs(angDiff(a,Math.PI))<.5)continue;   // a gap at the back where the ammo comes up
     for(let r=0;r<2;r++){const bag=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,.85),bagMat);
       bag.position.set(Math.sin(a)*3.1,.26+r*.5,Math.cos(a)*3.1);bag.rotation.y=a+(r?.12:-.12);bag.castShadow=true;g.add(bag);}}
   const pad=new THREE.Mesh(new THREE.CylinderGeometry(3.2,3.4,.3,16),new THREE.MeshStandardMaterial({color:0x4a4a44,roughness:.95}));pad.position.y=.15;g.add(pad);
+  const berm=new THREE.Mesh(new THREE.CylinderGeometry(3.9,7.2,3.2,20),new THREE.MeshStandardMaterial({color:0x6a6a4f,roughness:1}));berm.position.y=-1.65;berm.receiveShadow=true;g.add(berm);
   const head=new THREE.Group();head.position.y=1.05;g.add(head);
   const post=new THREE.Mesh(new THREE.CylinderGeometry(.5,.7,1,12),steel);post.position.y=-.4;head.add(post);
   const body=new THREE.Mesh(new THREE.BoxGeometry(1.5,.9,1.7),steel);body.position.y=.35;body.castShadow=true;head.add(body);

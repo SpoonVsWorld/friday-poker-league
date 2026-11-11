@@ -3398,10 +3398,12 @@ function scatterNature(){
   const bushPick=(x,z)=>{const h=Math.abs(Math.sin(x*12.9898+z*78.233)*43758.5453)%1;const k=BUSHES[(h*BUSHES.length)|0];return bushB[[...new Set(BUSHES)].indexOf(k)];};
   B.rockA=new Batch(proto('rockA',1),60);B.rockC=new Batch(proto('rockC',1),60);B.rockT=new Batch(proto('rockT',1),40);
   for(const k of ['rockA','rockC','rockT'])for(const pt of B[k].parts)pt.im.material=triplanarStone(pt.im.material);B.bush=new Batch(proto('bush',1),400);
+  // Last Stand: the slope in front of the mount is cleared so you have a field of fire — bushes and rocks stay, the trees go
+  const lsOpen=G.mode==='laststand'?((x,z)=>z<46&&Math.hypot(x/1.5,(z-40)*.85)<150):null;
   for(let i=0;i<tries;i++){const x=rr(X0+20,-X0-20),z=rr(Z0+20,-Z0-20);const h=H(x,z);if(h<.9||h>13)continue;
     const cd=G.corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)];if(cd<10)continue;if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<75))continue;
     const forest=n4(x*.012,z*.012);const r=RND();
-    if(r<.55&&forest>.5||r<.12){let nm;if(G.theme&&G.theme.trees){const L=G.theme.trees;nm=L[(RND()*L.length)|0];}else if(h<2.6)nm=['palm','palmBend','palmShort'][(RND()*3)|0];else nm=['tree','oak','pine','treeD','palm'][(RND()*5)|0];
+    if((r<.55&&forest>.5||r<.12)&&!(lsOpen&&lsOpen(x,z))){let nm;if(G.theme&&G.theme.trees){const L=G.theme.trees;nm=L[(RND()*L.length)|0];}else if(h<2.6)nm=['palm','palmBend','palmShort'][(RND()*3)|0];else nm=['tree','oak','pine','treeD','palm'][(RND()*5)|0];
       const sc=kinds.find(k=>k[0]===nm)[1]*rr(.65,1);const yaw=RND()*TAU;const bt=treeVariant(B,nm,x,z);const idx=bt.add(x,h-.1,z,yaw,sc);if(idx<0)continue;
       addStatic({kind:'tree',team:-1,x,z,y0:h,h:9,hp:22,r:1.1,batch:bt,idx});}
     else if(r<.6){const idx=(bushB?bushPick(x,z):B.bush).add(x,h-.1,z,RND()*TAU,rr(5,8));}
@@ -3897,8 +3899,7 @@ function fpCamera(view,v,dt){
     const want=v.sight?26:52;if(Math.abs(cam.fov-want)>.01){cam.fov=want;cam.updateProjectionMatrix();}
     if(cam.near!==.08){cam.near=.08;cam.updateProjectionMatrix();}
     const cp=Math.cos(v.pitch);
-    {const fx=Math.sin(v.heading),fz=Math.cos(v.heading);                                  // the gunner's eye: beside the breech, over the shield, barrel running out to the right
-     cam.position.set(v.x+fx*.80+fz*.20,v.y+3.02,v.z+fz*.80-fx*.20);}
+    gunEye(v,cam.position);
     cam.rotation.order='YXZ';cam.rotation.set(v.pitch,v.heading+Math.PI,0);
     if(view.shake>0){cam.position.x+=rr(-1,1)*view.shake*.1;cam.position.y+=rr(-1,1)*view.shake*.1;}
     return;}
@@ -4085,6 +4086,7 @@ const PK={
   srnd:{speed:430,life:.78,dmg:130,splash:0,geo:'bullet',vmul:.25},  /* ~335 m. One hit on a man; a quarter of that into armour and concrete, which is still 32 a shot: a turret in four, a building in six, a tank in seven. Slow enough that the launcher keeps its job. */
 rifle:{speed:110,life:.45,dmg:2.5,splash:0,geo:'bullet'},
   pbullet:{speed:165,life:.42,dmg:5,splash:0,geo:'bullet'}, // your own carbine, on foot
+  gbullet:{speed:300,life:1.6,dmg:8,splash:0,geo:'bullet',vmul:.25}, // the hill gun: 480 m of reach, so it covers the whole approach
   rocket:{speed:75,life:.8,dmg:42,splash:4.5,geo:'missile'},
   missile:{speed:38,accel:40,max:72,life:2.4,dmg:55,splash:4,geo:'missile',homing:3},
   grenade:{life:2,dmg:30,splash:4.5,geo:'grenade',grav:28},
@@ -4384,6 +4386,20 @@ function updateVehicle(v,inp,dt){
 }
 /* The mount swings within an arc and cannot be left. The gun runs a belt and takes a moment to change it;
    the pod holds four and reloads on its own. Neither ever runs out for good - you just have to wait for it. */
+const _gEye=new THREE.Vector3();
+function gunEye(v,o){const fx=Math.sin(v.heading),fz=Math.cos(v.heading);   // beside the breech, over the shield
+  return o.set(v.x+fx*.86+fz*.20,v.y+3.60,v.z+fz*.86-fx*.20);}
+// how far down the crosshair the first thing is: the man under it, or the ground
+function gunRange(ex,ey,ez,dx,dy,dz){
+  let best=420;
+  for(const sd of G.soldiers){if(sd.team===0||sd.alive===false||!sd.obj)continue;
+    const vx=sd.x-ex,vy=(sd.obj.position.y+1)-ey,vz=sd.z-ez,t=vx*dx+vy*dy+vz*dz;
+    if(t<5||t>best)continue;const px=vx-dx*t,py=vy-dy*t,pz=vz-dz*t;
+    if(px*px+py*py+pz*pz<2.6)best=t;}
+  for(let t=8;t<best;t+=3){const y=ey+dy*t;if(y<=H(ex+dx*t,ez+dz*t)){        // walk back over the last step so a grazing slope is not read long
+    let lo=t-3,hi=t;for(let k=0;k<5;k++){const m=(lo+hi)/2;if(ey+dy*m<=H(ex+dx*m,ez+dz*m))hi=m;else lo=m;}best=hi;break;}}
+  return Math.max(12,best);
+}
 function updateGunpit(v,inp,dt){
   const def=v.def,home=Math.PI;                               // the way the pit faces: down the slope
   if(v.hitFlash>0)v.hitFlash-=dt;
@@ -4398,18 +4414,23 @@ function updateGunpit(v,inp,dt){
   v.cd-=dt;v.cd2-=dt;
   const cp=Math.cos(v.pitch),dx=Math.sin(v.heading)*cp,dy=Math.sin(v.pitch),dz=Math.cos(v.heading)*cp;
   const mx=v.x+dx*2.6,my=v.y+1.55+dy*2.6,mz=v.z+dz*2.6;
+  // The sight is above and beside the barrel, so a round fired parallel to the view lands low and left.
+  // Rounds leave from the eye down the crosshair itself, and the pod converges on whatever the crosshair is over.
+  gunEye(v,_gEye);const ex0=_gEye.x,ey0=_gEye.y,ez0=_gEye.z;
+  v.aimD=gunRange(ex0,ey0,ez0,dx,dy,dz);
   if(inp.fire&&v.cd<=0&&v.reloadT<=0&&v.belt>0){
     const sp=.008+v.heat*.012;                                 // it wanders as the barrel warms
     const ex=dx+rr(-sp,sp),ey=dy+rr(-sp,sp),ez=dz+rr(-sp,sp);
-    fire('hbullet',v.team,mx,my,mz,ex,ey,ez,{mul:G.vehMul[v.team]});
+    fire('gbullet',v.team,ex0+dx*1.1,ey0+dy*1.1,ez0+dz*1.1,ex,ey,ez,{mul:G.vehMul[v.team]});
     v.belt--;v.ammo=v.belt;v.cd=.07;v.heat=Math.min(2.6,v.heat+.055);
     if(G.ls)G.ls.shots++;
     sfx('mg',v.x,v.z);FIRE.spawn(mx,my,mz,dx*2,dy*2,dz*2,.05,1.1,.35,C_FIRE0,C_FIRE1);
     if(G.teams[v.team].view)G.teams[v.team].view.shake=Math.min(.5,(G.teams[v.team].view.shake||0)+.03);
     if(v.belt<=0){v.reloadT=2.8;note(v.team,'Belt out — changing','warn');}}
   if(inp.special&&v.cd2<=0&&v.podT<=0&&v.ammo2>0){
-    const side=(v.ammo2%2?1:-1)*.9,ox=mx-Math.cos(v.heading)*side,oz=mz+Math.sin(v.heading)*side;
-    fire('rocket',v.team,ox,my+.3,oz,dx,dy+.02,dz,{mul:G.vehMul[v.team]});
+    const side=(v.ammo2%2?1:-1)*.9,ox=mx-Math.cos(v.heading)*side,oz=mz+Math.sin(v.heading)*side,oy=my+.3;
+    const ax=(ex0+dx*v.aimD)-ox,ay=(ey0+dy*v.aimD)-oy,az=(ez0+dz*v.aimD)-oz;
+    fire('rocket',v.team,ox,oy,oz,ax,ay,az,{mul:G.vehMul[v.team]});
     v.ammo2--;v.cd2=.55;sfx('rocket',v.x,v.z);
     for(let i=0;i<8;i++)puff(ox,my+.3,oz,[.8,.78,.74],1.6,1,.5);
     if(v.ammo2<=0){v.podT=5.5;note(v.team,'Pod empty — reloading','warn');}}
@@ -5447,7 +5468,7 @@ const LS_LAYOUT=(R,n)=>({
     v=Math.max(v,1.55-Math.hypot(x,z-34)/88);                 // the spur under the gun
     v=Math.max(v,1-Math.hypot(x,z-300)/150);                  // where they come from
     for(const gx of [-40,40]){const d=Math.hypot((x-gx)/26,(z+60)/150);if(d<1)v-=.5*(1-d);}   // two gullies: three ways up
-    {const a=Math.hypot(x/150,(z+46)/98);if(a<1)v-=.36*(1-a)*(1-a);}   // the approach sits low, so the hill gives you a clear field of fire
+    {const a=Math.hypot(x/155,(z+20)/112);if(a<1)v-=.40*(1-a)*(1-a);}   // the approach sits low, so the hill gives you a clear field of fire
     return v;},
   corr:[[[0,142],[-58,60],[-72,-40],[-44,-170],[0,-300]],[[0,142],[58,60],[72,-40],[44,-170],[0,-300]]],roads:[],islets:[]});   // the ways round the spur: keep them off it, a corridor flattens what it crosses
 

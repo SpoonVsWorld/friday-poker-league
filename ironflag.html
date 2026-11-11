@@ -3757,6 +3757,7 @@ function carryAttach(f,v){ // the objective rides on the jeep's roof, the six-wh
   f.obj.position.set(0,f.item?(tk?TRUCK_ITEM.y:2.06):(tk?2.1:1.5),f.item?(tk?TRUCK_ITEM.z:-.55):(tk?-2.6:-1.4));f.obj.rotation.set(0,f.item?.3:0,0);f.obj.scale.setScalar(f.item?(tk?TRUCK_ITEM.s:.68):.7);}
 function toggleFoot(view){
   const t=view.team,v=t.vehicle,T=t.team;if(!footOk()||!v||v.state!=='active'||G.over||paused||mslBusy())return;
+  if(G.ls){note(T,'You are the last man on this hill. Stay on the gun.','warn');return;}
   if(v.type!=='foot'){
     if(v.def.air){note(T,'You can only get out of ground vehicles','warn');return;}
     if(v.type==='boat'){note(T,'You can\'t get out on open water','warn');return;}
@@ -5225,7 +5226,11 @@ const ray=new THREE.Raycaster(),plane=new THREE.Plane(new V3(0,1,0),0);
 function readHuman(view,inp){
   if(opts.touch&&view.ctrl===0){
     const v=view.team.vehicle;Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:TOUCH.fire,special:TOUCH.special,abandon:false,aimYaw:null});view.menuEdge=null;
-    if(v&&(v.type==='foot'||v.type==='gunpit')){const d2=x=>Math.abs(x)>.15?x:0;inp.thr=-d2(TOUCH.ay);inp.strafe=d2(TOUCH.ax);inp.grenade=TOUCH.special;inp.special=Math.hypot(TOUCH.ax,TOUCH.ay)>.95&&TOUCH.ay<-.7;
+    if(v&&v.type==='gunpit'){   // the mount: dragging lays the gun, the buttons fire it, the stick is not wired to anything - and you cannot get out
+      inp.thr=0;inp.turn=0;inp.strafe=0;inp.grenade=false;inp.abandon=false;inp.fire=TOUCH.fire;inp.special=TOUCH.special;
+      v.sight=!!TOUCH.scope;const gs=v.sight?.35:1;
+      v.heading-=FP.look.dx*.0055*gs;v.pitch=clamp(v.pitch-FP.look.dy*.0045*gs,-.58,.30);FP.look.dx=FP.look.dy=0;return;}
+    if(v&&v.type==='foot'){const d2=x=>Math.abs(x)>.15?x:0;inp.thr=-d2(TOUCH.ay);inp.strafe=d2(TOUCH.ax);inp.grenade=TOUCH.special;inp.special=Math.hypot(TOUCH.ax,TOUCH.ay)>.95&&TOUCH.ay<-.7;
       inp.scope=!!(TOUCH.scope&&weapOf(v).zoom);const ls=v.scopeK>0?lerp(1,.22,v.scopeK):1; /* dragging aims as slowly as the scope is tight */
       v.heading-=FP.look.dx*.0055*ls;v.pitch=clamp(v.pitch-FP.look.dy*.0045*ls,-1.2,1.2);FP.look.dx=FP.look.dy=0;return;}
     if(v){const mag=Math.min(1,Math.hypot(TOUCH.ax,TOUCH.ay));
@@ -5399,7 +5404,7 @@ function updateHud(view){
     if(view.index===0)document.body.classList.toggle('onfoot',foot&&opts.touch);
     if(foot&&opts.touch&&!FP.rotTip&&innerHeight>innerWidth){FP.rotTip=true;note(view.team.team,'Tip: turn your phone sideways for a wider view on foot','info');}
     const hu=view.el&&view.el.querySelector('.hurt');if(hu)hu.style.opacity=foot&&v.hitFlash>0?'1':'0';
-    const tf=view.index===0?document.getElementById('tFoot'):null;if(tf){const show=!!(opts.touch&&footOk()&&v&&v.state==='active'&&!v.def.air&&v.type!=='boat');if(tf.hidden===show)tf.hidden=!show;if(show){const txt=foot?(nearPickup(v)?'TAKE':'IN'):'OUT';if(tf.textContent!==txt)tf.textContent=txt;}}}
+    const tf=view.index===0?document.getElementById('tFoot'):null;if(tf){const show=!!(opts.touch&&footOk()&&v&&v.state==='active'&&!v.def.air&&v.type!=='boat'&&!G.ls);if(tf.hidden===show)tf.hidden=!show;if(show){const txt=foot?(nearPickup(v)?'TAKE':'IN'):'OUT';if(tf.textContent!==txt)tf.textContent=txt;}}}
   if(v){const d=v.def;q.vn.textContent=d.name;q.hp.style.width=clamp(v.hp/d.hp*100,0,100).toFixed(1)+'%';q.hp.style.background=v.hp<d.hp*.3?'var(--bad)':v.hp<d.hp*.6?'var(--warn)':'var(--ok)';
     q.fuel.style.width=(v.fuel/d.fuel*100).toFixed(1)+'%';
     const w1=v.type==='foot'?weapOf(v).hud:d.w1;
@@ -6140,7 +6145,7 @@ function loop(now){
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
   const showAir=showT&&airLeft()>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;
-  {const hv=G&&G.teams&&G.teams[0].vehicle,showSc=showT&&!!(hv&&hv.type==='foot'&&weapOf(hv).zoom);const sc=$('#tScope');
+  {const hv=G&&G.teams&&G.teams[0].vehicle,showSc=showT&&!!(hv&&(hv.type==='gunpit'||hv.type==='foot'&&weapOf(hv).zoom));const sc=$('#tScope');
    if(sc.hidden===showSc)sc.hidden=!showSc;
    if(!showSc&&TOUCH.scope){TOUCH.scope=false;sc.classList.remove('on');}}  // putting the rifle back, or getting into something, drops the scope
 }

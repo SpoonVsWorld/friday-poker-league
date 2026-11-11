@@ -4056,7 +4056,7 @@ const PK={
   tbullet:{speed:140,life:.36,dmg:7,splash:0,geo:'bullet'}, // six-wheeler roof gun
   jbullet:{speed:170,life:.55,dmg:9,splash:1.2,geo:'bullet'}, // flyable jet's cannon (Black Tide)
   jbomb:{life:5,dmg:85,splash:6,geo:'grenade',grav:26}, // flyable jet's bombs
-  srnd:{speed:430,life:.78,dmg:130,splash:0,geo:'bullet',vmul:.07},  /* ~335 m: one hit on a man, and double a rifle round's bite on anything bigger, since you only get one shot every second and a half */
+  srnd:{speed:430,life:.78,dmg:130,splash:0,geo:'bullet',vmul:.25},  /* ~335 m. One hit on a man; a quarter of that into armour and concrete, which is still 32 a shot: a turret in four, a building in six, a tank in seven. Slow enough that the launcher keeps its job. */
 rifle:{speed:110,life:.45,dmg:2.5,splash:0,geo:'bullet'},
   pbullet:{speed:165,life:.42,dmg:5,splash:0,geo:'bullet'}, // your own carbine, on foot
   rocket:{speed:75,life:.8,dmg:42,splash:4.5,geo:'missile'},
@@ -4132,7 +4132,7 @@ function updateProjectiles(dt){
   }
 }
 function impact(p,hit,water){
-  if(hit&&hit.wall){const s=hit.wall;hit=null;if(s.team!==p.team&&p.k.splash)damage(s,p.dmg*.5,p.team);sfx('hit',p.x,p.z);} // a wall took it: sparks, splash weapons still chip the building
+  if(hit&&hit.wall){const s=hit.wall;hit=null;if(s.team!==p.team&&(p.k.splash||p.k.vmul))damage(s,p.dmg*(p.k.splash?.5:p.k.vmul),p.team);sfx('hit',p.x,p.z);} // a wall took it: sparks; splash weapons chip the building, and so does a round heavy enough to have an armour figure
   if(hit&&hit.soldier&&hit.alive){const l=Math.hypot(p.vx,p.vz)||1;gore(hit.x,hit.y,hit.z,'hit',p.vx/l*6,p.vz/l*6);}
   if(hit)damage(hit,p.dmg*(p.k.vmul!=null&&!hit.soldier?p.k.vmul:1),p.team); /* an anti-personnel round does almost nothing to a vehicle or a building */
   if(p.k.splash){splashDamage(p.x,p.y,p.z,p.k.splash,p.dmg*.6,p.team,hit);

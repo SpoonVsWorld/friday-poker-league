@@ -5470,7 +5470,13 @@ const LS={
     {n:12,len:44,gap:1.5,mix:['rifle','runner','runner','rpg']},
     {n:15,len:48,gap:1.3,mix:['rifle','runner','rpg','runner']},
     {n:18,len:54,gap:1.15,mix:['runner','rpg','rifle','runner','rpg']},
-    {n:22,len:60,gap:1,mix:['rpg','runner','runner','rifle','rpg','runner']}],
+    {n:22,len:58,gap:1,mix:['rpg','runner','runner','rifle','rpg','runner']},
+    {n:24,len:58,gap:.95,mix:['runner','rpg','runner','rifle','runner','rpg']},
+    {n:27,len:60,gap:.88,mix:['runner','runner','rpg','runner','rifle','rpg']},
+    {n:30,len:62,gap:.8,mix:['runner','rpg','runner','rpg','runner','rifle']},
+    {n:34,len:64,gap:.72,mix:['rpg','runner','runner','rpg','runner','runner']},
+    {n:40,len:70,gap:.64,mix:['runner','rpg','runner','rpg','runner','rpg','rifle']}],
+  maxAlive:26,          // the queue holds back rather than putting more than this on the hill at once
   lanes:[[-70,-96],[4,-112],[74,-98]]};
 
 // The spur, your base behind it, and three gullies that split the ground in front into lanes.
@@ -5534,7 +5540,7 @@ function lsWave(run){
   // shuffle so the order is not a visible pattern
   for(let i=run.queue.length-1;i>0;i--){const j=(RND()*(i+1))|0;const t=run.queue[i];run.queue[i]=run.queue[j];run.queue[j]=t;}
   run.spawnT=0;run.left=w.n;run.waveT=w.len;
-  note(0,`Wave ${run.wave} of 5`,'warn',true);sfx('alarm',G.ls.gun.x,G.ls.gun.z);
+  note(0,`Wave ${run.wave} of ${LS.waves.length-1}`,'warn',true);sfx('alarm',G.ls.gun.x,G.ls.gun.z);
 }
 function lsSpawnOne(run,kind){
   const lane=LS.lanes[(RND()*LS.lanes.length)|0];
@@ -5586,14 +5592,14 @@ function lsTick(dt){
   if(run.relief>0){run.relief-=dt;if(run.relief<=0)lsEnd(true,'Relief is on the hill. You held.');return;}
   run.waveT-=dt;
   if(run.wave===0&&run.waveT<=0){run.wave=1;lsWave(run);return;}
-  if(run.queue.length){run.spawnT-=dt;
-    if(run.spawnT<=0){const k=run.queue.shift();lsSpawnOne(run,k);run.spawnT=LS.waves[run.wave].gap*rr(.7,1.3);}}
   const alive=G.soldiers.filter(s=>s.team===1&&s.ls&&s.alive!==false).length;
+  if(run.queue.length){run.spawnT-=dt;
+    if(run.spawnT<=0&&alive<LS.maxAlive){const k=run.queue.shift();lsSpawnOne(run,k);run.spawnT=LS.waves[run.wave].gap*rr(.7,1.3);}}
   const cleared=!run.queue.length&&alive===0;
   if(run.wave&&!run.queue.length&&run.waveT<-24)run.waveT=0;   // backstop: never let one straggler stall the night
   if(cleared||run.waveT<=0){
-    if(run.wave>=5&&cleared){run.relief=6;note(0,'Last of them down. Relief inbound.','good',true);try{sample('s_cry',.75,1);}catch(e){}return;}
-    if(run.wave<5&&(cleared||run.waveT<=-6)){run.wave++;
+    if(run.wave>=LS.waves.length-1&&cleared){run.relief=6;note(0,'Last of them down. Relief inbound.','good',true);try{sample('s_cry',.75,1);}catch(e){}return;}
+    if(run.wave<LS.waves.length-1&&(cleared||run.waveT<=-6)){run.wave++;
       if(gun){gun.hp=Math.min(gun.def.hp,gun.hp+34);gun.belt=gun.def.ammo;gun.ammo=gun.belt;gun.ammo2=gun.def.ammo2;gun.reloadT=0;gun.podT=0;}
       note(0,'Resupplied. Next wave forming.','info');
       lsWave(run);}}
@@ -5749,7 +5755,7 @@ function lsSight(view,v,dt){
   // readouts, right
   const R=W-24;x.textAlign='right';let ry=Math.max(H*.34,topY+120);
   const rr2=(lb,val,c)=>{x.font=MO(10);x.fillStyle=GD(.8);x.fillText(lb,R-74,ry+9);x.font=MO(12,1);x.fillStyle=c(1);x.fillText(val,R,ry+9);ry+=18;};
-  rr2('WAVE',run.wave?run.wave+' / 5':'STAND BY',GR);
+  rr2('WAVE',run.wave?run.wave+' / '+(LS.waves.length-1):'STAND BY',GR);
   rr2('HOSTILE',String(hostiles),hostiles>14?AM:GR);
   rr2('THROUGH',run.breach+' / '+LS.breachLimit,run.breach>=LS.breachLimit-2?RD:GR);
   rr2('RANGE',nearest<1e9?Math.round(nearest)+' M':'---',GR);

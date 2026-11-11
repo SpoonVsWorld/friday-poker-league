@@ -3757,10 +3757,13 @@ function toggleFoot(view){
 function heroShoot(v){
   const W=weapOf(v),moving=Math.hypot(v.vx,v.vz)>1;
   let s=W.spread+(moving?W.moveSpread:0);
-  if(W.zoom){if(v.scopeK>.6)s*=.25;if(v.crouch)s*=.45;if(!v.scopeK)s+=.02;}   // hip-firing a scoped rifle is a waste of a round
+  if(W.zoom){if(v.crouch)s*=.45;if(v.scopeK>.6)s=0;else s+=.02;}   // through the scope it goes exactly where the crosshair is; from the hip it is a waste of a round
   const cp=Math.cos(v.pitch),dx=Math.sin(v.heading)*cp,dy=Math.sin(v.pitch),dz=Math.cos(v.heading)*cp;
-  const ex=dx+rr(-s,s),ey=dy+rr(-s,s),ez=dz+rr(-s,s),y0=v.y+1.6;
-  fire(W.shot,v.team,v.x+ex*1.6,y0+ey*1.6-.06,v.z+ez*1.6,ex,ey,ez,{mul:G.vehMul[v.team]});
+  const ex=dx+rr(-s,s),ey=dy+rr(-s,s),ez=dz+rr(-s,s);
+  /* The round leaves from the eye the camera is actually looking out of - crouched, bobbing or standing - and
+     travels straight down that line, so where the crosshair sits is where it goes and where the tracer flies. */
+  const E=footEye(v,0,_shotEye);
+  fire(W.shot,v.team,E.x+ex*.6,E.y+ey*.6,E.z+ez*.6,ex,ey,ez,{mul:G.vehMul[v.team]});
   v.ammo--;v.cd=W.cd;v.aimT=0;sfx(W.snd,v.x,v.z);FP.recoil=Math.min(1.8,FP.recoil+W.recoil);FP.flashT=W.flash;
   v.pitch=Math.min(1.25,v.pitch+(W.zoom?.022:.005));v.heading+=rr(-.002,.002)*W.recoil;
   if(W.bolt)v.boltT=W.bolt;
@@ -3866,7 +3869,7 @@ function footEye(v,dt,out){
   const by=-Math.abs(Math.sin(ph))*amp*1.2,bx=Math.sin(ph*.5)*amp*EYE.lat;const rx=-Math.cos(v.heading),rz=Math.sin(v.heading);
   out.set(v.x+rx*bx,v.y+(v.eyeH==null?EYE.stand:v.eyeH)+by-dip,v.z+rz*bx);
   out.roll=Math.sin(ph*.5)*EYE.roll*(amp>0?Math.min(1,amp/EYE.walk):0);return out;}
-const _eye=new V3();
+const _eye=new V3(),_shotEye=new V3();
 function fpCamera(view,v,dt){
   const cam=view.cam;if(view.fpFov==null)view.fpFov=cam.fov;const asp=cam.aspect,base=asp<1?VMP.world:asp<1.3?78:70;
   const W=weapOf(v),want=W.zoom&&v.scopeK?lerp(base,W.zoom,v.scopeK):base;
@@ -6282,7 +6285,7 @@ function toTitle(){$('#over').hidden=true;$('#title').hidden=false;startDemo();s
   prefetchAudio();
   $('#loading').remove();startDemo();requestAnimationFrame(loop);
   if(!TEX_CAP)setTimeout(thumbsIdle,400); /* on a phone the cards build their own thumbnails when first opened, rather than running a second WebGL context alongside the game */
-  if(DEV.on)window.__game={H,passable,onBridge,damage,A,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,toggleFoot,footWalls,footBlocked,inRect,HQ_RECTS,PICKUPS,nearPickup,takePickup,dropItem,fire,wallHit,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
+  if(DEV.on)window.__game={H,passable,onBridge,damage,A,heroShoot,footEye,endGame,setCamp,CAMPS,generate2,BT_LAYOUTS,VM,VMP,FP,NUKE,launchStrike,nuke:{open:v=>openStrikeMap(v,true),go:nukeGo,site:nukeSite,count:nukeCount,ready:nukeReady,shown:nukeShown},hazmatOn,WX,weatherSet,toggleFoot,footWalls,footBlocked,inRect,HQ_RECTS,PICKUPS,nearPickup,takePickup,dropItem,fire,wallHit,dozer:{call:dozerCall,shown:dozerShown,ready:dozerReady,count:dozerCount,point:dozerPoint},orb:{open:v=>openStrikeMap(v,'orb'),go:orbGo,count:orbCount,cost:orbCost,used:orbUsed,ready:orbReady,shown:orbShown,ORB,ORBS,cands:orbCandidates},loadHall,showMyRun,tallyGet,devSet,campaignWon,SPEC,specStart,BLOOM,bloomOn,bloomOff,VOX,voxRecv,voxPlay,voxText,HB,grooveOff,carveGroove,grooveStart,GRV,drop:{start:dropStart,DROP,point:dropPoint},msl:{open:openStrikeMap,go:mslGo,MM,set:setStrikes,get:strikesBanked,ready:mslReady,burns:(dt)=>{updateBurns(dt);updateCraters(dt);},crater:(x,z)=>makeCrater(x,z)},gameOver,addTurret,blockedAt:(...a)=>blockedAt(...a),get AU(){return AU;},get A(){return A;},groundAt,destroyVehicle,TOUCH,startOp,OPS,spawnDrone,blockedAt,splash:(...a)=>splashDamage(...a),damage,destroyStatic,spawnVehicle,scene,FIRE,SMOKE,DEB,get G(){return G;},startMatch,keys,VDEF,spawnVehicle,newGame,step,opts};
 })();
 </script>
 

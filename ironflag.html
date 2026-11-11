@@ -394,7 +394,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
       <button class="mode" id="bBT"><div>Black Tide<small>Coming soon</small></div><span class="k">II</span></button>
       <button class="mode" id="b1p"><div>Skirmish<small>You against a CPU commander with its own vehicles</small></div><span class="k">1P</span></button>
       <button class="mode" id="b2p"><div>Online<small>Open lobby — play a real opponent on the app</small></div><span class="k">NET</span></button>
-      <button class="mode" id="bLast" hidden><div>Last Stand<small>Dev test — one gun on the hill, five waves</small></div><span class="k">LS</span></button>
+      <button class="mode" id="bLast"><div>Last Stand<small>Last man on the hill: one gun, ten waves, hold until relief</small></div><span class="k">LS</span></button>
     </div>
     <div class="opts">
       <div class="row"><span class="lbl">Call sign</span><input id="callSign" type="text" maxlength="16" placeholder="Commander" aria-label="Call sign" autocomplete="off"></div>
@@ -2292,7 +2292,7 @@ function devFor(T){if(!G||G.demo)return false;if(!G.net)return T===0&&DEV.on;ret
 async function devCheck(pw){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')===DEV.hash;}catch(e){return false;}}
 function devSet(on){DEV.on=on;try{if(on){localStorage.setItem('ironflag.dev','1');localStorage.setItem('ironflag.nocount','1');}else localStorage.removeItem('ironflag.dev');}catch(e){}devLabel();}
 function devLabel(){const b=document.getElementById('devBtn');if(b){b.textContent=DEV.on?'dev ●':'dev';b.classList.toggle('on',DEV.on);}
-  const ls=document.getElementById('bLast');if(ls)ls.hidden=!DEV.on;}   // Last Stand stays out of sight until it plays right
+}
 function devTick(){ // every sim step: keep the player's vehicle topped up, strikes unlimited
   if(!G||G.demo)return;for(const T of [0,1]){if(!devFor(T))continue;const v=G.teams[T].vehicle;if(v&&v.state==='active'){const d=v.def;v.hp=d.hp;v.fuel=d.fuel;v.ammo=v.type==='foot'?weapOf(v).mag:d.ammo;if(d.ammo2!=null)v.ammo2=d.ammo2;}}
   if(!devActive())return;if(!G.air)G.air={total:99,left:[99,0],enemyT:1e9};G.air.left[0]=99;G.footAir=99;
@@ -5424,7 +5424,7 @@ function updateHud(view){
   if(lastHud.get(q.stock)!==st){q.stock.innerHTML=st;lastHud.set(q.stock,st);}
   const bc=String(G.bodies?G.bodies.reduce((a,n,i)=>a+(i===t.team?0:n),0):0);if(lastHud.get(q.bodies)!==bc){q.bodies.textContent=bc;lastHud.set(q.bodies,bc);}
   const lab={hidden:'HIDDEN',exposed:'EXPOSED',carried:'TAKEN',captured:'CAPTURED'};const ef=G.flags[1-t.team],mf=G.flags[t.team];
-  const dv=devFor(t.team);if(G.ls){const f2=`<div style="color:#7fb0ff;letter-spacing:.14em">LAST STAND — DEV TEST</div><div>HOLD THE GATE</div>`;if(lastHud.get(q.flag)!==f2){q.flag.innerHTML=f2;lastHud.set(q.flag,f2);}return;}
+  const dv=devFor(t.team);if(G.ls){const f2=`<div style="color:#7fb0ff;letter-spacing:.14em">LAST STAND</div><div>HOLD THE GATE</div>`;if(lastHud.get(q.flag)!==f2){q.flag.innerHTML=f2;lastHud.set(q.flag,f2);}return;}
   const fl=(dv?'<div style="color:#7fb0ff;letter-spacing:.14em">DEV MODE</div>':'')+(G.op?`<div style="color:var(--signal)">OP ${opIndex+1}/${OPS.length} · ${fmtTime(Math.floor(G.time))}</div>`:'')+(G.mission&&G.mission.m.limit?`<div style="color:#ff6b57;font-weight:700">LAUNCH IN ${fmtTime(Math.max(0,Math.ceil(G.mission.m.limit-G.time)))}</div>`:'')+(G.air||(t.team===0&&onFoot())?`<div>AIR STRIKES <b style="color:${(t.team===0?airLeft():G.air.left[t.team])?'#7fb0ff':'var(--khaki)'}">×${dv?'∞':t.team===0?airLeft():G.air.left[t.team]}</b>${opts.touch?'':' <span style="opacity:.65">(F)</span>'}</div>`:'')+`<div>${ef.item?ef.item.s:'ENEMY FLAG'} <b style="color:${ef.state==='hidden'?'var(--khaki)':'var(--signal)'}">${ef.state==='carried'&&ef.carrier.team===t.team?'IN YOUR JEEP':lab[ef.state]}</b></div>${G.op?'':`<div>YOUR FLAG <b style="color:${mf.state==='hidden'?'var(--ok)':'var(--bad)'}">${mf.state==='hidden'?'SAFE':lab[mf.state]}</b></div>`}`;
   if(lastHud.get(q.flag)!==fl){q.flag.innerHTML=fl;lastHud.set(q.flag,fl);}
 }
@@ -5504,7 +5504,9 @@ function lsSetup(){
   run.gates=G.statics.filter(s=>s.kind==='gate'&&Math.hypot(s.x-b.x,s.z-b.z)<120).map(s=>[s.x,s.z]);
   if(!run.gates.length)run.gates=[[b.x-40,b.z-51],[b.x+40,b.z-51]];   // they have to funnel through the gates — two lanes you can sweep
   note(0,'They are coming up the hill. Hold the gate.','info',true);
-  setTimeout(()=>{if(G&&G.ls&&!G.over)note(0,'Click once to take the gun. Mouse or A/D to traverse, left click fires, right click missiles.','info');},3200);
+  setTimeout(()=>{if(G&&G.ls&&!G.over)note(0,opts.touch
+    ?'Drag the left of the screen to lay the gun. FIRE for the gun, SPECIAL for missiles, THRM for thermal.'
+    :'Click once to take the gun. Mouse or A/D lays it, left click fires, right click missiles, T for thermal.','info');},3200);
 }
 // the mount: a sandbagged pit, a traversing head carrying the gun barrel and a missile pod
 function lsBuildGun(x,z){
@@ -6154,7 +6156,7 @@ function hbTick(){
   hbSid();
   let name=null;try{name=localStorage.getItem('ironflag.name')||null;}catch(e){}
   let mode='In the menus',detail=null;
-  if(G&&!G.demo&&(state==='play'||state==='over')){mode=G.op?`Operation ${opIndex+1} · ${G.op.name}`:G.net?'Online match':G.views&&G.views.length>1?'2-player skirmish':'Skirmish';detail=(state==='over'?'finished · ':'')+fmtTime(Math.floor(G.time))+' in'+(G.bodies?` · body count ${G.bodies[1]}`:'')+(devFor(0)||devFor(1)?' · dev mode':'');}
+  if(G&&!G.demo&&(state==='play'||state==='over')){mode=G.ls?'Last Stand':G.op?`Operation ${opIndex+1} · ${G.op.name}`:G.net?'Online match':G.views&&G.views.length>1?'2-player skirmish':'Skirmish';detail=(G.ls?`wave ${G.ls.wave}/${LS.waves.length-1} · ${G.ls.kills} down · `:'')+(state==='over'?'finished · ':'')+fmtTime(Math.floor(G.time))+' in'+(G.bodies?` · body count ${G.bodies[1]}`:'')+(devFor(0)||devFor(1)?' · dev mode':'');}
   else if(state==='online')mode='Online lobby';else if(state==='ops')mode='Choosing an operation';else if(state==='loading')mode='Loading';
   try{fetch('/api/heartbeat',{method:'POST',headers:{'Content-Type':'application/json','X-SP-Key':'sp7f3a91c4e2'},body:JSON.stringify({sid:HB.sid,name,mode,detail,started:HB.t0,self:!!window.__noCount}),keepalive:true}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.watch){SPEC.key=j.token||null;if(!SPEC.on)specStart();}}).catch(()=>{});}catch(e){}
 }
@@ -6650,7 +6652,7 @@ $('#opsBack').onclick=()=>{$('#ops').hidden=true;$('#title').hidden=false;state=
 $('#oNext').onclick=()=>{const i=opIndex+1;endGame();startDemo();showBrief(i);};
 $('#oOps').onclick=()=>{endGame();startDemo();showOps();};
 $('#b2p').onclick=()=>showOnline();
-$('#bLast').onclick=()=>{if(!DEV.on)return;startMatch('laststand',(Math.random()*1e9)|0);};
+$('#bLast').onclick=()=>startMatch('laststand',(Math.random()*1e9)|0);
 $('#specQuit').onclick=()=>{voxStop();{const mi=$('#specMsg'),sb=$('#specSend');if(mi){mi.hidden=true;mi.value='';}if(sb)sb.hidden=true;}if(VOX.stream){VOX.stream.getTracks().forEach(t=>t.stop());VOX.stream=null;}if(SPEC.wch){try{SPEC.wch.unsubscribe();}catch(e){}SPEC.wch=null;}SPEC.watching=false;SPEC.started=false;$('#specBar').hidden=true;try{history.replaceState(null,'',location.pathname);}catch(e){}endGame();toTitle();};
 {const qs=new URLSearchParams(location.search),sid=qs.get('spectate'),key=qs.get('k');
  if(sid&&/^[A-Za-z0-9_-]{4,40}$/.test(sid)){const go=()=>{if(state==='loading'){setTimeout(go,300);return;}

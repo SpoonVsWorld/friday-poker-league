@@ -331,14 +331,15 @@ body.onfoot #tLook{pointer-events:auto}
 .tbtn.on{filter:brightness(1.5);transform:scale(.95)}
 /* (Matt, 11 Nov 2026) The scope: everything outside the eyepiece is black, with a duplex crosshair and mil dots
    on the glass. Drawn in the page rather than the 3D scene so it stays needle-sharp at any screen size. */
-#scopeview{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;transition:opacity .07s linear}
+#scopeview{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;transition:opacity .07s linear}
 #scopeview.on{opacity:1}
 #scopeview .sv-mask{position:absolute;inset:0;background:#000;-webkit-mask:radial-gradient(circle at 50% 50%,transparent 0 calc(min(50vw,42vh) - 1px),#000 calc(min(50vw,42vh)));mask:radial-gradient(circle at 50% 50%,transparent 0 calc(min(50vw,42vh) - 1px),#000 calc(min(50vw,42vh)))}
 #scopeview .sv-glass{position:absolute;left:50%;top:50%;width:calc(min(100vw,84vh));height:calc(min(100vw,84vh));transform:translate(-50%,-50%);border-radius:50%;overflow:hidden;box-shadow:inset 0 0 70px 26px rgba(0,0,0,.85),inset 0 0 0 3px rgba(0,0,0,.9)}
 #scopeview .sv-glass svg{position:absolute;inset:0;width:100%;height:100%;opacity:.88}
 #scopeview .sv-mil{position:absolute;left:50%;top:calc(50% + min(50vw,42vh) - 30px);transform:translateX(-50%);color:rgba(239,226,184,.5);font:400 12px var(--display);letter-spacing:.14em}
 .tair{right:calc(146px + var(--sar));bottom:calc(122px + var(--sab));width:60px;height:60px;font-size:12px;background:rgba(59,111,214,.6)}
-.tscope{right:calc(28px + var(--sar));bottom:calc(122px + var(--sab));width:60px;height:60px;font-size:11px;background:rgba(14,19,14,.55)}
+.tscope{right:calc(214px + var(--sar));bottom:calc(120px + var(--sab));width:62px;height:62px;font-size:11px;background:rgba(14,19,14,.55)}
+.tscope.on{background:rgba(242,182,50,.45);border-color:rgba(242,182,50,.9)}
 .tpause{position:absolute;right:calc(12px + var(--sar));top:calc(206px + var(--sat));pointer-events:auto;width:44px;height:36px;border-radius:3px;background:var(--panel);border:1px solid var(--line);color:var(--sand);font:700 14px var(--ui)}
 .tpause.tcam{top:calc(250px + var(--sat));font-size:11px;letter-spacing:.5px}.tpause.tcam.on{background:rgba(59,111,214,.6)}
 .touchnote{margin:0;font-size:12px;color:var(--khaki);line-height:1.45}
@@ -418,7 +419,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
 <div id="pause" class="screen" hidden><div class="box"><h2>Paused</h2><div class="btns"><button id="pResume">Resume</button><button id="pMusic">Music on/off</button><button id="pRestart">Restart map</button><button id="pQuit">Quit to title</button></div></div></div>
 <div id="over" class="screen" hidden><canvas id="confetti"></canvas><div class="box"><h2 id="oTitle">Victory</h2><p id="oText"></p><div id="oStory" hidden></div><div class="btns"><button id="oNext" hidden>Next operation</button><button id="oAgain">Rematch</button><button id="oNew">New map</button><button id="oOps" hidden>Operations</button><button id="oQuit">Title screen</button></div></div></div>
 <div id="touch" hidden><div class="tzone" id="tzone"><div class="sbase" id="sbase" hidden><div class="sknob" id="sknob"></div></div></div>
-  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tpause tfoot" id="tFoot" aria-label="Get out or in" hidden>OUT</button><div id="tLook"></div><div class="sv-glass"><i class="sv-v"></i><i class="sv-h"></i><i class="sv-dots"></i><i class="sv-dots sv-dotsh"></i></div><div class="sv-mask"></div><div class="sv-mil">10x</div></div><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button><button class="tbtn tscope" id="tScope" aria-label="Look through the scope" hidden>SCOPE</button></div>
+  <button class="tbtn tfire" id="tFire" aria-label="Fire">FIRE</button><button class="tbtn tspec" id="tSpec" aria-label="Special">SPECIAL</button><button class="tpause" id="tPause" aria-label="Pause">II</button><button class="tpause tcam" id="tCam" aria-label="Switch camera">CAM</button><button class="tpause tfoot" id="tFoot" aria-label="Get out or in" hidden>OUT</button><div id="tLook"></div><button class="tbtn tair" id="tAir" aria-label="Air strike" hidden>AIR</button><button class="tbtn tscope" id="tScope" aria-label="Look through the scope" hidden>SCOPE</button></div>
 <div id="scopeview" hidden><div class="sv-glass"><svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet"><g stroke="#0c0c0c" fill="#0c0c0c"><path d="M100 2V72M100 128V198M2 100H72M128 100H198" stroke-width="2.6"/><path d="M100 72V96M100 104V128M72 100H96M104 100H128" stroke-width="1"/><circle cx="100" cy="100" r="1.1"/><g><circle cx="100" cy="86" r="1.1"/><circle cx="100" cy="72" r="1.1"/><circle cx="100" cy="114" r="1.1"/><circle cx="100" cy="128" r="1.1"/><circle cx="86" cy="100" r="1.1"/><circle cx="72" cy="100" r="1.1"/><circle cx="114" cy="100" r="1.1"/><circle cx="128" cy="100" r="1.1"/></g></g></svg></div><div class="sv-mask"></div><div class="sv-mil">6&#215;</div></div>
 <div id="loading">LOADING ARMOR…</div>
 
@@ -5135,7 +5136,9 @@ const ray=new THREE.Raycaster(),plane=new THREE.Plane(new V3(0,1,0),0);
 function readHuman(view,inp){
   if(opts.touch&&view.ctrl===0){
     const v=view.team.vehicle;Object.assign(inp,{thr:0,turn:0,tur:0,strafe:0,fire:TOUCH.fire,special:TOUCH.special,abandon:false,aimYaw:null});view.menuEdge=null;
-    if(v&&v.type==='foot'){const d2=x=>Math.abs(x)>.15?x:0;inp.thr=-d2(TOUCH.ay);inp.strafe=d2(TOUCH.ax);inp.grenade=TOUCH.special;inp.special=Math.hypot(TOUCH.ax,TOUCH.ay)>.95&&TOUCH.ay<-.7;v.heading-=FP.look.dx*.0055;v.pitch=clamp(v.pitch-FP.look.dy*.0045,-1.2,1.2);FP.look.dx=FP.look.dy=0;return;}
+    if(v&&v.type==='foot'){const d2=x=>Math.abs(x)>.15?x:0;inp.thr=-d2(TOUCH.ay);inp.strafe=d2(TOUCH.ax);inp.grenade=TOUCH.special;inp.special=Math.hypot(TOUCH.ax,TOUCH.ay)>.95&&TOUCH.ay<-.7;
+      inp.scope=!!(TOUCH.scope&&weapOf(v).zoom);const ls=v.scopeK>0?lerp(1,.22,v.scopeK):1; /* dragging aims as slowly as the scope is tight */
+      v.heading-=FP.look.dx*.0055*ls;v.pitch=clamp(v.pitch-FP.look.dy*.0045*ls,-1.2,1.2);FP.look.dx=FP.look.dy=0;return;}
     if(v){const mag=Math.min(1,Math.hypot(TOUCH.ax,TOUCH.ay));
       if(TOUCH.active&&mag>.18){const sgn=view.team.team===0?1:-1;const want=CHASE.on&&view.cy!=null?view.cy-Math.PI+Math.atan2(TOUCH.ax,TOUCH.ay):Math.atan2(TOUCH.ax*sgn,TOUCH.ay*sgn);/* chase cam: stick is relative to the camera */const da=angDiff(v.heading,want);
         const db=angDiff(v.heading+Math.PI,want),back=Math.abs(db);/* stick pointing at the vehicle's tail: back up (always in chase cam, or when slow/stuck), keep reversing while it stays roughly behind */
@@ -5712,7 +5715,9 @@ function loop(now){
   render(dt);
   const showT=opts.touch&&state==='play'&&!paused&&!!G.views[0]?.team.vehicle&&!G.over;if($('#touch').hidden===showT)$('#touch').hidden=!showT;
   const showAir=showT&&airLeft()>0;if($('#tAir').hidden===showAir)$('#tAir').hidden=!showAir;
-  {const hv=G&&G.teams&&G.teams[0].vehicle,showSc=showT&&!!(hv&&hv.type==='foot'&&weapOf(hv).zoom);if($('#tScope').hidden===showSc)$('#tScope').hidden=!showSc;}
+  {const hv=G&&G.teams&&G.teams[0].vehicle,showSc=showT&&!!(hv&&hv.type==='foot'&&weapOf(hv).zoom);const sc=$('#tScope');
+   if(sc.hidden===showSc)sc.hidden=!showSc;
+   if(!showSc&&TOUCH.scope){TOUCH.scope=false;sc.classList.remove('on');}}  // putting the rifle back, or getting into something, drops the scope
 }
 
 // ============================================================ online multiplayer (Supabase Realtime)
@@ -6252,7 +6257,8 @@ $('#ctl').querySelectorAll('button').forEach(b=>b.onclick=()=>{setControls(b.dat
  hold($('#tFire'),'fire');
  {const fb=$('#tFire');let lx=null,ly=null;fb.addEventListener('pointerdown',e=>{lx=e.clientX;ly=e.clientY;});
   fb.addEventListener('pointermove',e=>{if(lx===null||!document.body.classList.contains('onfoot'))return;FP.look.dx+=(e.clientX-lx);FP.look.dy+=(e.clientY-ly);lx=e.clientX;ly=e.clientY;});
-  const off=()=>{lx=ly=null;};fb.addEventListener('pointerup',off);fb.addEventListener('pointercancel',off);}hold($('#tSpec'),'special');hold($('#tScope'),'scope');
+  const off=()=>{lx=ly=null;};fb.addEventListener('pointerup',off);fb.addEventListener('pointercancel',off);}hold($('#tSpec'),'special');
+ {const sc=$('#tScope');sc.addEventListener('pointerdown',e=>{audioInit();e.preventDefault();TOUCH.scope=!TOUCH.scope;sc.classList.toggle('on',TOUCH.scope);});}
  $('#tAir').addEventListener('pointerdown',e=>{audioInit();e.preventDefault();callStrike();});
  $('#tPause').addEventListener('click',()=>{if(G&&!G.demo&&!G.over)togglePause();});
  $('#tCam').addEventListener('click',()=>{if(G&&!G.demo)toggleChase();});

@@ -3700,8 +3700,10 @@ function setHeroWeapon(v,w){
   v.ammo=Math.min(v.ammo??W.mag,W.mag);
   const pts=RIFLE[W.model];if(pts){RIFLE.grip.copy(pts.grip);RIFLE.fore.copy(pts.fore);}
   const sd=v.parts&&v.parts.sd;
-  if(sd&&sd.gun&&sd.gun.parent){const par=sd.gun.parent;par.remove(sd.gun);const ng=rifleModel(w).clone();par.add(ng);
-    if(TROOP.gun)TROOP.gun.decompose(ng.position,ng.quaternion,ng.scale);
+  if(sd&&sd.gun&&sd.gun.parent){const old=sd.gun,par=old.parent,ng=rifleModel(w).clone();
+    ng.position.copy(old.position);ng.quaternion.copy(old.quaternion);ng.scale.copy(old.scale);   // the plain soldier holds it at the chest; the trooper's hand sets its own
+    if(sd.trooper&&TROOP.gun)TROOP.gun.decompose(ng.position,ng.quaternion,ng.scale);
+    par.remove(old);par.add(ng);
     if(sd.flash){ng.add(sd.flash);sd.flash.position.copy(pts?pts.muzzle:new V3(0,.005,.7));}sd.gun=ng;}
   return was;
 }
@@ -3710,7 +3712,9 @@ function spawnHero(T,x,z,heading){
   const v={type:'foot',def:VDEF.foot,team:T,x,z,y:vehGround(x,z),heading,pitch:0,speed:0,vx:0,vz:0,strafe:0,turret:0,hp:keep.hp||VDEF.foot.hp,fuel:1,ammo:keep.ammo??VDEF.foot.ammo,ammo2:keep.ammo2??VDEF.foot.ammo2,gcd:0,cd:0,cd2:0,
     state:'active',stateT:0,obj:g,parts,leftPad:true,padT:0,carrying:null,r:VDEF.foot.r,alt:0,smokeT:0,scuttle:0,steer:0,wheelRot:0,lowFuelWarned:true,dustT:0,moving:0,
     weapon:keep.weapon||'m4',scope:false,scopeK:0,boltT:0};
-  g.position.set(x,v.y,z);g.rotation.y=heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);return v;
+  g.position.set(x,v.y,z);g.rotation.y=heading;world.add(g);world.add(parts.ring);v.netId=++G.netSeq;G.vehicles.push(v);
+  setHeroWeapon(v,v.weapon);   // the body is rebuilt with the M4 in its hands, so put the rifle you were carrying back
+  return v;
 }
 function removeHero(v){world.remove(v.obj);world.remove(v.parts.ring);const i=G.vehicles.indexOf(v);if(i>=0)G.vehicles.splice(i,1);v.state='gone';}
 const FOOT_R=.38;

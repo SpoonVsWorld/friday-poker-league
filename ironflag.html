@@ -5401,7 +5401,7 @@ function updateHud(view){
   {const sv=$('#scopeview'),k=(v&&v.type==='foot'&&view.index===0&&!G.demo)?(v.scopeK||0):0;
    if(sv){const on=k>.5;if(sv.hidden===on)sv.hidden=!on;sv.classList.toggle('on',on);if(view.index===0)document.body.classList.toggle('scoped',on);}}
   {const foot=!!(v&&v.type==='foot');if(view.el&&view.el.classList.contains('foot')!==foot){view.el.classList.toggle('foot',foot);const hb=view.el.querySelector('.bar.hp');if(hb)hb.firstChild.nodeValue=foot?'HEALTH':'ARMOR';}
-    if(view.index===0)document.body.classList.toggle('onfoot',foot&&opts.touch);
+    if(view.index===0)document.body.classList.toggle('onfoot',(foot||!!(v&&v.type==='gunpit'))&&opts.touch);   // the look pad has to be live on the mount too, or there is no way to lay the gun by hand
     if(foot&&opts.touch&&!FP.rotTip&&innerHeight>innerWidth){FP.rotTip=true;note(view.team.team,'Tip: turn your phone sideways for a wider view on foot','info');}
     const hu=view.el&&view.el.querySelector('.hurt');if(hu)hu.style.opacity=foot&&v.hitFlash>0?'1':'0';
     const tf=view.index===0?document.getElementById('tFoot'):null;if(tf){const show=!!(opts.touch&&footOk()&&v&&v.state==='active'&&!v.def.air&&v.type!=='boat'&&!G.ls);if(tf.hidden===show)tf.hidden=!show;if(show){const txt=foot?(nearPickup(v)?'TAKE':'IN'):'OUT';if(tf.textContent!==txt)tf.textContent=txt;}}}

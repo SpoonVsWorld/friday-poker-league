@@ -3409,7 +3409,7 @@ function scatterNature(){
   B.rockA=new Batch(proto('rockA',1),60);B.rockC=new Batch(proto('rockC',1),60);B.rockT=new Batch(proto('rockT',1),40);
   for(const k of ['rockA','rockC','rockT'])for(const pt of B[k].parts)pt.im.material=triplanarStone(pt.im.material);B.bush=new Batch(proto('bush',1),400);
   // Last Stand: the slope in front of the mount is cleared so you have a field of fire — bushes and rocks stay, the trees go
-  const lsOpen=G.mode==='laststand'?((x,z)=>z<46&&Math.hypot(x/1.5,(z-40)*.85)<150):null;
+  const lsOpen=G.mode==='laststand'?((x,z)=>z<46&&Math.hypot(x/1.5,(z-40)*.85)<215):null;   // the whole approach is open ground: the treeline sits out past 250 m
   for(let i=0;i<tries;i++){const x=rr(X0+20,-X0-20),z=rr(Z0+20,-Z0-20);const h=H(x,z);if(h<.9||h>13)continue;
     const cd=G.corrD[Math.round((z-Z0)/CELL)*NX+Math.round((x-X0)/CELL)];if(cd<10)continue;if(G.bases.some(b=>Math.hypot(b.x-x,b.z-z)<75))continue;
     const forest=n4(x*.012,z*.012);const r=RND();
@@ -3417,7 +3417,7 @@ function scatterNature(){
       const sc=kinds.find(k=>k[0]===nm)[1]*rr(.65,1);const yaw=RND()*TAU;const bt=treeVariant(B,nm,x,z);const idx=bt.add(x,h-.1,z,yaw,sc);if(idx<0)continue;
       addStatic({kind:'tree',team:-1,x,z,y0:h,h:9,hp:22,r:1.1,batch:bt,idx});}
     else if(r<.6){const idx=(bushB?bushPick(x,z):B.bush).add(x,h-.1,z,RND()*TAU,rr(5,8));}
-    else if(r<.63){const nm=['rockA','rockC','rockT'][(RND()*3)|0];const sc=rr(3.5,5.5);const yaw=RND()*TAU;const idx=B[nm].add(x,h-.3,z,yaw,sc);if(idx<0)continue;
+    else if(r<.63){const nm=['rockA','rockC','rockT'][(RND()*3)|0];const sc=lsOpen&&lsOpen(x,z)?rr(1.8,2.9):rr(3.5,5.5);const yaw=RND()*TAU;   /* low boulders in the field of fire: a five-metre rock swallows a burst */const idx=B[nm].add(x,h-.3,z,yaw,sc);if(idx<0)continue;
       const sz=proto(nm,1).userData.size;addStatic({kind:'rock',team:-1,x,z,y0:h,h:sz.y*sc,hp:Infinity,batch:B[nm],idx,pts:footprint(x,z,sz.x*sc*.8,sz.z*sc*.8,yaw,1)});}
   }
   for(const k in B)B[k].done();if(bushB)bushB.forEach(b=>b.done());
@@ -4097,8 +4097,9 @@ const PK={
   srnd:{speed:430,life:.78,dmg:130,splash:0,geo:'bullet',vmul:.25},  /* ~335 m. One hit on a man; a quarter of that into armour and concrete, which is still 32 a shot: a turret in four, a building in six, a tank in seven. Slow enough that the launcher keeps its job. */
 rifle:{speed:110,life:.45,dmg:2.5,splash:0,geo:'bullet'},
   pbullet:{speed:165,life:.42,dmg:5,splash:0,geo:'bullet'}, // your own carbine, on foot
-  gbullet:{speed:300,life:1.6,dmg:8,splash:0,geo:'bullet',vmul:.25}, // the hill gun: 480 m of reach, so it covers the whole approach
+  gbullet:{speed:300,life:1.6,dmg:11,splash:0,geo:'bullet',vmul:.25}, // the hill gun: 480 m of reach, so it covers the whole approach
   rocket:{speed:75,life:.8,dmg:42,splash:4.5,geo:'missile'},
+  gmissile:{speed:135,life:2.6,dmg:95,splash:9,geo:'missile'},   // the mount's pod: 350 m of reach and a blast worth firing
   missile:{speed:38,accel:40,max:72,life:2.4,dmg:55,splash:4,geo:'missile',homing:3},
   grenade:{life:2,dmg:30,splash:4.5,geo:'grenade',grav:28},
   sgrenade:{life:2.6,dmg:16,splash:4.2,geo:'grenade',grav:28}, // infantry hand grenade - lobbed at ground vehicles (see updateSoldiers)
@@ -4135,7 +4136,7 @@ function hitTest(p){
     const y0=v.def.air?v.y-1.2:v.type==='boat'?-6:v.y,y1=v.def.air?v.y+2.4:v.y+v.def.h;if(p.y>=y0-.3&&p.y<=y1+.3)return v;}
   for(const j of G.jets){if(!j.alive||j.team===p.team)continue;const dx=j.x-p.x,dz=j.z-p.z;if(dx*dx+dz*dz<18&&Math.abs(p.y-j.y)<2.6)return j;}
   for(const dr of G.drones){if(!dr.alive||dr.team===p.team)continue;const dx=dr.x-p.x,dz=dr.z-p.z;if(dx*dx+dz*dz<2.6&&Math.abs(p.y-dr.y)<1.3)return dr;}
-  const seg=(p.kind==='rifle'||p.kind==='pbullet'||p.kind==='srnd')&&p.px!==undefined; // rifle rounds move ~1.8 m a sub-step: test the whole path so they can't skip past a man
+  const seg=(p.kind==='rifle'||p.kind==='pbullet'||p.kind==='srnd'||p.kind==='gbullet')&&p.px!==undefined; // rifle rounds move ~1.8 m a sub-step: test the whole path so they can't skip past a man
   for(const sd of G.soldiers){if(!sd.alive||sd.team===p.team||sd.ride)continue;let dx=sd.x-p.x,dz=sd.z-p.z;
     if(seg){const sx=p.x-p.px,sz=p.z-p.pz,l2=sx*sx+sz*sz||1,t=clamp(((sd.x-p.px)*sx+(sd.z-p.pz)*sz)/l2,0,1);dx=sd.x-(p.px+sx*t);dz=sd.z-(p.pz+sz*t);}
     if(dx*dx+dz*dz>.42)continue;if(p.y>=sd.y-.2&&p.y<=sd.y+1.9)return sd;}
@@ -4430,7 +4431,7 @@ function updateGunpit(v,inp,dt){
   gunEye(v,_gEye);const ex0=_gEye.x,ey0=_gEye.y,ez0=_gEye.z;
   v.aimD=gunRange(ex0,ey0,ez0,dx,dy,dz);
   if(inp.fire&&v.cd<=0&&v.reloadT<=0&&v.belt>0){
-    const sp=.008+v.heat*.012;                                 // it wanders as the barrel warms
+    const sp=.0022+v.heat*.005;                                // it wanders as the barrel warms
     const ex=dx+rr(-sp,sp),ey=dy+rr(-sp,sp),ez=dz+rr(-sp,sp);
     fire('gbullet',v.team,ex0+dx*1.1,ey0+dy*1.1,ez0+dz*1.1,ex,ey,ez,{mul:G.vehMul[v.team]});
     v.belt--;v.ammo=v.belt;v.cd=.07;v.heat=Math.min(2.6,v.heat+.055);
@@ -4441,7 +4442,7 @@ function updateGunpit(v,inp,dt){
   if(inp.special&&v.cd2<=0&&v.podT<=0&&v.ammo2>0){
     const side=(v.ammo2%2?1:-1)*.9,ox=mx-Math.cos(v.heading)*side,oz=mz+Math.sin(v.heading)*side,oy=my+.3;
     const ax=(ex0+dx*v.aimD)-ox,ay=(ey0+dy*v.aimD)-oy,az=(ez0+dz*v.aimD)-oz;
-    fire('rocket',v.team,ox,oy,oz,ax,ay,az,{mul:G.vehMul[v.team]});
+    fire('gmissile',v.team,ox,oy,oz,ax,ay,az,{mul:G.vehMul[v.team]});
     v.ammo2--;v.cd2=.55;sfx('rocket',v.x,v.z);
     for(let i=0;i<8;i++)puff(ox,my+.3,oz,[.8,.78,.74],1.6,1,.5);
     if(v.ammo2<=0){v.podT=5.5;note(v.team,'Pod empty — reloading','warn');}}

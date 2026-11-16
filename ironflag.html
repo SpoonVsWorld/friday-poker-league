@@ -3971,7 +3971,8 @@ function fpCamera(view,v,dt){
   view.focus.set(v.x+Math.sin(v.heading)*14,v.y,v.z+Math.cos(v.heading)*14);
 }
 function fpRender(view,v,dt,r,h){
-  if(!FP.scene)return;if(v.scopeK>.55)return;   // through the scope you see the sight picture, not your handsconst cam=FP.cam,asp=r.w/h,B=asp<1?VMP:VM;cam.aspect=asp;cam.fov=B.fov;cam.updateProjectionMatrix();
+  if(!FP.scene)return;if(v.scopeK>.55)return;   /* through the scope you see the sight picture, not your hands */
+  const cam=FP.cam,asp=r.w/h,B=asp<1?VMP:VM;cam.aspect=asp;cam.fov=B.fov;cam.updateProjectionMatrix();
   const mv=clamp(Math.hypot(v.vx,v.vz)/v.def.speed,0,1.6);FP.bob+=dt*(3+mv*6)*(mv>.1?1:.15);FP.recoil=Math.max(0,FP.recoil-dt*10);
   if(FP.prevH==null){FP.prevH=v.heading;FP.prevP=v.pitch;}const dyaw=angDiff(FP.prevH,v.heading),dp=v.pitch-FP.prevP;FP.prevH=v.heading;FP.prevP=v.pitch;
   const kk=1-Math.exp(-dt*9);FP.sway.x=lerp(FP.sway.x,clamp(dyaw*1.6,-.07,.07),kk);FP.sway.y=lerp(FP.sway.y,clamp(-dp*1.6,-.06,.06),kk);
@@ -5438,7 +5439,8 @@ function drawMini(view){
 const lastHud=new WeakMap();
 function updateHud(view){
   const t=view.team,v=t.vehicle,q=view.q;
-  const sel=q.sel;const menuOn=!G.ls&&!v&&t.respawnT<=0&&!G.over&&!view.watch&&!(view.hold>0)&&!mslBusy();   // no bunker to pick a vehicle from: you are the gunif(sel.hidden===menuOn)sel.hidden=!menuOn;
+  const sel=q.sel;const menuOn=!G.ls&&!v&&t.respawnT<=0&&!G.over&&!view.watch&&!(view.hold>0)&&!mslBusy();   /* Last Stand has no bunker to pick from: you are the gun */
+  if(sel.hidden===menuOn)sel.hidden=!menuOn;
   if(menuOn){VORDER.forEach((k,i)=>{const c=q.cards.children[i];c.querySelector('i').textContent='×'+t.stock[k];c.toggleAttribute('disabled',t.stock[k]<=0);c.classList.toggle('on',i===view.sel);});
     const mb=q.msl,show=!!((G.op||devActive())&&G.launcher);if(mb.hidden===show)mb.hidden=!show;
     if(show){const n=mslCount(),ok=mslReady(),key=n+'|'+ok+'|'+(view.sel===MSL_SLOT);if(lastHud.get(mb)!==key){lastHud.set(mb,key);
@@ -6634,7 +6636,8 @@ async function voxSend(blob){
 // ---- player side
 function voxRecv(p){
   if(!p||!p.id)return;
-  if(typeof p.txt==='string'){voxText(p.txt);return;} // (Matt, 8 Nov 2026) typed message from the watcherlet e=VOX.inbox.get(p.id);
+  if(typeof p.txt==='string'){voxText(p.txt);return;} /* (Matt, 8 Nov 2026) typed message from the watcher */
+  let e=VOX.inbox.get(p.id);
   if(!e){e=
 {parts:new Array(p.n).fill(null),n:p.n,mime:p.mime,t:performance.now()};VOX.inbox.set(p.id,e);
     for(const [k,v] of VOX.inbox)if(performance.now()-v.t>60000)VOX.inbox.delete(k);}

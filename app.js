@@ -2339,17 +2339,19 @@
       }
       const last = sinceMark;
       const sinceIso = last || new Date(Date.now() - 7 * 86400000).toISOString();
-      const [wins, views, feedback, live] = await Promise.all([
+      const [wins, views, feedback, live, reports] = await Promise.all([
         supabaseClient.from("campaign_wins").select("name, won_at").gte("won_at", sinceIso).order("won_at", { ascending: false }),
         supabaseClient.from("page_views").select("page", { count: "exact", head: true }).gte("viewed_at", sinceIso),
         supabaseClient.from("feedback").select("type, message, created_at").gte("created_at", sinceIso).order("created_at", { ascending: false }),
         supabaseClient.from("game_presence").select("name", { count: "exact", head: true }).gte("last_seen", new Date(Date.now() - 65 * 1000).toISOString()),
+        supabaseClient.from("game_reports").select("kind, created_at").eq("self", false).gte("created_at", sinceIso).order("created_at", { ascending: false }),
       ]);
       const bits = [];
       const when = last ? "since your last visit on " + new Date(last).toLocaleString() : "in the last 7 days";
       if (live.count) bits.push(`<li><b>${live.count}</b> playing Spoon Platoon right now — see the game tab</li>`);
       if ((wins.data || []).length) bits.push(`<li><b>${wins.data.length}</b> new campaign win${wins.data.length === 1 ? "" : "s"}: ${wins.data.slice(0, 5).map((w) => escapeHtml(w.name)).join(", ")}</li>`);
       if ((feedback.data || []).length) bits.push(`<li><b>${feedback.data.length}</b> new message${feedback.data.length === 1 ? "" : "s"} in Feedback — see the poker tab</li>`);
+      if ((reports.data || []).length) bits.push(`<li><b>${reports.data.length}</b> new problem report${reports.data.length === 1 ? "" : "s"} from the game — see the game tab</li>`);
       bits.push(`<li><b>${views.count ?? 0}</b> page view${views.count === 1 ? "" : "s"} across both sites ${escapeHtml(when)}</li>`);
       el.innerHTML = `<ul class="adm-since-list">${bits.join("")}</ul>`;
     }
@@ -2379,11 +2381,102 @@
       } catch {}
       await loadPlayingNow();
       loadCampaignWins().catch((e) => console.warn("campaign wins", e));
+      loadGameReports().catch((e) => console.warn("game reports", e));
       loadGameInsights().catch((e) => console.warn("game insights", e));
       loadLeagueHealth().catch((e) => console.warn("league health", e));
       loadSinceLast().catch((e) => console.warn("since last", e));
       if (!playingNowTimer) playingNowTimer = setInterval(loadPlayingNow, 15000);
     }
+
+    // ------------------------------------------------------------------
+    // Problems reported from the game's title screen (game_reports, written by
+    // api/report.js). Open ones first; ticking one off keeps it for the record.
+    // ------------------------------------------------------------------
+    const gameReportsList = document.getElementById("game-reports-list");
+    const gameReportsCount = document.getElementById("game-reports-count");
+    const gameReportsDone = document.getElementById("game-reports-done");
+
+    const REPORT_KINDS = {
+      crash: "Crash or freeze",
+      graphics: "Graphics",
+      controls: "Controls",
+      sound: "Sound",
+      other: "Something else",
+    };
+
+    async function loadGameReports() {
+      if (!gameReportsList) return;
+      const showDone = !!(gameReportsDone && gameReportsDone.checked);
+      let q = supabaseClient
+        .from("game_reports")
+        .select("id, created_at, kind, message, name, mode, version, device, gpu, errors, session_id, ip_address, city, region, country, user_agent, done, self")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (!showDone) q = q.eq("done", false);
+      const { data, error } = await q;
+      if (error) {
+        gameReportsList.innerHTML = `<p class="error">Could not load problem reports: ${escapeHtml(error.message)}${/game_reports/.test(error.message) ? " (run supabase_game_reports.sql in the Supabase SQL editor)" : ""}</p>`;
+        if (gameReportsCount) gameReportsCount.textContent = "—";
+        return;
+      }
+      const rows = data || [];
+      const open = rows.filter((r) => !r.done && !r.self).length;
+      if (gameReportsCount) gameReportsCount.textContent = open ? String(open) : "0";
+      if (!rows.length) {
+        gameReportsList.innerHTML = `<p class="muted">${showDone ? "Nothing reported yet." : "Nothing waiting — anything already dealt with is hidden."}</p>`;
+        return;
+      }
+      gameReportsList.innerHTML = rows
+        .map((r) => {
+          const when = new Date(r.created_at).toLocaleString();
+          const kind = REPORT_KINDS[r.kind] || r.kind || "Something else";
+          const who = r.name ? escapeHtml(r.name) : "Anonymous";
+          const tech = [r.mode, r.device, r.gpu, r.version ? "build " + r.version : null].filter(Boolean).map(escapeHtml).join(" · ");
+          return `
+        <div class="visit-row${r.self ? " self" : ""}${r.done ? " muted" : ""}" data-report="${r.id}">
+          <div class="visit-info">
+            <span class="visit-name">${r.done ? "✓ " : "🐞 "}${escapeHtml(kind)} — ${who}${r.self ? ' <span class="muted">(you / dev)</span>' : ""}</span>
+            <span class="visit-mode" style="white-space:pre-wrap;">${escapeHtml(r.message)}</span>
+            <span class="visit-location">${tech || "no details"}</span>
+            ${r.errors ? `<span class="visit-location" style="color:#e0a0a0;">errors: ${escapeHtml(r.errors)}</span>` : ""}
+            <span class="visit-ip">${escapeHtml(formatVisitLocation(r))} · ${escapeHtml(r.ip_address || "unknown IP")} · ${escapeHtml(when)}</span>
+          </div>
+          <div class="row-actions">
+            ${r.done ? "" : `<button class="btn btn-small report-done-btn" data-id="${r.id}" type="button">Mark done</button>`}
+            <button class="btn btn-small btn-danger report-del-btn" data-id="${r.id}" type="button">Delete</button>
+          </div>
+        </div>`;
+        })
+        .join("");
+
+      gameReportsList.querySelectorAll(".report-done-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          const { error: e2 } = await supabaseClient.from("game_reports").update({ done: true }).eq("id", btn.dataset.id);
+          if (e2) {
+            btn.disabled = false;
+            alert("Could not mark it done: " + e2.message);
+            return;
+          }
+          loadGameReports().catch((e) => console.warn("game reports", e));
+        });
+      });
+      gameReportsList.querySelectorAll(".report-del-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this report for good?")) return;
+          btn.disabled = true;
+          const { error: e2 } = await supabaseClient.from("game_reports").delete().eq("id", btn.dataset.id);
+          if (e2) {
+            btn.disabled = false;
+            alert("Could not delete it: " + e2.message);
+            return;
+          }
+          loadGameReports().catch((e) => console.warn("game reports", e));
+        });
+      });
+    }
+
+    if (gameReportsDone) gameReportsDone.addEventListener("change", () => loadGameReports().catch((e) => console.warn("game reports", e)));
 
     // ------------------------------------------------------------------
     // "Where Spoon Platoon is played": a Leaflet/OpenStreetMap map of every

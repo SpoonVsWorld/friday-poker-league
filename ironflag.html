@@ -114,6 +114,30 @@ kbd{font:600 11px var(--ui);background:rgba(239,226,184,.12);border:1px solid va
 #devBtn{align-self:flex-start;margin-top:-10px;background:none;border:0;padding:4px 2px;font:600 9px var(--ui);letter-spacing:.18em;text-transform:uppercase;color:var(--khaki);opacity:.22;cursor:pointer}
 #devBtn:hover,#devBtn:focus-visible{opacity:.6}
 #devBtn.on{color:#7fb0ff;opacity:.45}
+.rprow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.rprow span{font-size:11px;line-height:1.4;color:var(--khaki);opacity:.85}
+#rpBtn{font:600 10px var(--ui);letter-spacing:.12em;text-transform:uppercase;padding:8px 12px;border-radius:3px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--sand);cursor:pointer;flex:none}
+#rpBtn:hover,#rpBtn:focus-visible{border-color:rgba(242,182,50,.7);color:var(--signal)}
+#rpBox{position:fixed;inset:0;z-index:41;display:flex;align-items:center;justify-content:center;background:rgba(5,8,5,.66);padding:16px;box-sizing:border-box;overflow:auto}
+#rpBox[hidden]{display:none}
+#rpForm{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:16px;width:min(420px,100%);box-sizing:border-box;display:grid;gap:10px;color:var(--sand)}
+#rpForm .dt{font:400 18px var(--display);letter-spacing:.06em;color:var(--signal)}
+#rpForm .rpi{margin:0;font-size:12px;line-height:1.45;color:var(--khaki)}
+#rpKind{display:flex;flex-wrap:wrap;gap:6px}
+#rpKind button{font:600 11px var(--ui);letter-spacing:.04em;text-transform:uppercase;padding:7px 10px;border-radius:3px;border:1px solid var(--line);background:none;color:var(--khaki);cursor:pointer}
+#rpKind button[aria-pressed=true]{background:rgba(242,182,50,.16);border-color:rgba(242,182,50,.7);color:var(--sand)}
+#rpMsg{font:400 13px var(--ui);line-height:1.45;padding:9px 10px;border-radius:3px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--sand);resize:vertical;min-height:84px}
+#rpForm .rpr{display:flex;align-items:center;gap:8px}
+#rpForm .rpr .lbl{font:600 10px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--khaki);min-width:52px}
+#rpForm .rpr input{flex:1;font:400 13px var(--ui);padding:7px 9px;border-radius:3px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--sand);min-width:0}
+#rpWhat{font-size:11px;line-height:1.5;color:var(--khaki);opacity:.8;word-break:break-word}
+#rpMsgOut{font-size:12px;line-height:1.4;color:var(--khaki)}
+#rpMsgOut:empty{display:none}
+#rpMsgOut.ok{color:#8fd48f}
+#rpForm .db{display:flex;gap:8px;justify-content:flex-end}
+#rpForm .db button{font:600 13px var(--ui);letter-spacing:.06em;text-transform:uppercase;padding:8px 14px;border-radius:3px;border:1px solid var(--line);background:none;color:var(--sand);cursor:pointer}
+#rpForm .db button#rpSend{background:rgba(242,182,50,.18);border-color:rgba(242,182,50,.7)}
+#rpForm .db button[disabled]{opacity:.5;cursor:default}
 #devBox{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(5,8,5,.6)}
 #devBox[hidden]{display:none}
 #devForm{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:16px;width:min(300px,calc(100% - 32px));box-sizing:border-box;display:grid;gap:10px;color:var(--sand)}
@@ -412,6 +436,7 @@ body.touchui .hud .warn{bottom:auto;top:46%}
       <div class="row"><span class="lbl">Options</span>
         <div style="display:flex;gap:6px"><button class="tog" id="tShadow" aria-pressed="true">Shadows</button><button class="tog" id="tMusic" aria-pressed="true">Music</button><button class="tog" id="tMouse" aria-pressed="true">Mouse aim</button></div></div>
     </div>
+    <div class="rprow"><button type="button" id="rpBtn">Report a problem</button><span>Something broken or odd? Tell me and I will fix it.</span></div>
     <div class="credit">Title music: Verdi, Dies Irae (ICBSA, CC BY-SA 4.0). Jeep: Rimsky-Korsakov, Flight of the Bumblebee (US Air Force Band of the Rockies). Flag: Handel, Hallelujah Chorus (Scherchen). Models from your Kenney folder (Military Free, Nature, Tower Defense, Industrial, Castle kits). Music via Wikimedia Commons, public domain: Wagner, Ride of the Valkyries; Grieg, In the Hall of the Mountain King (Musopen Symphony); Rossini, William Tell Overture (military band); Holst, Mars. Sound effects by qubodup (CC0) and Wikimedia Commons (public domain). Tank engine loop by Nayckron and qubodup, CC-BY 3.0.</div>
     <button type="button" id="devBtn" aria-label="Developer">dev</button>
     <div id="devBox" hidden><form id="devForm" autocomplete="off"><div class="dt">Developer mode</div><div id="devMsg"></div><input id="devPw" type="password" placeholder="Password" aria-label="Developer password" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="db"><button type="button" id="devCancel">Cancel</button><button type="submit" id="devGo">Unlock</button></div></form></div>
@@ -425,6 +450,23 @@ body.touchui .hud .warn{bottom:auto;top:46%}
     </div>
   </div>
 </div>
+
+<div id="rpBox" hidden><form id="rpForm" autocomplete="off">
+  <div class="dt">Report a problem</div>
+  <p class="rpi">Tell me what went wrong and I will take a look. Nothing is sent until you press Send.</p>
+  <div id="rpKind" role="group" aria-label="What sort of problem">
+    <button type="button" data-v="crash">Crash or freeze</button>
+    <button type="button" data-v="graphics">Graphics</button>
+    <button type="button" data-v="controls">Controls</button>
+    <button type="button" data-v="sound">Sound</button>
+    <button type="button" data-v="other" aria-pressed="true">Something else</button>
+  </div>
+  <textarea id="rpMsg" rows="4" maxlength="1500" placeholder="What happened, and what were you doing when it went wrong?" aria-label="What happened"></textarea>
+  <div class="rpr"><span class="lbl">Name</span><input id="rpName" type="text" maxlength="16" placeholder="Optional" aria-label="Your name"></div>
+  <p id="rpWhat"></p>
+  <div id="rpMsgOut"></div>
+  <div class="db"><button type="button" id="rpCancel">Close</button><button type="submit" id="rpSend">Send</button></div>
+</form></div>
 
 <div id="ops" class="screen" hidden><div class="opsbox"><div class="opshead"><h2>Operations</h2><p id="opsSub"></p><button id="opsStory">Story</button><button id="opsBack">Back</button></div><div class="opsgrid" id="opsGrid"></div></div></div>
 <div id="story" class="screen" hidden><div class="storybox"><p class="stk" id="stKick"></p><h2 id="stTitle"></h2><p class="stob" id="stObj"></p><div id="stBody"></div><p class="stintel" id="stIntel"></p><div class="stbtns"><button id="stGo">Deploy</button><button id="stBack">Back</button></div></div></div>
@@ -532,6 +574,10 @@ const fdone=()=>{FQ--;const n=FW.shift();if(n)n();};
 const fetchBin=f=>{LOADN++;let freed=false;const rel=()=>{if(!freed){freed=true;fdone();}};return fslot().then(()=>fetch(binBase(f)+f+'?v='+DATA_V)).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.arrayBuffer();}).then(b=>{rel();LOADOK++;LOADMB+=b.byteLength/1048576;loadNote();return b;}).catch(e=>{rel();loadFail(f,e);throw e;});};
 let FAILED=0;
 function loadFail(f,e){if(++FAILED>1)return;const el=document.getElementById('loading');if(el)el.innerHTML='Could not load <b>'+f+'</b><br><span style="font-size:.7em;opacity:.8">'+(e&&e.message?e.message:e)+'</span><br><br><span style="font-size:.7em;opacity:.8">Reload to try again.</span>';console.warn('load failed',f,e);}
+window.__spErrs=[];
+(function(){const push=t=>{t=String(t||'').slice(0,240);const a=window.__spErrs;if(a[a.length-1]!==t){a.push(t);if(a.length>6)a.shift();}};
+  addEventListener('error',e=>push((e.message||'error')+(e.filename?' @'+String(e.filename).split('/').pop()+':'+e.lineno:'')));
+  addEventListener('unhandledrejection',e=>push('unhandled: '+((e.reason&&(e.reason.message||e.reason))||'')));})();
 addEventListener('error',e=>{if(FAILED)return;const el=document.getElementById('loading');if(el&&el.textContent.indexOf('LOADING')===0)el.innerHTML='Stopped while loading:<br><span style="font-size:.7em;opacity:.8">'+((e.message||'')+'').slice(0,160)+'</span>';});
 const EXTRA_KEYS=['soldier','jet','hospital','ammodepot','gasstation','drone','hq','bldA','bldB','bldC','bldD','bldE','bldF','d_tent','d_tentbig','d_radio','d_watchtower','d_fueltank','d_generator'];
 const SFX_KEYS=['s_bigboom1','s_bigboom2','s_boom','s_cannon','s_engine','s_engine_fast','s_heli','s_splash','s_tcannon','s_waterboom','s_jet','s_die0','s_die1','s_die2','s_throw','s_missile','s_missile_loop','s_nuke','s_case','s_radio','s_cry','s_death','s_switch','s_glass','s_power','s_beam','s_lock','s_dozer','s_m4','s_mg']; // (Matt, 29 Oct) s_switch: his old light switch, one flip (nuke keys + red button); s_glass: his bottle break (the glass over the button); s_power: his power-down clip (each laser zap, the platform powering down); s_beam: 'super erasism beam' (the beam itself); s_lock: 'target acquired' // s_death: Matt's "I am become death" clip after a nuclear detonation // Matt's 27 Oct batch: s_case = military case latch (menu buttons), s_radio = 'engaging enemy' (air strike called), s_cry = battle cry (operation start), s_cannon = his heavy shot (tank gun), m_drums = Royal Marine drummers (briefings) // s_heli: Matt's helicopter recording (loop cut from its steady middle); s_missile(+_loop): his missile-firing clip for the strike launcher // s_die0-2: Matt's dying-sound recording cut into 3 cries; s_throw: his grunt clip for grenade throws
@@ -5899,16 +5945,19 @@ function newGame(mode,seed,demo=false){
   if(!demo){if(G.op){setTimeout(()=>{if(G&&!G.over&&!G.demo)sample('s_cry',.75,1);},700); /* the platoon's battle cry as the operation starts */note(0,`Operation ${opIndex+1}: ${G.op.name}`,'info',true);setTimeout(()=>note(0,G.op.brief,'info'),1600);if(G.flags[1].item)setTimeout(()=>note(0,`Objective: find and recover the ${G.flags[1].item.n}`,'good'),3400);}else for(const T of viewTeams)note(T,'Choose a vehicle. Find the enemy flag.','info',true);}
 }
 function endGame(){
+  rpSnap();
   if(!G)return;if(G.strike&&G.strike.orb)orbEnd(G.strike);if(G.strike&&G.strike.snd)G.strike.snd.stop();if(G.strike&&G.strike.raiseSnd)G.strike.raiseSnd.stop(.05);MSL_LIGHT.intensity=0;MSL_LIGHT.distance=260;renderer.toneMappingExposure=1.05;if(G.mslMap)closeStrikeMap(false);mslCineEnd();for(const v of G.views){v.engine?.stop();v.el?.remove();}for(const p of G.proj)freeMesh(p.k.geo,p.mesh);
   if(world){scene.remove(world);world.traverse(o=>{if(o.isMesh&&o.geometry&&!o.geometry.userData?.keep){if(o.isInstancedMesh)o.dispose();}});
     world.traverse(o=>{if(o.isMesh&&(o.parent===world)&&o.geometry.type!=='BufferGeometry')o.geometry.dispose();});}
   musicStop();G=null;
 }
 function gameOver(winner,how){
+  rpSnap();
   if(G.over)return;G.over=true;G.overInfo={winner,how};
   const flawless=!!(G.op&&!G.demo&&winner===0&&!G.lost&&!devActive());if(flawless)setStrikes(strikesBanked()+1); // banked right away, so quitting during the end screen can't lose it
   if(G.demo){setTimeout(()=>{if(state==='title')startDemo();},4000);return;}
   setTimeout(()=>{
+    if(!G)return;   // quit to the title inside this second and the game is already torn down
     const human=G.views.map(v=>v.team.team);let title,text;
     if(G.ls){const r=G.ls,mm=x=>Math.floor(x/60)+':'+String(Math.round(x%60)).padStart(2,'0');
       $('#oNext').hidden=true;$('#oOps').hidden=true;$('#oNew').hidden=true;$('#oAgain').textContent='Again';
@@ -6194,6 +6243,25 @@ function render(dt){
 // ---- (Matt, 2 Nov 2026) "playing now": while the game is open and on screen, a heartbeat every 30 s to /api/heartbeat (the poker site's
 // Admin screen lists whoever has pinged in the last minute: lobby name if they set one, what they're playing, how long, city, device)
 const HB={sid:null,t0:new Date().toISOString()};
+// What a problem report says the player was doing. The button lives on the title screen, so a match that
+// has already ended is remembered here (rpSnap, called as a game finishes): otherwise every crash report
+// would read "Title screen" and lose the one detail worth having.
+let RP_LAST=null;
+function rpMatch(){try{
+  if(!G)return null;
+  const m=G.ls?'Last Stand':G.op?`Operation ${opIndex+1}${CAMP===2?' (Black Tide)':''} · ${G.op.name}`:G.net?'Online match':G.views&&G.views.length>1?'2-player skirmish':'Skirmish';
+  return `${m} · map ${G.seed} · ${['easy','normal','hard'][opts.diff]||'normal'} · ${fmtTime(Math.floor(G.time))} in`;
+}catch(e){return null;}}
+function rpSnap(){const m=rpMatch();if(m)RP_LAST=m;}
+function rpWhere(){try{
+  if(G&&(state==='play'||state==='over'))return (rpMatch()||'in a match')+(state==='over'?' · finished':'');
+  const tail=RP_LAST?` (last played: ${RP_LAST})`:'';
+  if(state==='online')return 'Online lobby'+tail;
+  if(state==='ops')return 'Choosing an operation'+tail;
+  if(state==='story')return 'Reading a briefing'+tail;
+  if(state==='loading')return 'Still loading';
+  return 'Title screen'+tail;
+}catch(e){return 'unknown';}}
 function hbSid(){try{if(!HB.sid){HB.sid=sessionStorage.getItem('ironflag.sid');if(!HB.sid){HB.sid='s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);sessionStorage.setItem('ironflag.sid',HB.sid);}}}catch(e){HB.sid=HB.sid||'s'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);}return HB.sid;}
 function hbTick(){
   if(document.visibilityState!=='visible'||SPEC.watching)return;
@@ -6711,6 +6779,51 @@ $('#specQuit').onclick=()=>{voxStop();{const mi=$('#specMsg'),sb=$('#specSend');
    let on=false;try{on=localStorage.getItem('ironflag.nocount')==='1';if(on)localStorage.removeItem('ironflag.nocount');else localStorage.setItem('ironflag.nocount','1');}catch(e){}
    sfx('click');show(on?'Owner mode off — visits from this device count again':'Owner mode — visits from this device are not counted');});}
 // Developer mode switch (see DEV): tiny "dev" link under the credits on the title screen.
+// ---- Report a problem. Players are the only people who ever see most of the bugs, so the form carries
+// the things that are tedious to ask for afterwards: what they were playing, the browser, the GPU, the
+// screen, and any script errors the page caught. Nothing leaves the browser until they press Send.
+{const box=$('#rpBox'),ta=$('#rpMsg'),nm=$('#rpName'),out=$('#rpMsgOut'),send=$('#rpSend'),what=$('#rpWhat'),kinds=$('#rpKind');
+ let kind='other',busy=false;
+ kinds.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+   kind=b.dataset.v;kinds.querySelectorAll('button').forEach(o=>o.setAttribute('aria-pressed',o===b?'true':'false'));}));
+
+ const where=rpWhere;
+
+ const gpu=()=>{try{const gl=renderer&&renderer.getContext();if(!gl)return null;
+   const x=gl.getExtension('WEBGL_debug_renderer_info');
+   return x?String(gl.getParameter(x.UNMASKED_RENDERER_WEBGL)).slice(0,160):null;}catch(e){return null;}};
+
+ const device=()=>{const bits=[`${innerWidth}x${innerHeight}`,`dpr ${(devicePixelRatio||1).toFixed(1)}`,
+   opts.touch?'touch controls':'keyboard',LOWMEM?'low-memory assets':'full assets'];
+   if(navigator.deviceMemory)bits.push(navigator.deviceMemory+' GB');
+   if(navigator.hardwareConcurrency)bits.push(navigator.hardwareConcurrency+' cores');
+   return bits.join(' · ');};
+
+ const open=()=>{out.textContent='';out.className='';send.disabled=false;busy=false;
+   if(!nm.value){const cs=(()=>{try{return callSign();}catch(e){return '';}})();if(cs)nm.value=cs;}
+   what.textContent='Sent with it: '+where()+' — '+device()+(gpu()?' — '+gpu():'');
+   box.hidden=false;setTimeout(()=>ta.focus(),30);};
+ const shut=()=>{box.hidden=true;};
+ $('#rpBtn').addEventListener('click',open);
+ $('#rpCancel').addEventListener('click',shut);
+ box.addEventListener('pointerdown',e=>{if(e.target===box)shut();});
+ addEventListener('keydown',e=>{if(e.key==='Escape'&&!box.hidden){e.preventDefault();shut();}});
+
+ $('#rpForm').addEventListener('submit',async e=>{
+   e.preventDefault();if(busy)return;
+   const message=ta.value.trim();
+   if(message.length<4){out.className='';out.textContent='Tell me a little about what went wrong first.';ta.focus();return;}
+   busy=true;send.disabled=true;out.className='';out.textContent='Sending…';
+   const body={kind,message,name:nm.value.trim()||null,mode:where(),
+     version:DATA_V+' · '+document.lastModified,device:device(),gpu:gpu(),
+     errors:(window.__spErrs||[]).join(' | ')||null,sid:HB.sid,self:!!window.__noCount};
+   let ok=false;
+   try{const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json','X-SP-Key':'sp7f3a91c4e2'},body:JSON.stringify(body)});ok=r.ok;}catch(err){ok=false;}
+   if(ok){out.className='ok';out.textContent='Sent — thank you. I read every one of these.';
+     ta.value='';setTimeout(()=>{if(!box.hidden)shut();},1600);}
+   else{out.className='';out.textContent='That did not go through. Check your connection and try again.';send.disabled=false;}
+   busy=false;});
+}
 {const box=$('#devBox'),pw=$('#devPw'),msg=$('#devMsg'),go=$('#devGo');devLabel();
  const open=()=>{audioInit();box.hidden=false;if(DEV.on){msg.textContent='Developer mode is ON on this device: all operations open, unlimited armor, ammo, fuel, air strikes and missile strikes in Campaign and Skirmish (not Online).';pw.hidden=true;go.textContent='Turn off';}
    else{msg.textContent='';pw.hidden=false;pw.value='';go.textContent='Unlock';setTimeout(()=>pw.focus(),30);}};

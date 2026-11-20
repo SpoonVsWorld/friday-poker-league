@@ -2435,14 +2435,14 @@ function openStrikeMap(view,nuke){
   else if(nuke){if(!nukeReady()){if(G&&!nukeCount())note(0,`Nuclear strike needs ${NUKE.cost} banked missile strikes`,'warn');return;}}
   else if(!mslReady()){if(G&&G.op&&!mslCount())note(0,'No missile strikes banked — finish an operation without losing a vehicle','warn');return;}
   mslBuildUI();MM.nuke=!!nuke;MM.orb=orb;MM.site=nuke&&!orb?nukeSite():null;if(nuke&&!orb&&!MM.site){note(0,'No open water off your coast for the submarine','warn');return;}
-  MM.el.querySelector('.mtop b').textContent=orb?'Orbital strike':nuke?'Nuclear strike':'Missile strike';MM.el.classList.toggle('nukemap',!!nuke);MM.el.querySelector('.nkwarn').textContent=orb?'⚡ ORBITAL LASER · STARTS ON YOUR TARGET, THEN EVERY ENEMY STRUCTURE, VEHICLE AND SOLDIER ON THE ISLAND':'☢ NUCLEAR RELEASE · 60 m VAPORISED · 90 m LETHAL · 140 m FALLOUT · YOUR OWN FORCES IN THE ZONE WILL BE LOST';MM.armed=false;MM.keys=[false,false];MM.broken=false;MM.hits=0;if(MM.q2){MM.q2.keys.forEach(k=>k.classList.remove('on'));MM.q2.fire.disabled=true;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';}G.mslMap=true;MM.view=view;MM.img=islandSnapshot();MM.el.hidden=false;MM.z=1;MM.cx=0;MM.cz=0;MM.hover=null;MM.ptrs.clear();MM.pinch=null;MM.pinched=false;MM.drag=null;MM.txt={};
+  MM.el.querySelector('.mtop b').textContent=orb?'Orbital strike':nuke?'Nuclear strike':'Missile strike';MM.el.classList.toggle('nukemap',!!nuke);MM.el.querySelector('.nkwarn').textContent=orb?'⚡ ORBITAL LASER · STARTS ON YOUR TARGET, THEN EVERY ENEMY STRUCTURE, VEHICLE AND SOLDIER ON THE ISLAND':'☢ NUCLEAR RELEASE · 60 m VAPORISED · 90 m LETHAL · 140 m FALLOUT · YOUR OWN FORCES IN THE ZONE WILL BE LOST';MM.armed=false;MM.keys=[false,false];MM.broken=false;MM.hits=0;if(MM.q2){MM.q2.keys.forEach(k=>k.classList.remove('on'));MM.q2.fire.disabled=true;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';nukeGlassLabel('BREAK<br>GLASS');}G.mslMap=true;MM.view=view;MM.img=islandSnapshot();MM.el.hidden=false;MM.z=1;MM.cx=0;MM.cz=0;MM.hover=null;MM.ptrs.clear();MM.pinch=null;MM.pinched=false;MM.drag=null;MM.txt={};
   mslLayout();
   const lastP=MM.orb?MM.lastO:MM.nuke?MM.lastN:MM.last,last=lastP&&lastP.seed===G.seed?lastP:null;
   if(last)mslAim(last.x,last.z);else if(MM.orb){const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}else if(MM.nuke){const b=G.bases[1];mslAim(b.x,b.z);}else{const b=G.bases[1];const s=mslSnap(b.x,b.z,40);mslAim(s?s.x:b.x,s?s.z:b.z);}
   MM.z=clamp(.9/MM.fit,1,6);MM.cx=MM.tx;MM.cz=MM.tz;mslClamp(); // small screens open zoomed in on the target; pinch / wheel / ± to see the whole island
   const pads=navigator.getGamepads?[...navigator.getGamepads()].filter(Boolean):[];const pad=pads[0];MM.pad={};if(pad)for(const i of [0,1,4,5])MM.pad[i]=!!pad.buttons[i]?.pressed;
   MM.q.num.textContent=MM.orb?`×${orbCount()} ready · ${orbCost()} missile strikes each`:MM.nuke?`×${nukeCount()} ready · ${NUKE.cost} missile strikes each`:`×${mslCount()} ready`;
-  MM.q.help.innerHTML=MM.nuke?(opts.touch?'Drag to aim · turn both keys · break the glass · press the red button':'Aim · <kbd>Enter</kbd> key A, key B, break the glass (twice), fire · <kbd>Esc</kbd> cancel'):opts.touch?'Drag to aim · pinch to zoom':'Click a spot or building · wheel zoom · drag to pan · <kbd>Tab</kbd> next target · <kbd>Enter</kbd> launch · <kbd>Esc</kbd> cancel';
+  MM.q.help.innerHTML=MM.nuke?(opts.touch?'Drag to aim · turn both keys · break the glass (two hits) · press the red button':'Aim · <kbd>Enter</kbd> key A, key B, break the glass (twice), fire · <kbd>Esc</kbd> cancel'):opts.touch?'Drag to aim · pinch to zoom':'Click a spot or building · wheel zoom · drag to pan · <kbd>Tab</kbd> next target · <kbd>Enter</kbd> launch · <kbd>Esc</kbd> cancel';
   sfx('click');
 }
 function closeStrikeMap(cancel){if(!MM.el)return;MM.el.hidden=true;const gb=MM.el.querySelector('.mgo');if(gb)gb.disabled=false;if(G){G.mslMap=false;if(cancel)sfx('click');}MM.ptrs.clear();MM.pinch=null;MM.drag=null;}
@@ -2501,17 +2501,18 @@ function mslDraw(){
   if(MM.nuke&&MM.q2){const dis=!MM.armed||!MM.broken||tooClose;if(MM.q2.fire.disabled!==dis)MM.q2.fire.disabled=dis;}
   if(MM.txt.info!==info){MM.q.info.textContent=info;MM.txt.info=info;}
 }
+function nukeGlassLabel(txt){try{const g=MM&&MM.q2&&MM.q2.glass,s=g&&g.querySelector('span');if(s)s.innerHTML=txt;}catch(e){}}
 function nukeKey(i){ // two-man rule: both keys turned, then the glass, then the button
   if(!MM.nuke||!G||!G.mslMap)return;MM.keys=MM.keys||[false,false];MM.keys[i]=!MM.keys[i];MM.q2.keys[i].classList.toggle('on',MM.keys[i]);MM.armed=MM.keys[0]&&MM.keys[1];
-  if(!MM.armed&&MM.broken){MM.broken=false;MM.hits=0;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';}
+  if(!MM.armed&&MM.broken){MM.broken=false;MM.hits=0;MM.q2.glass.className='nkglass locked';MM.q2.glass.style.display='';nukeGlassLabel('BREAK<br>GLASS');}
   MM.q2.glass.classList.toggle('locked',!MM.armed);MM.q2.fire.disabled=!MM.armed||!MM.broken||nukeTooClose(MM.tx,MM.tz);
   if(!sample('s_switch',1,MM.keys[i]?1:.88)&&AU.ctx){tone(.3,.08,1400,500,'square');noiseHit(.25,.12,2500,900,'bandpass',1);}if(MM.armed&&AU.ctx)tone(.22,.5,880,880,'sine',.15);
   note(0,MM.armed?'BOTH KEYS TURNED — break the glass':MM.keys[i]?`Key ${i?'B':'A'} turned`:'Safe','warn');}
 function nukeGlass(){
   if(!MM.nuke||!G||!G.mslMap||MM.broken)return;if(!MM.armed){note(0,'Turn both keys first','warn');sfx('click');return;}
   MM.hits=(MM.hits||0)+1;const g=MM.q2.glass;g.style.transform='scale(.96)';setTimeout(()=>{g.style.transform='';},90);
-  if(MM.hits===1){g.classList.add('cracked');if(!sample('s_glass',.4,1.4)&&AU.ctx){noiseHit(.35,.09,4200,1800,'bandpass',2);tone(.15,.06,2600,900,'square');}note(0,'Cracked — hit it again','warn');return;}
-  MM.broken=true;g.classList.add('gone');if(!sample('s_glass',1,1)&&AU.ctx){noiseHit(.5,.35,3600,900,'bandpass',1.2);noiseHit(.3,.5,6000,2500,'highpass',.4,.05);for(let i=0;i<6;i++)tone(.05,.12,2000+Math.random()*4000,1500,'triangle',i*.04);}
+  if(MM.hits===1){g.classList.add('cracked');nukeGlassLabel('HIT<br>AGAIN');if(!sample('s_glass',.4,1.4)&&AU.ctx){noiseHit(.35,.09,4200,1800,'bandpass',2);tone(.15,.06,2600,900,'square');}note(0,'Cracked — hit it again','warn');return;}
+  MM.broken=true;g.classList.add('gone');nukeGlassLabel('BREAK<br>GLASS');if(!sample('s_glass',1,1)&&AU.ctx){noiseHit(.5,.35,3600,900,'bandpass',1.2);noiseHit(.3,.5,6000,2500,'highpass',.4,.05);for(let i=0;i<6;i++)tone(.05,.12,2000+Math.random()*4000,1500,'triangle',i*.04);}
   MM.q2.fire.disabled=!MM.armed||nukeTooClose(MM.tx,MM.tz);note(0,'GLASS BROKEN — press the red button to launch','bad',true);}
 function nukeArm(on){if(on){if(!MM.keys||!MM.keys[0])nukeKey(0);if(!MM.keys[1])nukeKey(1);}else{if(MM.keys&&MM.keys[0])nukeKey(0);if(MM.keys&&MM.keys[1])nukeKey(1);}}
 function mslGo(){

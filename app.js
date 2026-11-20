@@ -2435,8 +2435,8 @@
           return `
         <div class="visit-row${r.self ? " self" : ""}${r.done ? " muted" : ""}" data-report="${r.id}">
           <div class="visit-info">
-            <span class="visit-name">${r.done ? "✓ " : "🐞 "}${escapeHtml(kind)} — ${who}${r.self ? ' <span class="muted">(you / dev)</span>' : ""}</span>
-            <span class="visit-mode" style="white-space:pre-wrap;">${escapeHtml(r.message)}</span>
+            <span class="visit-name">${r.done ? "✓ " : "🐞 "}${escapeHtml(kind)} <span class="muted">from</span> ${who}${r.self ? ' <span class="muted">(you / dev)</span>' : ""}</span>
+            <span class="visit-mode" style="white-space:pre-wrap;display:block;margin:4px 0;padding-left:8px;border-left:2px solid rgba(255,255,255,.18);">${escapeHtml(r.message)}</span>
             <span class="visit-location">${tech || "no details"}</span>
             ${r.errors ? `<span class="visit-location" style="color:#e0a0a0;">errors: ${escapeHtml(r.errors)}</span>` : ""}
             <span class="visit-ip">${escapeHtml(formatVisitLocation(r))} · ${escapeHtml(r.ip_address || "unknown IP")} · ${escapeHtml(when)}</span>
